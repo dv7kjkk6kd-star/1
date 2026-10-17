@@ -4,8 +4,7 @@
 <title>Deník obchodů</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script></head>
-<body><main>
-<nav class="top"><a href="index.html">Ranní briefing</a><a href="journal.html" aria-current="page">Deník obchodů</a></nav>
+<body><div class="app"><aside class="side"><div class="brand">Obchodní cockpit</div><nav><a href="index.html"><span>🏠</span>Přehled</a><a href="premarket.html"><span>🌅</span>Premarket</a><a href="fundament.html"><span>📰</span>Fundament</a><a href="kalendar.html"><span>📅</span>Kalendář</a><a href="sentiment.html"><span>💬</span>Sentiment</a><a href="plan.html"><span>🎯</span>Plán dne</a><a href="journal.html" aria-current="page"><span>📓</span>Deník obchodů</a></nav></aside><div class="content"><header class="pagehead"><h1>Deník obchodů</h1><p>Tvoje obchody, statistiky a poučení</p></header><main>
 <div class="head"><div class="tabs" role="tablist">
 <button role="tab" data-tab="over" aria-selected="true">Přehled</button><button role="tab" data-tab="trades" aria-selected="false">Obchody</button><button role="tab" data-tab="rep" aria-selected="false">Reporty</button></div>
 <button id="add" type="button">+ Přidat obchod</button></div>
@@ -26,7 +25,7 @@
 <div class="chips" id="f-emo"></div><div class="row"><button class="ghost sm" id="f-reset" type="button">Reset</button></div></section>
 <section class="p"><h2>Souhrn filtrovaných obchodů</h2><div class="kpis" id="rsum"></div>
 <div class="two" id="rbars"></div></section></div>
-</main>
+</main></div></div>
 
 <dialog id="dlg"><form id="f"><h2 id="dt">Nový obchod</h2><input type="hidden" name="id">
 <div class="grid">
@@ -36,6 +35,7 @@
 <label>Vstup<input name="entry" type="number" step="any" required></label><label>Stop<input name="stop" type="number" step="any" required></label>
 <label>Cíl<input name="target" type="number" step="any" required></label><label>Výstup<input name="exit" type="number" step="any"></label>
 <label>Poplatky ($)<input name="fee" type="number" step="any"></label><label>Strategie<input name="strat" list="strs"></label></div><datalist id="strs"></datalist>
+<div class="grid" style="margin-top:12px"><label>Dodržel jsem plán?<select name="plan"><option value="">–</option><option value="ano">Ano</option><option value="ne">Ne</option></select></label><label>Hodnocení obchodu<select name="rate"><option value="">–</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></label></div><label style="margin-top:12px">Chyby</label><div class="chips" id="d-mis"></div>
 <label style="margin-top:12px">Emoce</label><div class="chips" id="d-emo"></div>
 <label style="margin-top:12px">Poznámky<textarea name="notes" rows="3"></textarea></label>
 <label style="margin-top:12px">Screenshoty (soubory nebo vložení přes Ctrl+V)<input name="shot" type="file" accept="image/*" multiple></label>
@@ -46,6 +46,7 @@
 <script>
 if (window.Chart) { Chart.defaults.color = "#8A94AD"; Chart.defaults.borderColor = "rgba(255,255,255,.07)"; Chart.defaults.font.family = '"IBM Plex Sans",system-ui,sans-serif'; }
 const S = "trades", EMO = [["😌","Klid"],["💪","Sebevědomí"],["🏃","FOMO"],["🤑","Chamtivost"],["😨","Strach"],["😡","Revenge"],["⏱️","Netrpělivost"],["😕","Nejistota"],["🤯","Tilt"],["😴","Nuda"]];
+const MIS = ["Brzký vstup","Pozdní vstup","Přesunutý stop","Předčasný výstup","Přeobchodování","Bez setupu","FOMO","Revenge obchod","Moc velká pozice"];
 const PV = {NQ:20, MNQ:2, ES:50, MES:5, YM:5, MYM:0.5};
 let eq = null, db, shots = [], calD = new Date(), E = Object.create(null);
 const $ = id => document.getElementById(id), sum = a => a.reduce((x, y) => x + y, 0);
@@ -137,7 +138,9 @@ function reports() {
   $("rbars").innerHTML = bars("Podle hodiny otevření", [...Array(24).keys()].map(h => [String(h).padStart(2, "0") + ":00", list.filter(t => hr(t) === h)])) +
     bars("Podle dne v týdnu", ["Po","Út","St","Čt","Pá","So","Ne"].map((n, i) => [n, list.filter(t => wd(t) === i)])) +
     bars("Podle emoce", EMO.map(([i, n]) => [i + " " + n, list.filter(t => (t.emo || []).includes(n))])) +
-    bars("Podle strategie", [...new Set(list.map(t => t.strat).filter(Boolean))].map(n => [n, list.filter(t => t.strat === n)]));
+    bars("Podle strategie", [...new Set(list.map(t => t.strat).filter(Boolean))].map(n => [n, list.filter(t => t.strat === n)])) +
+    bars("Podle dodržení plánu", [["Dodržel plán", list.filter(t => t.plan === "ano")], ["Nedodržel plán", list.filter(t => t.plan === "ne")]]) +
+    bars("Podle chyby", MIS.map(n => [n, list.filter(t => (t.mis || []).includes(n))]));
 }
 
 let ALL = [];
@@ -156,7 +159,7 @@ async function render() {
 }
 
 const chips = (box, name) => $(box).innerHTML = EMO.map(([i, n]) => `<label class="chip"><input type="checkbox" ${name ? `name="${name}"` : ""} value="${n}">${i} ${n}</label>`).join("");
-chips("d-emo", "emo"); chips("f-emo");
+chips("d-emo", "emo"); $("d-mis").innerHTML = MIS.map(n => `<label class="chip"><input type="checkbox" name="mis" value="${n}">${n}</label>`).join(""); chips("f-emo");
 document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => {
   document.querySelectorAll(".tabs button").forEach(x => x.setAttribute("aria-selected", x === b));
   ["over", "trades", "rep"].forEach(k => $("t-" + k).hidden = k !== b.dataset.tab); });
@@ -166,8 +169,9 @@ $("f-reset").onclick = () => { document.querySelectorAll("#flt input,#flt select
 function dlg(t) {
   const f = $("f"); f.reset(); shots = t ? [...imgs(t)] : [];
   $("dt").textContent = t ? "Upravit obchod" : "Nový obchod"; f.elements.opened.value = localNow();
-  if (t) { for (const k of ["id","opened","closed","inst","dir","size","pv","entry","stop","target","exit","fee","strat","notes"]) f.elements[k].value = (k === "opened" ? when(t) : t[k]) ?? "";
-    f.querySelectorAll('[name=emo]').forEach(c => c.checked = (t.emo || []).includes(c.value)); }
+  if (t) { for (const k of ["id","opened","closed","inst","dir","size","pv","entry","stop","target","exit","fee","strat","plan","rate","notes"]) f.elements[k].value = (k === "opened" ? when(t) : t[k]) ?? "";
+    f.querySelectorAll('[name=emo]').forEach(c => c.checked = (t.emo || []).includes(c.value));
+    f.querySelectorAll('[name=mis]').forEach(c => c.checked = (t.mis || []).includes(c.value)); }
   $("shotinfo").textContent = shots.length ? shots.length + " screenshotů uloženo." : ""; $("dlg").showModal();
 }
 $("add").onclick = () => dlg(); $("cancel").onclick = () => $("dlg").close();
@@ -178,7 +182,8 @@ $("f").onsubmit = async e => {
   e.preventDefault(); const f = e.target.elements, n = k => f[k].value === "" ? null : parseFloat(f[k].value);
   const t = {opened: f.opened.value, closed: f.closed.value || null, inst: f.inst.value.toUpperCase(), dir: f.dir.value, size: n("size") || 1, pv: n("pv"),
     entry: n("entry"), stop: n("stop"), target: n("target"), exit: n("exit"), fee: n("fee"), strat: f.strat.value.trim(), notes: f.notes.value,
-    emo: [...e.target.querySelectorAll("[name=emo]:checked")].map(c => c.value), shots};
+    emo: [...e.target.querySelectorAll("[name=emo]:checked")].map(c => c.value), plan: f.plan.value, rate: n("rate"),
+    mis: [...e.target.querySelectorAll("[name=mis]:checked")].map(c => c.value), shots};
   if (f.id.value) t.id = parseInt(f.id.value);
   await tx("readwrite", s => s.put(t)); $("dlg").close(); render();
 };
@@ -188,7 +193,7 @@ document.addEventListener("click", async e => {
   if (a === "edit") dlg(t);
   else if (a === "del") { if (confirm("Smazat tento obchod?")) { await tx("readwrite", s => s.delete(t.id)); render(); } }
   else if (a === "close") { const v = parseFloat(String(prompt("Výstupní cena?") || "").replace(",", ".")); if (!isNaN(v)) { t.exit = v; t.closed = localNow(); await tx("readwrite", s => s.put(t)); render(); } }
-  else if (a === "view") { $("vbody").innerHTML = `<h2>${esc(t.inst)} ${t.dir}, ${esc(when(t).replace("T", " "))}</h2><p>${esc(t.notes || "Bez poznámky.")}</p>`;
+  else if (a === "view") { $("vbody").innerHTML = `<h2>${esc(t.inst)} ${t.dir}, ${esc(when(t).replace("T", " "))}</h2><p>${esc(t.notes || "Bez poznámky.")}</p><p>Plán: ${t.plan || "–"} | Hodnocení: ${t.rate || "–"} | Chyby: ${esc((t.mis || []).join(", ") || "žádné")}</p>`;
     imgs(t).forEach(im => { const i = document.createElement("img"); i.src = URL.createObjectURL(im); i.alt = "Screenshot obchodu"; $("vbody").appendChild(i); }); $("view").showModal(); }
 });
 
