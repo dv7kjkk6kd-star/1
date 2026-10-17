@@ -88,6 +88,53 @@ def bias(rows):
     return "Bearish", a
 
 
+MESICE = ["lednu", "únoru", "březnu", "dubnu", "květnu", "červnu", "červenci", "srpnu", "září", "říjnu", "listopadu", "prosinci"]
+
+
+def seasonality():
+    """Vlastní jednoduchá sezónnost: jak se Nasdaq 100 choval v tomto měsíci v minulých letech."""
+    try:
+        s = yf.download("^NDX", period="15y", interval="1d", progress=False)["Close"].squeeze().dropna()
+        m = s.groupby([s.index.year, s.index.month]).last().pct_change().dropna()
+        now = datetime.now(PRAGUE)
+        x = [v * 100 for (y, mo), v in m.items() if mo == now.month and y != now.year]
+        if len(x) < 5:
+            return None
+        return (f"Sezónnost: v {MESICE[now.month - 1]} Nasdaq 100 za posledních {len(x)} let průměrně "
+                f"{pc(sum(x) / len(x))} a rostl v {num(sum(1 for v in x if v > 0) / len(x) * 100, 0)}{NB}% let.")
+    except Exception as e:
+        print("Sezónnost se nepodařilo spočítat:", e)
+        return None
+
+
+def scenario(label, share):
+    low = label.lower()
+    if "bullish" in low and share >= 0.6:
+        return "Čekané otevření: pokračování nahoru. Sleduj, jestli Nasdaq po otevření drží nad otevírací cenou."
+    if "bearish" in low and share <= 0.4:
+        return "Čekané otevření: pokračování dolů. Sleduj, jestli Nasdaq po otevření drží pod otevírací cenou."
+    return "Futures a akcie spolu úplně nesouhlasí, takže otevření je nejisté. Počkej na první reakci trhu."
+
+
+WIDGETS = """<div id="tv"></div><script>
+const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+[["technical-analysis", {symbol: "CME_MINI:NQ1!", interval: "15m", height: 420, showIntervalTabs: true, displayMode: "single"}, "Technický signál pro NQ (nákup nebo prodej)"],
+ ["stock-heatmap", {exchanges: [], dataSource: "NASDAQ100", grouping: "sector", blockSize: "market_cap_basic", blockColor: "change", hasTopBar: false, isZoomEnabled: true, hasSymbolTooltip: true, height: 480}, "Mapa akcií Nasdaq 100 (zelená roste, červená klesá)"],
+ ["timeline", {feedMode: "market", market: "stock", displayMode: "regular", height: 480}, "Aktuální zprávy"]
+].forEach(([name, cfg, title]) => {
+  const sec = document.createElement("section");
+  sec.innerHTML = "<h2></h2><div class='tradingview-widget-container'></div>";
+  sec.querySelector("h2").textContent = title;
+  const sc = document.createElement("script");
+  sc.src = "https://s3.tradingview.com/external-embedding/embed-widget-" + name + ".js";
+  sc.async = true;
+  sc.text = JSON.stringify({colorTheme: dark ? "dark" : "light", width: "100%", locale: "cs", isTransparent: false, ...cfg});
+  sec.lastChild.appendChild(sc);
+  document.getElementById("tv").appendChild(sec);
+});
+</script><p class="empty">Rámečky výše poskytuje TradingView. Pokud se nenačtou, zkontroluj, jestli je neblokuje doplněk prohlížeče.</p>"""
+
+
 CSS = """
 :root{--bg:#EEF2F5;--ink:#14202B;--muted:#5B6B79;--rule:#D3DCE3;--up:#0B7A6B;--down:#B3303C;color-scheme:light}
 @media (prefers-color-scheme:dark){:root{--bg:#0F1A22;--ink:#E6EDF2;--muted:#93A4B2;--rule:#243442;--up:#3CC4AE;--down:#F0707B;color-scheme:dark}}
@@ -149,6 +196,13 @@ def main():
     if vix:
         sub.append(f"VIX je na {num(vix['last'])} ({pc(vix['chg'])}), " +
                    ("strach na trhu roste." if vix["chg"] > 5 else "strach na trhu klesá." if vix["chg"] < -5 else "nálada je bez velkých změn."))
+    if pre:
+        up = sum(1 for r in pre if r["chg"] >= 0)
+        sub.append(f"V pre-marketu je v plusu {up} z {len(pre)} největších akcií.")
+        sub.append(scenario(label, up / len(pre)))
+    sea = seasonality()
+    if sea:
+        sub.append(sea)
     if cal:
         sub.append(f"Důležité zprávy z USA dnes: {len(cal)}.")
     x = " ".join(f'<a href="https://x.com/{escape(h)}">@{escape(h)}</a>' for h in cfg["x_accounts"])
@@ -159,8 +213,9 @@ def main():
 <nav><a href="index.html" aria-current="page">Ranní briefing</a><a href="journal.html">Deník obchodů</a></nav>
 <p class="lede">{escape(label)}</p><p class="sub">{escape(" ".join(sub))}</p>
 {quote_table("Futures a makro", q, "Data se nepodařilo stáhnout.")}
-{quote_table("Akcie v pre-marketu", pre, "Pre-market data zatím nejsou k dispozici, burza ještě neotevřela pre-market.")}
+{quote_table("Akcie v pre-marketu", pre, "Pre-market data zatím nejsou k dispozici (o víkendu a ve svátek se neobchoduje).")}
 {cal_section(cal)}
+{WIDGETS}
 <section><h2>Účty na X</h2><p>{x}</p></section>
 <footer><p>Vygenerováno {now}. Data: Yahoo Finance a Forex Factory, mohou mít zpoždění. Nálada je odvozená jen ze změny futures, není to obchodní signál ani investiční doporučení.</p></footer>
 </main></body></html>"""
