@@ -18,7 +18,9 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements.txt
-      - run: python briefing_v3.py
+      - name: Spustit nejnovější verzi
+        run: |
+          python "$(ls briefing_v*.py | sort -V | tail -1)"
       - run: |
           git config user.name "briefing-bot"
           git config user.email "briefing-bot@users.noreply.github.com"
