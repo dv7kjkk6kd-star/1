@@ -2,184 +2,209 @@
 <html lang="cs"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Deník obchodů</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400&display=swap" rel="stylesheet">
-<style>
-:root{--bg:#EEF2F5;--ink:#14202B;--muted:#5B6B79;--rule:#D3DCE3;--up:#0B7A6B;--down:#B3303C;--field:#fff;color-scheme:light}
-@media (prefers-color-scheme:dark){:root{--bg:#0F1A22;--ink:#E6EDF2;--muted:#93A4B2;--rule:#243442;--up:#3CC4AE;--down:#F0707B;--field:#16242E;color-scheme:dark}}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "IBM Plex Sans",system-ui,sans-serif}
-main{max-width:880px;margin:0 auto;padding:32px 20px 64px}
-nav{display:flex;gap:20px;margin-bottom:40px}nav a{color:var(--muted);text-decoration:none;padding:4px 0}
-nav a[aria-current]{color:var(--ink);border-bottom:2px solid var(--ink)}
-h2{font-size:18px;font-weight:600;margin:0 0 12px}
-section{margin-bottom:44px}
-.stats{display:flex;flex-wrap:wrap;gap:12px 40px;margin-bottom:16px}
-.stat b{display:block;font:400 34px/1.1 "Newsreader",Georgia,serif}.stat span{color:var(--muted);font-size:14px}
-.up{color:var(--up)}.down{color:var(--down)}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
-label{display:block;font-size:14px;color:var(--muted)}
-input,select,textarea,button{font:inherit;color:var(--ink)}
-input,select,textarea{width:100%;margin-top:4px;padding:8px 10px;background:var(--field);border:1px solid var(--rule);border-radius:6px}
-button{padding:9px 16px;background:var(--ink);color:var(--bg);border:0;border-radius:6px;cursor:pointer;font-weight:500}
-button.ghost{background:transparent;color:var(--ink);border:1px solid var(--rule)}
-:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
-.out{margin-top:12px;color:var(--muted)}.out b{color:var(--ink)}
-.trade{display:grid;grid-template-columns:1fr auto;gap:8px 16px;padding:16px 0;border-bottom:1px solid var(--rule)}
-.trade p{margin:4px 0 0;color:var(--muted);white-space:pre-wrap}
-.trade img{max-width:100%;max-height:260px;margin-top:10px;border-radius:6px;cursor:zoom-in}
-.r{font:400 28px/1 "Newsreader",Georgia,serif;text-align:right}
-.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
-svg.curve{width:100%;height:90px;color:var(--ink)}
-.empty{color:var(--muted)}
-</style></head>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script></head>
 <body><main>
-<nav><a href="index.html">Ranní briefing</a><a href="journal.html" aria-current="page">Deník obchodů</a></nav>
+<nav class="top"><a href="index.html">Ranní briefing</a><a href="journal.html" aria-current="page">Deník obchodů</a></nav>
+<div class="head"><div class="tabs" role="tablist">
+<button role="tab" data-tab="over" aria-selected="true">Přehled</button><button role="tab" data-tab="trades" aria-selected="false">Obchody</button><button role="tab" data-tab="rep" aria-selected="false">Reporty</button></div>
+<button id="add" type="button">+ Přidat obchod</button></div>
 
-<section><h2>Výsledky</h2><div class="stats" id="stats"></div><div id="curve"></div></section>
+<div id="t-over"><div class="kpis" id="kpis"></div>
+<section class="p"><h2>Vývoj zisku (najeď myší na graf)</h2><div id="curve"></div></section>
+<section class="p"><div class="calhead"><button class="ghost sm" onclick="mv(-1)" aria-label="Předchozí měsíc">‹</button><b id="calt"></b><button class="ghost sm" onclick="mv(1)" aria-label="Další měsíc">›</button><span id="calsum"></span></div><div class="cal" id="cal"></div></section></div>
 
-<section><h2>Kalkulačka velikosti pozice</h2>
-<div class="grid">
-<label>Účet<input id="c-acc" type="number" step="any" value="10000"></label>
-<label>Riziko na obchod (%)<input id="c-risk" type="number" step="any" value="1"></label>
-<label>Vstup<input id="c-entry" type="number" step="any"></label>
-<label>Stop<input id="c-stop" type="number" step="any"></label>
-<label>Hodnota bodu na kontrakt<input id="c-pv" type="number" step="any" value="1"></label>
-</div><p class="out" id="c-out">Vyplň vstup a stop.</p></section>
+<div id="t-trades" hidden><section class="p"><h2>Otevřené pozice</h2><div id="open"></div></section>
+<section class="p"><h2>Všechny obchody</h2><div id="list"></div>
+<div class="row"><button class="ghost" id="exp" type="button">Zálohovat do souboru</button><button class="ghost" id="imp" type="button">Obnovit ze zálohy</button><input id="impf" type="file" accept="application/json" hidden></div>
+<p class="empty">Obchody se ukládají jen v tomto prohlížeči na tomto zařízení. Zálohuj je pravidelně.</p></section></div>
 
-<section><h2>Nový obchod</h2>
-<form id="f"><div class="grid">
-<label>Datum<input name="date" type="date" required></label>
-<label>Instrument<input name="inst" value="NQ" required></label>
-<label>Směr<select name="dir"><option value="long">Long</option><option value="short">Short</option></select></label>
-<label>Vstup<input name="entry" type="number" step="any" required></label>
-<label>Stop<input name="stop" type="number" step="any" required></label>
-<label>Cíl<input name="target" type="number" step="any" required></label>
-<label>Výstup (až po uzavření)<input name="exit" type="number" step="any"></label>
-<label>Velikost (kontrakty/akcie)<input name="size" type="number" step="any"></label>
-</div>
-<label style="margin-top:12px">Poznámky: setup, emoce, co jsem se naučil<textarea name="notes" rows="3"></textarea></label>
-<label style="margin-top:12px">Screenshot z grafu (vyber soubor nebo ho vlož přes Ctrl+V)<input name="shot" type="file" accept="image/*"></label>
-<p class="out" id="shotinfo"></p>
-<div class="row"><button type="submit">Uložit obchod</button></div>
-</form></section>
-
-<section><h2>Obchody</h2><div id="list"></div>
-<div class="row"><button class="ghost" id="exp" type="button">Zálohovat do souboru</button>
-<button class="ghost" id="imp" type="button">Obnovit ze zálohy</button><input id="impf" type="file" accept="application/json" hidden></div>
-<p class="out">Obchody se ukládají jen v tomto prohlížeči na tomto zařízení. Zálohuj je pravidelně.</p></section>
+<div id="t-rep" hidden><section class="p"><h2>Filtry</h2><div class="grid" id="flt">
+<label>Od<input type="date" id="f-from"></label><label>Do<input type="date" id="f-to"></label>
+<label>Symbol<select id="f-sym"></select></label><label>Směr<select id="f-dir"><option value="">Oba</option><option value="long">Long</option><option value="short">Short</option></select></label>
+<label>Výsledek<select id="f-res"><option value="">Všechny</option><option value="w">Výhry</option><option value="l">Prohry</option></select></label><label>Strategie<select id="f-str"></select></label></div>
+<div class="chips" id="f-emo"></div><div class="row"><button class="ghost sm" id="f-reset" type="button">Reset</button></div></section>
+<section class="p"><h2>Souhrn filtrovaných obchodů</h2><div class="kpis" id="rsum"></div>
+<div class="two" id="rbars"></div></section></div>
 </main>
+
+<dialog id="dlg"><form id="f"><h2 id="dt">Nový obchod</h2><input type="hidden" name="id">
+<div class="grid">
+<label>Otevřeno<input name="opened" type="datetime-local" required></label><label>Zavřeno (po uzavření)<input name="closed" type="datetime-local"></label>
+<label>Instrument<input name="inst" value="NQ" required></label><label>Směr<select name="dir"><option value="long">Long</option><option value="short">Short</option></select></label>
+<label>Množství<input name="size" type="number" step="any" value="1"></label><label>Hodnota bodu ($)<input name="pv" type="number" step="any" placeholder="auto (NQ 20)"></label>
+<label>Vstup<input name="entry" type="number" step="any" required></label><label>Stop<input name="stop" type="number" step="any" required></label>
+<label>Cíl<input name="target" type="number" step="any" required></label><label>Výstup<input name="exit" type="number" step="any"></label>
+<label>Poplatky ($)<input name="fee" type="number" step="any"></label><label>Strategie<input name="strat" list="strs"></label></div><datalist id="strs"></datalist>
+<label style="margin-top:12px">Emoce</label><div class="chips" id="d-emo"></div>
+<label style="margin-top:12px">Poznámky<textarea name="notes" rows="3"></textarea></label>
+<label style="margin-top:12px">Screenshoty (soubory nebo vložení přes Ctrl+V)<input name="shot" type="file" accept="image/*" multiple></label>
+<p class="empty" id="shotinfo"></p>
+<div class="row"><button type="submit">Uložit</button><button type="button" class="ghost" id="cancel">Zrušit</button></div></form></dialog>
+<dialog id="view"><div id="vbody"></div><div class="row"><button class="ghost" onclick="this.closest('dialog').close()">Zavřít</button></div></dialog>
+
 <script>
-const S = "trades";
-let db, pending = null;
-const $ = id => document.getElementById(id);
+if (window.Chart) { Chart.defaults.color = "#8A94AD"; Chart.defaults.borderColor = "rgba(255,255,255,.07)"; Chart.defaults.font.family = '"IBM Plex Sans",system-ui,sans-serif'; }
+const S = "trades", EMO = [["😌","Klid"],["💪","Sebevědomí"],["🏃","FOMO"],["🤑","Chamtivost"],["😨","Strach"],["😡","Revenge"],["⏱️","Netrpělivost"],["😕","Nejistota"],["🤯","Tilt"],["😴","Nuda"]];
+const PV = {NQ:20, MNQ:2, ES:50, MES:5, YM:5, MYM:0.5};
+let eq = null, db, shots = [], calD = new Date(), E = Object.create(null);
+const $ = id => document.getElementById(id), sum = a => a.reduce((x, y) => x + y, 0);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const fmt = (x, d = 2) => x.toLocaleString("cs-CZ", {maximumFractionDigits: d});
-const sg = x => (x >= 0 ? "+" : "\u2212") + fmt(Math.abs(x));
+const nf = (x, d = 0) => x.toLocaleString("cs-CZ", {maximumFractionDigits: d});
+const sg = (x, d = 0) => (x >= 0 ? "+" : "\u2212") + nf(Math.abs(x), d), usd = x => sg(x) + "\u00a0$", cl = x => x >= 0 ? "up" : "down";
+const localNow = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); };
 
-function open() {
-  return new Promise((res, rej) => {
-    const r = indexedDB.open("journal", 1);
-    r.onupgradeneeded = () => r.result.createObjectStore(S, {keyPath: "id", autoIncrement: true});
-    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
-  });
-}
-function tx(mode, fn) {
-  return new Promise((res, rej) => {
-    const t = db.transaction(S, mode), o = fn(t.objectStore(S));
-    t.oncomplete = () => res(o && o.result); t.onerror = () => rej(t.error);
-  });
-}
-const all = () => tx("readonly", s => s.getAll());
+const open = () => new Promise((res, rej) => { const r = indexedDB.open("journal", 1);
+  r.onupgradeneeded = () => r.result.createObjectStore(S, {keyPath: "id", autoIncrement: true}); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+const tx = (m, f) => new Promise((res, rej) => { const t = db.transaction(S, m), o = f(t.objectStore(S)); t.oncomplete = () => res(o && o.result); t.onerror = () => rej(t.error); });
 
-const dir = t => t.dir === "short" ? -1 : 1;
+const dir = t => t.dir === "short" ? -1 : 1, when = t => t.opened || t.date + "T00:00", day = t => when(t).slice(0, 10);
+const imgs = t => t.shots || (t.shot ? [t.shot] : []);
+const pnl = t => t.exit == null ? null : (t.exit - t.entry) * dir(t) * (t.size || 1) * (t.pv || PV[t.inst] || 1) - (t.fee || 0);
 const risk = t => Math.abs(t.entry - t.stop);
-const plan = t => risk(t) ? Math.abs(t.target - t.entry) / risk(t) : null;
 const real = t => (t.exit != null && risk(t)) ? (t.exit - t.entry) * dir(t) / risk(t) : null;
+const plan = t => risk(t) ? Math.abs(t.target - t.entry) / risk(t) : null;
 
-function stats(trades) {
-  const done = trades.filter(t => real(t) !== null).sort((a, b) => a.date.localeCompare(b.date));
-  const rs = done.map(real), total = rs.reduce((a, b) => a + b, 0);
-  const wins = rs.filter(r => r > 0).length;
-  const plans = trades.map(plan).filter(p => p !== null);
-  const items = [
-    ["Uzavřené obchody", done.length],
-    ["Úspěšnost", done.length ? fmt(wins / done.length * 100, 0) + "\u00a0%" : "–"],
-    ["Průměr na obchod", done.length ? `<span class="${total >= 0 ? "up" : "down"}">${sg(total / done.length)}\u00a0R</span>` : "–"],
-    ["Celkem", done.length ? `<span class="${total >= 0 ? "up" : "down"}">${sg(total)}\u00a0R</span>` : "–"],
-    ["Plánovaný R:R v průměru", plans.length ? "1:" + fmt(plans.reduce((a, b) => a + b, 0) / plans.length) : "–"],
-  ];
-  $("stats").innerHTML = items.map(([l, v]) => `<div class="stat"><b>${v}</b><span>${l}</span></div>`).join("");
-  if (rs.length < 2) { $("curve").innerHTML = ""; return; }
-  let c = 0; const pts = [0, ...rs.map(r => (c += r))];
-  const lo = Math.min(...pts), hi = Math.max(...pts), rng = (hi - lo) || 1;
-  const p = pts.map((v, i) => `${(i / (pts.length - 1) * 400).toFixed(1)},${(56 - (v - lo) / rng * 52).toFixed(1)}`).join(" ");
-  $("curve").innerHTML = `<svg class="curve" viewBox="0 0 400 60" preserveAspectRatio="none" role="img" aria-label="Vývoj výsledku v R"><polyline points="${p}" fill="none" stroke="currentColor" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>`;
+function st(list) {
+  const d = list.filter(t => pnl(t) !== null).sort((a, b) => when(a).localeCompare(when(b))), p = d.map(pnl);
+  const w = p.filter(x => x > 0), l = p.filter(x => x < 0), net = sum(p);
+  let c = 0, pk = 0, dd = 0, ws = 0, ls = 0, mw = 0, ml = 0;
+  p.forEach(x => { c += x; pk = Math.max(pk, c); dd = Math.min(dd, c - pk);
+    if (x > 0) { ws++; ls = 0; } else if (x < 0) { ls++; ws = 0; } else ws = ls = 0; mw = Math.max(mw, ws); ml = Math.max(ml, ls); });
+  const days = {}; d.forEach(t => days[day(t)] = (days[day(t)] || 0) + pnl(t));
+  const dv = Object.values(days), rs = d.map(real).filter(x => x !== null);
+  const hs = d.filter(t => t.closed && t.opened).map(t => (new Date(t.closed) - new Date(t.opened)) / 60000);
+  return {d, p, n: d.length, net, win: w.length, loss: l.length, be: p.length - w.length - l.length, days,
+    wr: d.length ? w.length / d.length * 100 : null, pf: l.length ? sum(w) / Math.abs(sum(l)) : null,
+    avgW: w.length ? sum(w) / w.length : 0, avgL: l.length ? sum(l) / l.length : 0, exp: d.length ? net / d.length : 0,
+    avgR: rs.length ? sum(rs) / rs.length : null, best: p.length ? Math.max(...p) : 0, worst: p.length ? Math.min(...p) : 0,
+    dd, mw, ml, dayWin: dv.length ? dv.filter(x => x > 0).length / dv.length * 100 : null, hold: hs.length ? sum(hs) / hs.length : null};
+}
+const K = (v, l) => `<div class="k"><b>${v}</b><span>${l}</span></div>`;
+const dash = "–";
+
+function over(trades) {
+  const s = st(trades);
+  $("kpis").innerHTML = K(`<span class="${cl(s.net)}">${usd(s.net)}</span>`, `Celkový zisk, ${s.n} obchodů`) +
+    K(s.wr == null ? dash : nf(s.wr, 1) + "\u00a0%", `Úspěšnost (${s.win} výher, ${s.loss} proher, ${s.be} BE)`) +
+    K(s.pf == null ? dash : nf(s.pf, 2), `Profit factor (prům. výhra ${nf(s.avgW)} $ / ztráta ${nf(Math.abs(s.avgL))} $)`) +
+    K(s.dayWin == null ? dash : nf(s.dayWin, 1) + "\u00a0%", "Ziskové dny") +
+    K(`<span class="down">${usd(s.dd)}</span>`, "Maximální drawdown");
+  if (eq) { eq.destroy(); eq = null; }
+  $("curve").innerHTML = s.n < 2 ? '<p class="empty">Graf se zobrazí od dvou uzavřených obchodů.</p>' : '<div class="chartbox"><canvas id="c-eq"></canvas></div>';
+  if (s.n >= 2 && window.Chart) { let c = 0; const cum = s.p.map(x => c += x);
+    eq = new Chart($("c-eq"), {type: "line", data: {labels: s.d.map(t => day(t)), datasets: [{data: cum, borderColor: "#7C6CFF", borderWidth: 2, tension: .3, fill: true, pointRadius: 0, pointHoverRadius: 5,
+      backgroundColor: x => { const g = x.chart.ctx.createLinearGradient(0, 0, 0, x.chart.height); g.addColorStop(0, "rgba(124,108,255,.35)"); g.addColorStop(1, "rgba(124,108,255,0)"); return g; }}]},
+      options: {maintainAspectRatio: false, interaction: {mode: "index", intersect: false}, plugins: {legend: {display: false}, tooltip: {callbacks: {label: x => "Celkem " + usd(x.parsed.y), afterLabel: x => "Tento obchod: " + usd(s.p[x.dataIndex])}}},
+      scales: {x: {ticks: {maxTicksLimit: 6}, grid: {display: false}}, y: {ticks: {callback: v => nf(v) + " $"}}}}}); }
+  const y = calD.getFullYear(), m = calD.getMonth(), pre = `${y}-${String(m + 1).padStart(2, "0")}`, off = (new Date(y, m, 1).getDay() + 6) % 7;
+  let h = ["Po","Út","St","Čt","Pá","So","Ne"].map(d => `<b class="dow">${d}</b>`).join("") + "<i></i>".repeat(off), tot = 0;
+  for (let d = 1; d <= new Date(y, m + 1, 0).getDate(); d++) { const v = s.days[`${pre}-${String(d).padStart(2, "0")}`]; if (v != null) tot += v;
+    h += `<div class="day ${v == null ? "" : cl(v)}"><span>${d}</span>${v == null ? "" : nf(v)}</div>`; }
+  $("cal").innerHTML = h; $("calt").textContent = calD.toLocaleString("cs-CZ", {month: "long", year: "numeric"});
+  $("calsum").innerHTML = `<span class="${cl(tot)}">${usd(tot)}</span>`;
+}
+const mv = n => { calD = new Date(calD.getFullYear(), calD.getMonth() + n, 1); render(); };
+
+const emoStr = t => (t.emo || []).map(e => (EMO.find(x => x[1] === e) || [""])[0]).join("");
+function table(rows, isOpen) {
+  if (!rows.length) return `<p class="empty">${isOpen ? "Žádná otevřená pozice." : "Zatím žádný obchod. Přidej první tlačítkem nahoře."}</p>`;
+  return `<div class="wrap"><table><thead><tr><th>Otevřeno</th><th>Symbol</th><th>Směr</th><th class="n">Mn.</th><th class="n">Vstup</th><th class="n">${isOpen ? "Stop" : "Výstup"}</th><th class="n">${isOpen ? "Cíl" : "Net P&amp;L"}</th><th class="n">${isOpen ? "R:R plán" : "R"}</th>${isOpen ? "" : '<th class="hide">Emoce</th><th class="hide">Strategie</th>'}<th></th></tr></thead><tbody>` +
+  rows.map(t => { const p = pnl(t), r = real(t);
+    return `<tr><td>${esc(when(t).replace("T", " "))}</td><td>${esc(t.inst)}</td><td>${t.dir === "short" ? "Short" : "Long"}</td><td class="n">${nf(t.size || 1, 2)}</td><td class="n">${nf(t.entry, 2)}</td>` +
+    (isOpen ? `<td class="n">${nf(t.stop, 2)}</td><td class="n">${nf(t.target, 2)}</td><td class="n">1:${nf(plan(t) || 0, 2)}</td>`
+      : `<td class="n">${nf(t.exit, 2)}</td><td class="n ${cl(p)}">${usd(p)}</td><td class="n">${r == null ? dash : sg(r, 2) + "R"}</td><td class="hide">${emoStr(t)}</td><td class="hide">${esc(t.strat || "")}</td>`) +
+    `<td class="n"><button class="ghost sm" data-a="view" data-id="${t.id}">${imgs(t).length ? "📷 " + imgs(t).length : "Detail"}</button> ` +
+    (isOpen ? `<button class="sm" data-a="close" data-id="${t.id}">Uzavřít</button> ` : "") +
+    `<button class="ghost sm" data-a="edit" data-id="${t.id}">Upravit</button> <button class="ghost sm" data-a="del" data-id="${t.id}">Smazat</button></td></tr>`; }).join("") + "</tbody></table></div>";
 }
 
+function bars(title, groups) {
+  const rows = groups.map(([k, ts]) => { const s = st(ts); return {k, net: s.net, n: s.n, wr: s.wr}; }).filter(r => r.n);
+  const mx = Math.max(1, ...rows.map(r => Math.abs(r.net)));
+  return `<div><h3>${title}</h3>` + (rows.length ? rows.map(r => `<div class="bar"><span>${esc(r.k)}</span><div class="track ${cl(r.net)}"><i style="width:${Math.abs(r.net) / mx * 100}%"></i></div><b class="${cl(r.net)}">${usd(r.net)} <em>${r.n}× · ${nf(r.wr)} %</em></b></div>`).join("") : '<p class="empty">Žádná data.</p>') + "</div>";
+}
+function reports() {
+  const g = id => $(id).value, em = [...document.querySelectorAll("#f-emo input:checked")].map(i => i.value);
+  const list = ALL.filter(t => pnl(t) !== null && (!g("f-from") || day(t) >= g("f-from")) && (!g("f-to") || day(t) <= g("f-to")) &&
+    (!g("f-sym") || t.inst === g("f-sym")) && (!g("f-dir") || t.dir === g("f-dir")) && (!g("f-str") || t.strat === g("f-str")) &&
+    (!g("f-res") || (g("f-res") === "w" ? pnl(t) > 0 : pnl(t) < 0)) && em.every(e => (t.emo || []).includes(e)));
+  const s = st(list);
+  $("rsum").innerHTML = K(`<span class="${cl(s.net)}">${usd(s.net)}</span>`, "Net P&L") + K(s.n, "Obchody") + K(s.wr == null ? dash : nf(s.wr, 1) + "\u00a0%", "Úspěšnost") +
+    K(s.pf == null ? dash : nf(s.pf, 2), "Profit factor") + K(s.avgR == null ? dash : sg(s.avgR, 2) + "R", "Průměrné R") + K(usd(s.exp), "Expectancy na obchod") +
+    K(usd(s.best), "Nejlepší") + K(usd(s.worst), "Nejhorší") + K(s.mw, "Série výher") + K(s.ml, "Série proher") + K(nf(s.avgW) + " $", "Prům. výhra") + K(s.hold == null ? dash : nf(s.hold, 0) + " min", "Prům. délka");
+  const hr = t => new Date(when(t)).getHours(), wd = t => (new Date(when(t)).getDay() + 6) % 7;
+  $("rbars").innerHTML = bars("Podle hodiny otevření", [...Array(24).keys()].map(h => [String(h).padStart(2, "0") + ":00", list.filter(t => hr(t) === h)])) +
+    bars("Podle dne v týdnu", ["Po","Út","St","Čt","Pá","So","Ne"].map((n, i) => [n, list.filter(t => wd(t) === i)])) +
+    bars("Podle emoce", EMO.map(([i, n]) => [i + " " + n, list.filter(t => (t.emo || []).includes(n))])) +
+    bars("Podle strategie", [...new Set(list.map(t => t.strat).filter(Boolean))].map(n => [n, list.filter(t => t.strat === n)]));
+}
+
+let ALL = [];
 async function render() {
-  const trades = await all();
-  stats(trades);
-  trades.sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
-  $("list").innerHTML = trades.length ? "" : '<p class="empty">Zatím žádný obchod. Přidej první formulářem výše.</p>';
-  trades.forEach(t => {
-    const r = real(t), p = plan(t), el = document.createElement("div");
-    el.className = "trade";
-    el.innerHTML = `<div><b>${esc(t.inst)} ${t.dir === "short" ? "short" : "long"}</b> <span class="empty">${esc(t.date)}</span>
-      <p>Vstup ${fmt(t.entry)}, stop ${fmt(t.stop)}, cíl ${fmt(t.target)}${t.exit != null ? ", výstup " + fmt(t.exit) : ", otevřený"}${p ? ", plán 1:" + fmt(p) : ""}${t.size ? ", velikost " + fmt(t.size) : ""}</p>
-      ${t.notes ? `<p>${esc(t.notes)}</p>` : ""}</div>
-      <div><div class="r ${r === null ? "" : r >= 0 ? "up" : "down"}">${r === null ? "–" : sg(r) + "\u00a0R"}</div>
-      <div class="row" style="justify-content:flex-end"><button class="ghost" data-id="${t.id}">Smazat</button></div></div>`;
-    if (t.shot) {
-      const img = document.createElement("img");
-      img.src = URL.createObjectURL(t.shot); img.alt = "Screenshot obchodu";
-      img.onclick = () => window.open(img.src);
-      el.firstElementChild.appendChild(img);
-    }
-    el.querySelector("button").onclick = async () => { if (confirm("Smazat tento obchod?")) { await tx("readwrite", s => s.delete(t.id)); render(); } };
-    $("list").appendChild(el);
-  });
+  ALL = await tx("readonly", s => s.getAll());
+  const rows = [...ALL].sort((a, b) => when(b).localeCompare(when(a)));
+  over(ALL);
+  $("open").innerHTML = table(rows.filter(t => t.exit == null), true);
+  $("list").innerHTML = table(rows.filter(t => t.exit != null), false);
+  const keep = [$("f-sym").value, $("f-str").value], opt = (a, all) => `<option value="">${all}</option>` + a.map(x => `<option>${esc(x)}</option>`).join("");
+  const strs = [...new Set(ALL.map(t => t.strat).filter(Boolean))];
+  $("f-sym").innerHTML = opt([...new Set(ALL.map(t => t.inst))], "Všechny"); $("f-str").innerHTML = opt(strs, "Všechny");
+  $("f-sym").value = keep[0]; $("f-str").value = keep[1];
+  $("strs").innerHTML = strs.map(s => `<option value="${esc(s)}">`).join("");
+  reports();
 }
 
-function calc() {
-  const g = id => parseFloat($(id).value), acc = g("c-acc"), rp = g("c-risk"), e = g("c-entry"), s = g("c-stop"), pv = g("c-pv");
-  if ([acc, rp, e, s, pv].some(isNaN) || e === s) { $("c-out").textContent = "Vyplň vstup a stop."; return; }
-  const money = acc * rp / 100, perUnit = Math.abs(e - s) * pv, size = money / perUnit;
-  $("c-out").innerHTML = `Riskuješ <b>${fmt(money)}</b>. Velikost pozice: <b>${fmt(size)}</b> (zaokrouhli dolů na ${fmt(Math.floor(size), 0)}). Cíl pro R:R 1:2 je <b>${fmt(e + (e - s) * 2)}</b>, pro 1:3 <b>${fmt(e + (e - s) * 3)}</b>.`;
-}
-document.querySelectorAll("[id^=c-]").forEach(i => i.addEventListener("input", calc));
+const chips = (box, name) => $(box).innerHTML = EMO.map(([i, n]) => `<label class="chip"><input type="checkbox" ${name ? `name="${name}"` : ""} value="${n}">${i} ${n}</label>`).join("");
+chips("d-emo", "emo"); chips("f-emo");
+document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".tabs button").forEach(x => x.setAttribute("aria-selected", x === b));
+  ["over", "trades", "rep"].forEach(k => $("t-" + k).hidden = k !== b.dataset.tab); });
+$("flt").addEventListener("input", reports); $("f-emo").addEventListener("input", reports);
+$("f-reset").onclick = () => { document.querySelectorAll("#flt input,#flt select").forEach(i => i.value = ""); document.querySelectorAll("#f-emo input").forEach(i => i.checked = false); reports(); };
 
-$("f").elements.date.valueAsDate = new Date();
-$("f").elements.shot.onchange = e => { pending = e.target.files[0] || null; $("shotinfo").textContent = pending ? "Screenshot připraven." : ""; };
-document.addEventListener("paste", e => {
-  const f = [...(e.clipboardData?.files || [])].find(f => f.type.startsWith("image/"));
-  if (f) { pending = f; $("shotinfo").textContent = "Screenshot vložen ze schránky."; }
-});
+function dlg(t) {
+  const f = $("f"); f.reset(); shots = t ? [...imgs(t)] : [];
+  $("dt").textContent = t ? "Upravit obchod" : "Nový obchod"; f.elements.opened.value = localNow();
+  if (t) { for (const k of ["id","opened","closed","inst","dir","size","pv","entry","stop","target","exit","fee","strat","notes"]) f.elements[k].value = (k === "opened" ? when(t) : t[k]) ?? "";
+    f.querySelectorAll('[name=emo]').forEach(c => c.checked = (t.emo || []).includes(c.value)); }
+  $("shotinfo").textContent = shots.length ? shots.length + " screenshotů uloženo." : ""; $("dlg").showModal();
+}
+$("add").onclick = () => dlg(); $("cancel").onclick = () => $("dlg").close();
+$("f").elements.shot.onchange = e => { shots.push(...e.target.files); $("shotinfo").textContent = shots.length + " screenshotů připraveno."; e.target.value = ""; };
+document.addEventListener("paste", e => { const f = [...(e.clipboardData?.files || [])].filter(f => f.type.startsWith("image/"));
+  if ($("dlg").open && f.length) { shots.push(...f); $("shotinfo").textContent = shots.length + " screenshotů připraveno."; } });
 $("f").onsubmit = async e => {
-  e.preventDefault();
-  const d = Object.fromEntries(new FormData(e.target)), n = k => d[k] === "" ? null : parseFloat(d[k]);
-  await tx("readwrite", s => s.add({date: d.date, inst: d.inst, dir: d.dir, entry: n("entry"), stop: n("stop"), target: n("target"),
-    exit: n("exit"), size: n("size"), notes: d.notes, shot: pending}));
-  e.target.reset(); e.target.elements.date.valueAsDate = new Date(); pending = null; $("shotinfo").textContent = "";
-  render();
+  e.preventDefault(); const f = e.target.elements, n = k => f[k].value === "" ? null : parseFloat(f[k].value);
+  const t = {opened: f.opened.value, closed: f.closed.value || null, inst: f.inst.value.toUpperCase(), dir: f.dir.value, size: n("size") || 1, pv: n("pv"),
+    entry: n("entry"), stop: n("stop"), target: n("target"), exit: n("exit"), fee: n("fee"), strat: f.strat.value.trim(), notes: f.notes.value,
+    emo: [...e.target.querySelectorAll("[name=emo]:checked")].map(c => c.value), shots};
+  if (f.id.value) t.id = parseInt(f.id.value);
+  await tx("readwrite", s => s.put(t)); $("dlg").close(); render();
 };
+
+document.addEventListener("click", async e => {
+  const b = e.target.closest("[data-a]"); if (!b) return; const t = ALL.find(x => x.id == b.dataset.id), a = b.dataset.a;
+  if (a === "edit") dlg(t);
+  else if (a === "del") { if (confirm("Smazat tento obchod?")) { await tx("readwrite", s => s.delete(t.id)); render(); } }
+  else if (a === "close") { const v = parseFloat(String(prompt("Výstupní cena?") || "").replace(",", ".")); if (!isNaN(v)) { t.exit = v; t.closed = localNow(); await tx("readwrite", s => s.put(t)); render(); } }
+  else if (a === "view") { $("vbody").innerHTML = `<h2>${esc(t.inst)} ${t.dir}, ${esc(when(t).replace("T", " "))}</h2><p>${esc(t.notes || "Bez poznámky.")}</p>`;
+    imgs(t).forEach(im => { const i = document.createElement("img"); i.src = URL.createObjectURL(im); i.alt = "Screenshot obchodu"; $("vbody").appendChild(i); }); $("view").showModal(); }
+});
 
 const toUrl = b => new Promise(r => { const f = new FileReader(); f.onload = () => r(f.result); f.readAsDataURL(b); });
 $("exp").onclick = async () => {
-  const trades = await all();
-  for (const t of trades) if (t.shot) t.shot = await toUrl(t.shot);
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([JSON.stringify(trades)], {type: "application/json"}));
+  const out = []; for (const t of ALL) out.push({...t, shot: undefined, shots: await Promise.all(imgs(t).map(toUrl))});
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(out)], {type: "application/json"}));
   a.download = "zaloha-denik-" + new Date().toISOString().slice(0, 10) + ".json"; a.click();
 };
 $("imp").onclick = () => $("impf").click();
 $("impf").onchange = async e => {
-  try {
-    const trades = JSON.parse(await e.target.files[0].text());
-    for (const t of trades) { if (t.shot) t.shot = await (await fetch(t.shot)).blob(); delete t.id; await tx("readwrite", s => s.add(t)); }
+  try { const ts = JSON.parse(await e.target.files[0].text());
+    for (const t of ts) { t.shots = await Promise.all((t.shots || []).map(async u => (await fetch(u)).blob())); delete t.id; await tx("readwrite", s => s.add(t)); }
     render();
   } catch { alert("Soubor se nepodařilo načíst. Je to záloha z tohoto deníku?"); }
   e.target.value = "";
 };
-
 open().then(d => { db = d; render(); });
 </script></body></html>

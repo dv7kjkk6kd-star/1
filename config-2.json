@@ -1,0 +1,40 @@
+{
+  "futures": {
+    "NQ=F": "Nasdaq 100 futures",
+    "ES=F": "S&P 500 futures"
+  },
+  "macro": {
+    "^VIX": "VIX (strach na trhu)",
+    "DX-Y.NYB": "Dolarový index",
+    "^TNX": "Výnos 10letých dluhopisů USA"
+  },
+  "stocks": {
+    "AAPL": "Apple",
+    "MSFT": "Microsoft",
+    "NVDA": "Nvidia",
+    "AMZN": "Amazon",
+    "GOOGL": "Alphabet",
+    "META": "Meta",
+    "TSLA": "Tesla",
+    "AVGO": "Broadcom",
+    "COST": "Costco",
+    "NFLX": "Netflix",
+    "AMD": "AMD",
+    "ADBE": "Adobe",
+    "PEP": "PepsiCo",
+    "CSCO": "Cisco",
+    "TMUS": "T-Mobile",
+    "QCOM": "Qualcomm",
+    "INTU": "Intuit",
+    "AMGN": "Amgen",
+    "TXN": "Texas Instruments",
+    "ISRG": "Intuitive Surgical"
+  },
+  "x_accounts": [
+    "elonmusk",
+    "unusual_whales",
+    "business",
+    "CNBC",
+    "realDonaldTrump"
+  ]
+}
