@@ -1,0 +1,6 @@
+{
+  "futures": {"NQ=F": "Nasdaq 100 futures", "ES=F": "S&P 500 futures"},
+  "macro": {"^VIX": "VIX (strach na trhu)", "DX-Y.NYB": "Dolarový index", "^TNX": "Výnos 10letých dluhopisů USA"},
+  "stocks": {"AAPL": "Apple", "MSFT": "Microsoft", "NVDA": "Nvidia", "AMZN": "Amazon", "GOOGL": "Alphabet", "META": "Meta", "TSLA": "Tesla"},
+  "x_accounts": ["DeItaone", "unusual_whales", "zerohedge", "financialjuice"]
+}
