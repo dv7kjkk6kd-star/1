@@ -4,13 +4,21 @@
 <title>Deník obchodů</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script></head>
-<body><div class="app"><aside class="side"><div class="brand">Obchodní cockpit</div><nav><a href="index.html"><span>🏠</span>Přehled</a><a href="premarket.html"><span>🌅</span>Premarket</a><a href="fundament.html"><span>📰</span>Fundament</a><a href="kalendar.html"><span>📅</span>Kalendář</a><a href="sentiment.html"><span>💬</span>Sentiment</a><a href="mindset.html"><span>🧘</span>Mindset</a><a href="plan.html"><span>🎯</span>Plán dne</a><a href="journal.html" aria-current="page"><span>📓</span>Deník obchodů</a></nav></aside><div class="content"><header class="pagehead"><h1>Deník obchodů</h1><p>Tvoje obchody, statistiky a poučení</p></header><main>
+<body><div class="app"><aside class="side"><div class="brand">Obchodní cockpit</div><nav><p class="grp">Ráno před obchodováním</p><a href="index.html"><span>🏠</span>Přehled</a><a href="premarket.html"><span>🌅</span>Premarket</a><a href="fundament.html"><span>📰</span>Fundament</a><a href="kalendar.html"><span>📅</span>Kalendář</a><a href="sentiment.html"><span>💬</span>Sentiment</a><p class="grp">Příprava</p><a href="mindset.html"><span>🧘</span>Mindset</a><a href="plan.html"><span>🎯</span>Plán dne</a><p class="grp">Obchodování</p><a href="journal.html" aria-current="page"><span>📓</span>Deník obchodů</a></nav><div class="clock"><span id="mks">Burza</span><b id="mk">–</b><span>podle času v New Yorku, svátky nezohledňuje</span></div></aside><script>(function(){var el=document.getElementById("mk"),sub=document.getElementById("mks");if(!el)return;
+var pad=function(n){return String(n).padStart(2,"0")},WD=["Mon","Tue","Wed","Thu","Fri"],ORD=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+function ny(){var o={};new Intl.DateTimeFormat("en-US",{timeZone:"America/New_York",hour12:false,weekday:"short",hour:"2-digit",minute:"2-digit",second:"2-digit"}).formatToParts(new Date()).forEach(function(x){o[x.type]=x.value});return{wd:o.weekday,s:(+o.hour%24)*3600+(+o.minute)*60+(+o.second)}}
+function tick(){var t=ny(),open=34200,close=57600,wk=WD.indexOf(t.wd)>=0,left,txt;
+if(wk&&t.s>=open&&t.s<close){left=close-t.s;txt="Burza je otevřená, zavře za"}
+else{var idx=ORD.indexOf(t.wd),d=(wk&&t.s<open)?0:1;while(WD.indexOf(ORD[(idx+d)%7])<0)d++;left=d*86400+open-t.s;txt="Burza otevře za"}
+el.textContent=pad(Math.floor(left/3600))+":"+pad(Math.floor(left%3600/60))+":"+pad(left%60);sub.textContent=txt}
+tick();setInterval(tick,1000)})();</script><div class="content"><header class="pagehead"><h1>Deník obchodů</h1><p>Tvoje obchody, statistiky a poučení</p></header><main>
 <div class="head"><div class="tabs" role="tablist">
 <button role="tab" data-tab="over" aria-selected="true">Přehled</button><button role="tab" data-tab="trades" aria-selected="false">Obchody</button><button role="tab" data-tab="rep" aria-selected="false">Reporty</button></div>
 <button id="add" type="button">+ Přidat obchod</button></div>
 
 <div id="t-over"><div class="kpis" id="kpis"></div>
 <section class="p"><h2>Vývoj zisku (najeď myší na graf)</h2><div id="curve"></div></section>
+<section class="p"><h2>Výsledek po dnech</h2><div class="chartbox" style="height:220px"><canvas id="c-day"></canvas></div></section>
 <section class="p"><div class="calhead"><button class="ghost sm" onclick="mv(-1)" aria-label="Předchozí měsíc">‹</button><b id="calt"></b><button class="ghost sm" onclick="mv(1)" aria-label="Další měsíc">›</button><span id="calsum"></span></div><div class="cal" id="cal"></div></section></div>
 
 <div id="t-trades" hidden><section class="p"><h2>Otevřené pozice</h2><div id="open"></div></section>
@@ -30,11 +38,12 @@
 <dialog id="dlg"><form id="f"><h2 id="dt">Nový obchod</h2><input type="hidden" name="id">
 <div class="grid">
 <label>Otevřeno<input name="opened" type="datetime-local" required></label><label>Zavřeno (po uzavření)<input name="closed" type="datetime-local"></label>
-<label>Instrument<input name="inst" value="NQ" required></label><label>Směr<select name="dir"><option value="long">Long</option><option value="short">Short</option></select></label>
-<label>Množství<input name="size" type="number" step="any" value="1"></label><label>Hodnota bodu ($)<input name="pv" type="number" step="any" placeholder="auto (NQ 20)"></label>
-<label>Vstup<input name="entry" type="number" step="any" required></label><label>Stop<input name="stop" type="number" step="any" required></label>
-<label>Cíl<input name="target" type="number" step="any" required></label><label>Výstup<input name="exit" type="number" step="any"></label>
+<label>Instrument<input name="inst" value="MNQ" required></label><label>Směr<select name="dir"><option value="long">Long</option><option value="short">Short</option></select></label>
+<label>Počet mikro kontraktů<input name="size" type="number" step="1" min="1" value="1"></label><label>Vzdálenost stopu (body)<input id="sd" type="number" step="any" value="20"></label><input name="pv" type="hidden">
+<label>Vstup<input name="entry" type="number" step="any" required></label><label>Stop loss<input name="stop" type="number" step="any" required></label>
+<label>Take profit 1 (1:2)<input name="target" type="number" step="any" required></label><label>Take profit 2 (1:2,5)<input name="target2" type="number" step="any"></label><label>Výstup<input name="exit" type="number" step="any"></label>
 <label>Poplatky ($)<input name="fee" type="number" step="any"></label><label>Strategie<input name="strat" list="strs"></label></div><datalist id="strs"></datalist>
+<div class="note" id="rr" style="margin-top:12px">Zadej vstupní cenu a stop loss i oba take profity se doplní samy.</div>
 <div class="grid" style="margin-top:12px"><label>Dodržel jsem plán?<select name="plan"><option value="">–</option><option value="ano">Ano</option><option value="ne">Ne</option></select></label><label>Hodnocení obchodu<select name="rate"><option value="">–</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></label></div><label style="margin-top:12px">Chyby</label><div class="chips" id="d-mis"></div>
 <label style="margin-top:12px">Emoce</label><div class="chips" id="d-emo"></div>
 <label style="margin-top:12px">Poznámky<textarea name="notes" rows="3"></textarea></label>
@@ -44,11 +53,13 @@
 <dialog id="view"><div id="vbody"></div><div class="row"><button class="ghost" onclick="this.closest('dialog').close()">Zavřít</button></div></dialog>
 
 <script>
-if (window.Chart) { Chart.defaults.color = "#8A94AD"; Chart.defaults.borderColor = "rgba(255,255,255,.07)"; Chart.defaults.font.family = '"IBM Plex Sans",system-ui,sans-serif'; }
+if (window.Chart) { Chart.defaults.color = "#97A3BF"; Chart.defaults.borderColor = "rgba(255,255,255,.07)"; Chart.defaults.font.family = '"IBM Plex Sans",system-ui,sans-serif'; }
+if (window.Chart) Chart.register({id: "cross", afterDraw(c) { if (c.config.type === "line" && c.tooltip && c.tooltip._active && c.tooltip._active.length) { const x = c.tooltip._active[0].element.x, a = c.chartArea, g = c.ctx; g.save(); g.beginPath(); g.moveTo(x, a.top); g.lineTo(x, a.bottom); g.lineWidth = 1; g.strokeStyle = "rgba(255,255,255,.28)"; g.setLineDash([4, 4]); g.stroke(); g.restore(); } }});
 const S = "trades", EMO = [["😌","Klid"],["💪","Sebevědomí"],["🏃","FOMO"],["🤑","Chamtivost"],["😨","Strach"],["😡","Revenge"],["⏱️","Netrpělivost"],["😕","Nejistota"],["🤯","Tilt"],["😴","Nuda"]];
 const MIS = ["Brzký vstup","Pozdní vstup","Přesunutý stop","Předčasný výstup","Přeobchodování","Bez setupu","FOMO","Revenge obchod","Moc velká pozice"];
+const lsGet = k => { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } };
 const PV = {NQ:20, MNQ:2, ES:50, MES:5, YM:5, MYM:0.5};
-let eq = null, db, shots = [], calD = new Date(), E = Object.create(null);
+let touched = {}, dist = null, dayc = null, eq = null, db, shots = [], calD = new Date(), E = Object.create(null);
 const $ = id => document.getElementById(id), sum = a => a.reduce((x, y) => x + y, 0);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const nf = (x, d = 0) => x.toLocaleString("cs-CZ", {maximumFractionDigits: d});
@@ -94,10 +105,11 @@ function over(trades) {
   if (eq) { eq.destroy(); eq = null; }
   $("curve").innerHTML = s.n < 2 ? '<p class="empty">Graf se zobrazí od dvou uzavřených obchodů.</p>' : '<div class="chartbox"><canvas id="c-eq"></canvas></div>';
   if (s.n >= 2 && window.Chart) { let c = 0; const cum = s.p.map(x => c += x);
-    eq = new Chart($("c-eq"), {type: "line", data: {labels: s.d.map(t => day(t)), datasets: [{data: cum, borderColor: "#7C6CFF", borderWidth: 2, tension: .3, fill: true, pointRadius: 0, pointHoverRadius: 5,
-      backgroundColor: x => { const g = x.chart.ctx.createLinearGradient(0, 0, 0, x.chart.height); g.addColorStop(0, "rgba(124,108,255,.35)"); g.addColorStop(1, "rgba(124,108,255,0)"); return g; }}]},
+    eq = new Chart($("c-eq"), {type: "line", data: {labels: s.d.map(t => day(t)), datasets: [{data: cum, borderColor: "#8B7CFF", borderWidth: 2, tension: .3, fill: true, pointRadius: 0, pointHoverRadius: 5,
+      backgroundColor: x => { const g = x.chart.ctx.createLinearGradient(0, 0, 0, x.chart.height); g.addColorStop(0, "rgba(139,124,255,.35)"); g.addColorStop(1, "rgba(139,124,255,0)"); return g; }}]},
       options: {maintainAspectRatio: false, interaction: {mode: "index", intersect: false}, plugins: {legend: {display: false}, tooltip: {callbacks: {label: x => "Celkem " + usd(x.parsed.y), afterLabel: x => "Tento obchod: " + usd(s.p[x.dataIndex])}}},
       scales: {x: {ticks: {maxTicksLimit: 6}, grid: {display: false}}, y: {ticks: {callback: v => nf(v) + " $"}}}}}); }
+  dayChart(s);
   const y = calD.getFullYear(), m = calD.getMonth(), pre = `${y}-${String(m + 1).padStart(2, "0")}`, off = (new Date(y, m, 1).getDay() + 6) % 7;
   let h = ["Po","Út","St","Čt","Pá","So","Ne"].map(d => `<b class="dow">${d}</b>`).join("") + "<i></i>".repeat(off), tot = 0;
   for (let d = 1; d <= new Date(y, m + 1, 0).getDate(); d++) { const v = s.days[`${pre}-${String(d).padStart(2, "0")}`]; if (v != null) tot += v;
@@ -105,15 +117,22 @@ function over(trades) {
   $("cal").innerHTML = h; $("calt").textContent = calD.toLocaleString("cs-CZ", {month: "long", year: "numeric"});
   $("calsum").innerHTML = `<span class="${cl(tot)}">${usd(tot)}</span>`;
 }
+function dayChart(s) {
+  if (dayc) { dayc.destroy(); dayc = null; }
+  const k = Object.keys(s.days).sort();
+  if (!window.Chart || !$("c-day") || !k.length) return;
+  dayc = new Chart($("c-day"), {type: "bar", data: {labels: k, datasets: [{data: k.map(d => s.days[d]), borderRadius: 6, hoverBackgroundColor: "#8B7CFF", backgroundColor: k.map(d => s.days[d] >= 0 ? "#2EE6A6" : "#FF6B8A")}]},
+    options: {maintainAspectRatio: false, plugins: {legend: {display: false}, tooltip: {callbacks: {label: x => usd(x.parsed.y)}}}, scales: {x: {ticks: {maxTicksLimit: 8}, grid: {display: false}}, y: {ticks: {callback: v => nf(v) + " $"}}}}});
+}
 const mv = n => { calD = new Date(calD.getFullYear(), calD.getMonth() + n, 1); render(); };
 
 const emoStr = t => (t.emo || []).map(e => (EMO.find(x => x[1] === e) || [""])[0]).join("");
 function table(rows, isOpen) {
   if (!rows.length) return `<p class="empty">${isOpen ? "Žádná otevřená pozice." : "Zatím žádný obchod. Přidej první tlačítkem nahoře."}</p>`;
-  return `<div class="wrap"><table><thead><tr><th>Otevřeno</th><th>Symbol</th><th>Směr</th><th class="n">Mn.</th><th class="n">Vstup</th><th class="n">${isOpen ? "Stop" : "Výstup"}</th><th class="n">${isOpen ? "Cíl" : "Net P&amp;L"}</th><th class="n">${isOpen ? "R:R plán" : "R"}</th>${isOpen ? "" : '<th class="hide">Emoce</th><th class="hide">Strategie</th>'}<th></th></tr></thead><tbody>` +
+  return `<div class="wrap"><table><thead><tr><th>Otevřeno</th><th>Symbol</th><th>Směr</th><th class="n">Mikro</th><th class="n">Vstup</th><th class="n">${isOpen ? "Stop" : "Výstup"}</th><th class="n">${isOpen ? "TP1" : "Net P&amp;L"}</th><th class="n">${isOpen ? "TP2" : "R"}</th>${isOpen ? "" : '<th class="hide">Emoce</th><th class="hide">Strategie</th>'}<th></th></tr></thead><tbody>` +
   rows.map(t => { const p = pnl(t), r = real(t);
-    return `<tr><td>${esc(when(t).replace("T", " "))}</td><td>${esc(t.inst)}</td><td>${t.dir === "short" ? "Short" : "Long"}</td><td class="n">${nf(t.size || 1, 2)}</td><td class="n">${nf(t.entry, 2)}</td>` +
-    (isOpen ? `<td class="n">${nf(t.stop, 2)}</td><td class="n">${nf(t.target, 2)}</td><td class="n">1:${nf(plan(t) || 0, 2)}</td>`
+    return `<tr><td>${esc(when(t).replace("T", " "))}</td><td>${esc(t.inst)}</td><td>${t.dir === "short" ? "Short" : "Long"}</td><td class="n">${nf(t.size || 1, 0)}</td><td class="n">${nf(t.entry, 2)}</td>` +
+    (isOpen ? `<td class="n">${nf(t.stop, 2)}</td><td class="n">${nf(t.target, 2)} <span class="empty">(1:${nf(plan(t) || 0, 1)})</span></td><td class="n">${t.target2 != null ? nf(t.target2, 2) + ' <span class="empty">(1:' + nf(Math.abs(t.target2 - t.entry) / (risk(t) || 1), 1) + ")</span>" : dash}</td>`
       : `<td class="n">${nf(t.exit, 2)}</td><td class="n ${cl(p)}">${usd(p)}</td><td class="n">${r == null ? dash : sg(r, 2) + "R"}</td><td class="hide">${emoStr(t)}</td><td class="hide">${esc(t.strat || "")}</td>`) +
     `<td class="n"><button class="ghost sm" data-a="view" data-id="${t.id}">${imgs(t).length ? "📷 " + imgs(t).length : "Detail"}</button> ` +
     (isOpen ? `<button class="sm" data-a="close" data-id="${t.id}">Uzavřít</button> ` : "") +
@@ -167,12 +186,12 @@ $("flt").addEventListener("input", reports); $("f-emo").addEventListener("input"
 $("f-reset").onclick = () => { document.querySelectorAll("#flt input,#flt select").forEach(i => i.value = ""); document.querySelectorAll("#f-emo input").forEach(i => i.checked = false); reports(); };
 
 function dlg(t) {
-  const f = $("f"); f.reset(); shots = t ? [...imgs(t)] : [];
+  const f = $("f"); f.reset(); shots = t ? [...imgs(t)] : []; touched = t ? {target: 1, target2: 1} : {}; dist = t ? (Math.abs(t.entry - t.stop) || null) : null; $("sd").value = lsGet("defStop") || 20;
   $("dt").textContent = t ? "Upravit obchod" : "Nový obchod"; f.elements.opened.value = localNow();
-  if (t) { for (const k of ["id","opened","closed","inst","dir","size","pv","entry","stop","target","exit","fee","strat","plan","rate","notes"]) f.elements[k].value = (k === "opened" ? when(t) : t[k]) ?? "";
+  if (t) { for (const k of ["id","opened","closed","inst","dir","size","pv","entry","stop","target","target2","exit","fee","strat","plan","rate","notes"]) f.elements[k].value = (k === "opened" ? when(t) : t[k]) ?? "";
     f.querySelectorAll('[name=emo]').forEach(c => c.checked = (t.emo || []).includes(c.value));
     f.querySelectorAll('[name=mis]').forEach(c => c.checked = (t.mis || []).includes(c.value)); }
-  $("shotinfo").textContent = shots.length ? shots.length + " screenshotů uloženo." : ""; $("dlg").showModal();
+  rr(); $("shotinfo").textContent = shots.length ? shots.length + " screenshotů uloženo." : ""; $("dlg").showModal();
 }
 $("add").onclick = () => dlg(); $("cancel").onclick = () => $("dlg").close();
 $("f").elements.shot.onchange = e => { shots.push(...e.target.files); $("shotinfo").textContent = shots.length + " screenshotů připraveno."; e.target.value = ""; };
@@ -181,7 +200,7 @@ document.addEventListener("paste", e => { const f = [...(e.clipboardData?.files 
 $("f").onsubmit = async e => {
   e.preventDefault(); const f = e.target.elements, n = k => f[k].value === "" ? null : parseFloat(f[k].value);
   const t = {opened: f.opened.value, closed: f.closed.value || null, inst: f.inst.value.toUpperCase(), dir: f.dir.value, size: n("size") || 1, pv: n("pv"),
-    entry: n("entry"), stop: n("stop"), target: n("target"), exit: n("exit"), fee: n("fee"), strat: f.strat.value.trim(), notes: f.notes.value,
+    entry: n("entry"), stop: n("stop"), target: n("target"), target2: n("target2"), exit: n("exit"), fee: n("fee"), strat: f.strat.value.trim(), notes: f.notes.value,
     emo: [...e.target.querySelectorAll("[name=emo]:checked")].map(c => c.value), plan: f.plan.value, rate: n("rate"),
     mis: [...e.target.querySelectorAll("[name=mis]:checked")].map(c => c.value), shots};
   if (f.id.value) t.id = parseInt(f.id.value);
@@ -211,5 +230,32 @@ $("impf").onchange = async e => {
   } catch { alert("Soubor se nepodařilo načíst. Je to záloha z tohoto deníku?"); }
   e.target.value = "";
 };
+const rnd = x => Math.round(x * 4) / 4;
+function rr() {
+  const f = $("f").elements, e = parseFloat(f.entry.value), s = parseFloat(f.stop.value), n = parseFloat(f.size.value) || 1, pv = PV[f.inst.value.toUpperCase()] || 1;
+  if (isNaN(e) || isNaN(s) || e === s) { $("rr").textContent = "Zadej vstupní cenu a stop loss a oba take profity se doplní samy."; return; }
+  const d = Math.abs(e - s), t1 = parseFloat(f.target.value), t2 = parseFloat(f.target2.value);
+  $("rr").innerHTML = `Riskuješ <b>${nf(d, 2)} bodů</b> = <b>${nf(d * pv * n)} $</b> (${nf(n, 0)} mikro). ` +
+    (isNaN(t1) ? "" : `TP1 (1:${nf(Math.abs(t1 - e) / d, 1)}): <b class="up">+${nf(Math.abs(t1 - e) * pv * n)} $</b>. `) +
+    (isNaN(t2) ? "" : `TP2 (1:${nf(Math.abs(t2 - e) / d, 1)}): <b class="up">+${nf(Math.abs(t2 - e) * pv * n)} $</b>.`);
+}
+function auto(src) {
+  const f = $("f").elements, e = parseFloat(f.entry.value), sg = f.dir.value === "short" ? -1 : 1;
+  if (src === "stop") touched.stop = 1;
+  if (isNaN(e)) return rr();
+  if (src === "sd") { dist = null; touched.stop = 0; }
+  const s0 = parseFloat(f.stop.value);
+  if ((src === "stop" || (touched.stop && dist == null)) && !isNaN(s0) && s0 !== e) dist = Math.abs(e - s0);
+  const d = dist || parseFloat($("sd").value) || 20;
+  if (src !== "stop") f.stop.value = rnd(e - sg * d);
+  if (!touched.target) f.target.value = rnd(e + sg * 2 * d);
+  if (!touched.target2) f.target2.value = rnd(e + sg * 2.5 * d);
+  rr();
+}
+{ const fe = $("f").elements;
+  fe.entry.addEventListener("input", () => auto("entry")); fe.dir.addEventListener("change", () => auto("dir")); fe.stop.addEventListener("input", () => auto("stop"));
+  fe.target.addEventListener("input", () => { touched.target = 1; rr(); }); fe.target2.addEventListener("input", () => { touched.target2 = 1; rr(); });
+  fe.size.addEventListener("input", rr); fe.inst.addEventListener("input", rr);
+  $("sd").addEventListener("input", () => { try { localStorage.setItem("defStop", JSON.stringify($("sd").value)); } catch (e) {} auto("sd"); }); }
 open().then(d => { db = d; render(); });
 </script></body></html>

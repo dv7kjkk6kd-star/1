@@ -1,7 +1,14 @@
 <!doctype html><html lang="cs"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Plán dne</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="style.css"></head>
-<body><div class="app"><aside class="side"><div class="brand">Obchodní cockpit</div><nav><a href="index.html"><span>🏠</span>Přehled</a><a href="premarket.html"><span>🌅</span>Premarket</a><a href="fundament.html"><span>📰</span>Fundament</a><a href="kalendar.html"><span>📅</span>Kalendář</a><a href="sentiment.html"><span>💬</span>Sentiment</a><a href="mindset.html"><span>🧘</span>Mindset</a><a href="plan.html" aria-current="page"><span>🎯</span>Plán dne</a><a href="journal.html"><span>📓</span>Deník obchodů</a></nav></aside><div class="content"><header class="pagehead"><h1>Plán dne</h1><p>Checklist, limity a kalkulačka rizika</p></header><main>
-<section><h2>Dnešní limity (živě z tvého deníku)</h2><div class="kpis" id="live"></div><div id="warn"></div></section>
+<body><div class="app"><aside class="side"><div class="brand">Obchodní cockpit</div><nav><p class="grp">Ráno před obchodováním</p><a href="index.html"><span>🏠</span>Přehled</a><a href="premarket.html"><span>🌅</span>Premarket</a><a href="fundament.html"><span>📰</span>Fundament</a><a href="kalendar.html"><span>📅</span>Kalendář</a><a href="sentiment.html"><span>💬</span>Sentiment</a><p class="grp">Příprava</p><a href="mindset.html"><span>🧘</span>Mindset</a><a href="plan.html" aria-current="page"><span>🎯</span>Plán dne</a><p class="grp">Obchodování</p><a href="journal.html"><span>📓</span>Deník obchodů</a></nav><div class="clock"><span id="mks">Burza</span><b id="mk">–</b><span>podle času v New Yorku, svátky nezohledňuje</span></div></aside><script>(function(){var el=document.getElementById("mk"),sub=document.getElementById("mks");if(!el)return;
+var pad=function(n){return String(n).padStart(2,"0")},WD=["Mon","Tue","Wed","Thu","Fri"],ORD=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+function ny(){var o={};new Intl.DateTimeFormat("en-US",{timeZone:"America/New_York",hour12:false,weekday:"short",hour:"2-digit",minute:"2-digit",second:"2-digit"}).formatToParts(new Date()).forEach(function(x){o[x.type]=x.value});return{wd:o.weekday,s:(+o.hour%24)*3600+(+o.minute)*60+(+o.second)}}
+function tick(){var t=ny(),open=34200,close=57600,wk=WD.indexOf(t.wd)>=0,left,txt;
+if(wk&&t.s>=open&&t.s<close){left=close-t.s;txt="Burza je otevřená, zavře za"}
+else{var idx=ORD.indexOf(t.wd),d=(wk&&t.s<open)?0:1;while(WD.indexOf(ORD[(idx+d)%7])<0)d++;left=d*86400+open-t.s;txt="Burza otevře za"}
+el.textContent=pad(Math.floor(left/3600))+":"+pad(Math.floor(left%3600/60))+":"+pad(left%60);sub.textContent=txt}
+tick();setInterval(tick,1000)})();</script><div class="content"><header class="pagehead"><h1>Plán dne</h1><p>Checklist, limity a kalkulačka rizika</p></header><main>
+<section><h2>Dnešní limity (živě z tvého deníku)</h2><p class="hint">Čísla se berou z deníku obchodů a obnovují se sama. Nastav limity v plánu níže.</p><div class="kpis" id="live"></div><div id="warn"></div></section>
 <section><h2>Plán na dnešek</h2><div class="grid">
 <label>Můj bias<select id="p-bias"><option value="">–</option><option>Bullish</option><option>Bearish</option><option>Neutrální</option></select></label>
 <label>Max. počet obchodů<input id="p-maxTrades" type="number"></label><label>Max. denní ztráta ($)<input id="p-maxLoss" type="number"></label><label>Denní cíl ($)<input id="p-goal" type="number"></label></div>
@@ -9,12 +16,12 @@
 <label style="margin-top:12px">Setupy, které dnes obchoduji<textarea id="p-setups" rows="2"></textarea></label>
 <label style="margin-top:12px">Poznámky<textarea id="p-notes" rows="2"></textarea></label>
 <p class="empty">Plán se ukládá do tohoto prohlížeče, pro každý den zvlášť.</p></section>
-<section><h2>Checklist před obchodováním <span id="cprog" class="empty"></span></h2><div class="chips" id="checks"></div></section>
+<section><h2>Checklist před obchodováním <span id="cprog" class="empty"></span></h2><p class="hint">Zaškrtni, co máš hotové. Když něco chybí, nejdřív to dodělej.</p><div class="chips" id="checks"></div></section>
 <section><h2>Měsíční cíl</h2><div class="grid"><label>Cíl na měsíc ($)<input id="m-goal" type="number"></label></div><div id="mprog" style="margin-top:12px"></div></section>
-<section><h2>Kalkulačka velikosti pozice</h2><div class="grid">
+<section><h2>Kalkulačka: kolik mikro kontraktů</h2><div class="grid">
 <label>Účet ($)<input id="c-acc" type="number" step="any" value="10000"></label><label>Riziko na obchod (%)<input id="c-risk" type="number" step="any" value="1"></label>
 <label>Vstup<input id="c-entry" type="number" step="any"></label><label>Stop<input id="c-stop" type="number" step="any"></label>
-<label>Hodnota bodu ($)<input id="c-pv" type="number" step="any" value="20"></label></div><p id="c-out" class="empty" style="margin-top:12px">Vyplň vstup a stop.</p></section>
+<label>Hodnota bodu na 1 mikro ($)<input id="c-pv" type="number" step="any" value="2"></label></div><p id="c-out" class="empty" style="margin-top:12px">Vyplň vstup a stop.</p></section>
 </main></div></div>
 <script>
 const $ = id => document.getElementById(id), nf = (x, d = 0) => x.toLocaleString("cs-CZ", {maximumFractionDigits: d});
@@ -55,7 +62,7 @@ function calc() {
   const g = id => parseFloat($(id).value), a = g("c-acc"), r = g("c-risk"), e = g("c-entry"), s = g("c-stop"), pv = g("c-pv");
   if ([a, r, e, s, pv].some(isNaN) || e === s) { $("c-out").textContent = "Vyplň vstup a stop."; return; }
   const money = a * r / 100, size = money / (Math.abs(e - s) * pv), dr = e > s ? 1 : -1;
-  $("c-out").innerHTML = `Riskuješ <b>${nf(money)} $</b>. Velikost pozice: <b>${nf(size, 2)}</b> (zaokrouhli dolů na <b>${nf(Math.floor(size))}</b>). Cíl pro poměr 1:2 je <b>${nf(e + dr * Math.abs(e - s) * 2, 2)}</b>, pro 1:3 <b>${nf(e + dr * Math.abs(e - s) * 3, 2)}</b>.`;
+  $("c-out").innerHTML = `Riskuješ <b>${nf(money)} $</b>. Počet mikro kontraktů: <b>${nf(Math.floor(size))}</b> (přesně ${nf(size, 2)}). Cíl pro poměr 1:2 je <b>${nf(e + dr * Math.abs(e - s) * 2, 2)}</b>, pro 1:3 <b>${nf(e + dr * Math.abs(e - s) * 3, 2)}</b>.`;
 }
 document.querySelectorAll("[id^=c-]").forEach(i => i.addEventListener("input", calc));
 </script></body></html>
