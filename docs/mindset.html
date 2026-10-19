@@ -1,0 +1,72 @@
+<!doctype html><html lang="cs"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Mindset</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="style.css">
+<style>
+.orb{width:190px;height:190px;border-radius:50%;margin:26px auto 12px;background:radial-gradient(circle at 35% 30%,#9C8FFF,#5B8CFF 60%,#2B3A8F);box-shadow:0 0 70px rgba(124,108,255,.55);transform:scale(.6);transition:transform 4s linear}
+.orb.big{transform:scale(1.12)}.timer{font-size:46px;font-weight:700;text-align:center;font-variant-numeric:tabular-nums}.mid{text-align:center}
+.center{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px}.rule{font-size:clamp(20px,3vw,28px);font-weight:600;line-height:1.3;margin:0}
+.steps li{margin:8px 0}.links a{display:block;padding:10px 0;border-bottom:1px solid var(--rule)}input[type=range]{padding:0}
+</style></head>
+<body><div class="app"><aside class="side"><div class="brand">Obchodní cockpit</div><nav><a href="index.html"><span>🏠</span>Přehled</a><a href="premarket.html"><span>🌅</span>Premarket</a><a href="fundament.html"><span>📰</span>Fundament</a><a href="kalendar.html"><span>📅</span>Kalendář</a><a href="sentiment.html"><span>💬</span>Sentiment</a><a href="mindset.html" aria-current="page"><span>🧘</span>Mindset</a><a href="plan.html"><span>🎯</span>Plán dne</a><a href="journal.html"><span>📓</span>Deník obchodů</a></nav></aside><div class="content"><header class="pagehead"><h1>Mindset</h1><p>Klid, soustředění a rutina před obchodováním</p></header><main>
+<section class="hero"><div><p class="empty" style="margin:0 0 8px">Myšlenka dne</p><p class="rule" id="rule"></p></div></section>
+<section><h2>Jak se dnes cítím?</h2><div class="grid">
+<label>Klid: <b id="mv-calm"></b> z 5<input type="range" min="1" max="5" id="m-calm"></label>
+<label>Soustředění: <b id="mv-focus"></b> z 5<input type="range" min="1" max="5" id="m-focus"></label>
+<label>Energie: <b id="mv-energy"></b> z 5<input type="range" min="1" max="5" id="m-energy"></label></div>
+<div class="note" id="mood" style="margin-top:14px"></div></section>
+<section><h2>Dýchání do čtverce (nádech, zadržení, výdech, zadržení po 4 vteřinách)</h2>
+<div class="orb" id="orb"></div><div class="timer" id="otxt">Připraven</div><p class="mid empty" id="ocyc"></p>
+<div class="center"><button onclick="startBreath(1)">1 minuta</button><button onclick="startBreath(3)">3 minuty</button><button onclick="startBreath(5)">5 minut</button><button class="ghost" onclick="stopBreath()">Zastavit</button></div>
+<p class="mid empty">Kruh se zvětšuje při nádechu a zmenšuje při výdechu. Dýchej nosem a pomalu.</p></section>
+<section><h2>Ticho: meditační časovač</h2><div class="timer" id="med">00:00</div>
+<div class="center"><button onclick="startCD('med',180)">3 min</button><button onclick="startCD('med',300)">5 min</button><button onclick="startCD('med',600)">10 min</button><button onclick="startCD('med',900)">15 min</button><button class="ghost" onclick="stopCD('med');$('med').textContent='00:00'">Zastavit</button></div>
+<p class="mid empty">Sedni si, zavři oči a všímej si dechu. Když se myšlenky rozběhnou, vrať se k dechu. Na konci zazní jemný tón.</p></section>
+<section><h2>Pauza po ztrátě</h2><div class="timer" id="pause">00:00</div>
+<div class="center"><button onclick="startCD('pause',300)">5 min</button><button onclick="startCD('pause',600)">10 min</button><button onclick="startCD('pause',900)">15 min</button><button class="ghost" onclick="stopCD('pause');$('pause').textContent='00:00'">Zastavit</button></div>
+<p class="mid empty">Vstaň od grafu. Nic si nedokazuj a nepřidávej velikost. Obchoduj dál až po pauze a jen podle plánu.</p></section>
+<section><h2>Rutina před otevřením burzy (asi 20 minut)</h2><ol class="steps">
+<li><b>Voda a pohyb (3 min):</b> napij se a projdi se nebo se protáhni.</li><li><b>Dýchání (3 min):</b> spusť dýchání do čtverce výše.</li>
+<li><b>Ranní briefing (5 min):</b> přečti si záložku Přehled a Fundament. Poznamenej si zprávy a jejich čas.</li><li><b>Plán dne (5 min):</b> v záložce Plán dne vyplň bias, úrovně a limity.</li>
+<li><b>Zavři rušení (1 min):</b> vypni sociální sítě a oznámení až do prvního obchodu.</li><li><b>Řekni si pravidlo:</b> „Dnes dodržím plán, i kdyby nebyl žádný obchod."</li></ol></section>
+<section><h2>Meditace zdarma</h2><div class="links">
+<a href="https://insighttimer.com/" target="_blank" rel="noopener">Insight Timer: velká zdarma knihovna vedených meditací</a>
+<a href="https://www.smilingmind.com.au/" target="_blank" rel="noopener">Smiling Mind: krátké meditace zdarma</a>
+<a href="https://www.youtube.com/results?search_query=meditace+5+minut+%C4%8Desky" target="_blank" rel="noopener">YouTube: meditace na 5 minut česky</a>
+<a href="https://www.youtube.com/results?search_query=meditation+for+traders+calm+focus" target="_blank" rel="noopener">YouTube: meditace pro tradery, klid a soustředění</a></div></section>
+<section><h2>Večerní reflexe</h2>
+<label>Co se mi dnes povedlo?<textarea id="r-a" rows="2"></textarea></label>
+<label style="margin-top:12px">Co příště udělám jinak?<textarea id="r-b" rows="2"></textarea></label>
+<label style="margin-top:12px">Jak jsem zvládl emoce?<textarea id="r-c" rows="2"></textarea></label>
+<p class="empty">Ukládá se do tohoto prohlížeče, pro každý den zvlášť.</p></section>
+<section><h2>Pravidla klidného tradera</h2><ol class="steps" id="rules"></ol></section>
+</main></div></div>
+<script>
+const $ = id => document.getElementById(id);
+const today = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
+const ls = {get: k => { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }, set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }};
+const RULES = ["Moje práce není předvídat trh, ale dodržet plán.", "Žádný obchod není tak důležitý, aby stál za porušení pravidel.", "Po ztrátě dýchám. Po výhře dýchám. Velikost pozice se nemění podle emoce.",
+  "Trh tu bude i zítra. Šance nemusím honit.", "Čekání je také pozice.", "Nejlepší obchod dne je často ten, který jsem neudělal.", "Stop je cena za klid, ne porážka.",
+  "Neobchoduji, abych si něco dokázal, ani abych se odrazil ze ztráty.", "Jeden dobrý setup stačí.", "Nejdřív pozoruji emoci, potom jednám. Ne naopak.",
+  "Úspěch měřím dodržením procesu, ne výsledkem jednoho dne.", "Když váhám, nevstupuji."];
+$("rules").innerHTML = RULES.map(r => `<li>${r}</li>`).join("");
+$("rule").textContent = RULES[Math.floor(Date.now() / 86400000) % RULES.length];
+const mk = "mood:" + today(); let M = ls.get(mk) || {calm: 3, focus: 3, energy: 3};
+function mood() { ["calm", "focus", "energy"].forEach(k => $("mv-" + k).textContent = M[k]);
+  $("mood").textContent = (M.calm <= 2 || M.focus <= 2) ? "Dnes nejsi v optimálním stavu. Nejdřív 3 minuty dýchání. Obchoduj jen se zmenšenou velikostí, nebo vůbec."
+    : (M.calm >= 4 && M.focus >= 4 && M.energy >= 3) ? "Skvělé. Drž se plánu a neobchoduj víc, než musíš." : "Dobrý základ. Dej si ještě krátké dýchání a drž se plánu."; }
+["calm", "focus", "energy"].forEach(k => { $("m-" + k).value = M[k]; $("m-" + k).oninput = () => { M[k] = +$("m-" + k).value; ls.set(mk, M); mood(); }; }); mood();
+const rk = "refl:" + today(), R = ls.get(rk) || {}; ["a", "b", "c"].forEach(k => { $("r-" + k).value = R[k] || ""; $("r-" + k).oninput = () => { R[k] = $("r-" + k).value; ls.set(rk, R); }; });
+function chime() { try { const a = new (window.AudioContext || window.webkitAudioContext)(); [0, 0.9, 1.8].forEach((d, i) => { const o = a.createOscillator(), g = a.createGain(); o.frequency.value = [528, 396, 528][i];
+  o.connect(g); g.connect(a.destination); const t = a.currentTime + d; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.25, t + .05); g.gain.exponentialRampToValueAtTime(.001, t + 1.6); o.start(t); o.stop(t + 1.7); }); } catch (e) {} }
+const CD = {};
+function startCD(id, secs) { stopCD(id); const end = Date.now() + secs * 1000;
+  const draw = () => { const s = Math.max(0, Math.round((end - Date.now()) / 1000)); $(id).textContent = String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0"); if (s <= 0) stopCD(id, true); };
+  draw(); CD[id] = setInterval(draw, 250); }
+function stopCD(id, done) { if (CD[id]) { clearInterval(CD[id]); delete CD[id]; if (done) chime(); } }
+let br = null; const PH = ["Nádech", "Zadrž", "Výdech", "Zadrž"];
+function startBreath(mins) { stopBreath(); let t = 0; const orb = $("orb");
+  const tick = () => { if (t >= mins * 60) { stopBreath(true); return; } const p = Math.floor(t / 4) % 4;
+    if (t % 4 === 0) { if (p === 0) orb.classList.add("big"); if (p === 2) orb.classList.remove("big"); }
+    $("otxt").textContent = PH[p] + " " + (4 - t % 4); $("ocyc").textContent = "Dokončených cyklů: " + Math.floor(t / 16); t++; };
+  tick(); br = setInterval(tick, 1000); }
+function stopBreath(done) { clearInterval(br); br = null; $("orb").classList.remove("big"); $("otxt").textContent = done ? "Hotovo. Jak se cítíš?" : "Připraven"; if (done) chime(); }
+</script></body></html>
