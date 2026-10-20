@@ -19,10 +19,10 @@ s.addEventListener("wheel",function(e){var up=e.deltaY<0;if((up&&s.scrollTop<=0)
 var save=function(){try{sessionStorage.setItem("sideY",s.scrollTop)}catch(e){}};
 s.addEventListener("scroll",save);s.querySelectorAll("a").forEach(function(l){l.addEventListener("click",save)});})();</script><div class="content"><header class="pagehead"><h1>Deník obchodů</h1><p>Tvoje obchody, statistiky a poučení</p></header><main>
 <div class="head"><div class="tabs" role="tablist">
-<button role="tab" data-tab="over" aria-selected="true">Přehled</button><button role="tab" data-tab="trades" aria-selected="false">Obchody</button><button role="tab" data-tab="rep" aria-selected="false">Reporty</button><button role="tab" data-tab="ai" aria-selected="false">Analýza</button></div>
+<button role="tab" data-tab="over" aria-selected="true">Přehled</button><button role="tab" data-tab="trades" aria-selected="false">Obchody</button><button role="tab" data-tab="rep" aria-selected="false">Reporty</button><button role="tab" data-tab="ai" aria-selected="false">Analýza</button><button role="tab" data-tab="disc" aria-selected="false">Disciplína</button></div>
 <button id="add" type="button">+ Přidat obchod</button></div>
 
-<div id="t-over"><div class="gdyn" id="gdyn"></div><div class="kpis" id="kpis"></div>
+<div id="t-over"><div id="bk"></div><div class="gdyn" id="gdyn"></div><div class="kpis" id="kpis"></div>
 <section class="p"><h2>Vývoj zisku (najeď myší na graf)</h2><div id="curve"></div></section>
 <section class="p"><h2>Výsledek po dnech</h2><div class="chartbox" style="height:220px"><canvas id="c-day"></canvas></div></section>
 <section class="p"><div class="calhead"><button class="ghost sm" onclick="mv(-1)" aria-label="Předchozí měsíc">‹</button><b id="calt"></b><button class="ghost sm" onclick="mv(1)" aria-label="Další měsíc">›</button><span id="calsum"></span></div><div class="cal" id="cal"></div></section></div>
@@ -47,6 +47,7 @@ s.addEventListener("scroll",save);s.querySelectorAll("a").forEach(function(l){l.
 <section class="p"><h2>Účty</h2><div id="accbars"></div></section>
 <section class="p"><h2>Import a data pro Claude</h2><div class="row"><button class="ghost" id="csvb" type="button">Importovat obchody z CSV</button><input id="csvf" type="file" accept=".csv,text/csv" hidden><button id="cp" type="button">Zkopírovat data pro Claude</button></div>
 <p class="empty">CSV musí mít hlavičku se sloupci: datum, symbol, smer, kontrakty, vstup, vystup, stop (stop je nepovinný). Zkopírovaná data vlož do chatu na claude.ai a napiš: „Rozeber mi můj deník.“</p><p id="cpmsg" class="empty"></p></section></div>
+<div id="t-disc" hidden><section class="p"><h2>Tiltmeter: křivka účtu a dodržování plánu</h2><div id="d-tilt"></div></section><section class="p"><h2>Cena obchodů mimo plán</h2><div id="d-leak"></div></section><section class="p"><h2>Emoce a chyby v penězích</h2><div id="d-emo"></div></section><section class="p"><h2>Zmeškané obchody (čekání je taky výsledek)</h2><div id="d-miss"></div></section><section class="p"><h2>Rozbor týdne</h2><div id="d-rev"></div></section><section class="p"><h2>Playbook: moje setupy</h2><div id="d-pb"></div></section><section class="p"><h2>Štítky obchodů</h2><div id="d-tags"></div></section></div>
 </main></div></div>
 
 <dialog id="dlg"><form id="f"><h2 id="dt">Nový obchod</h2><input type="hidden" name="id">
@@ -56,7 +57,7 @@ s.addEventListener("scroll",save);s.querySelectorAll("a").forEach(function(l){l.
 <label>Počet mikro kontraktů<input name="size" type="number" step="1" min="1" value="1"></label><label>Vzdálenost stopu (body)<input id="sd" type="number" step="any" value="35"></label><input name="pv" type="hidden">
 <label>Vstup<input name="entry" type="number" step="any" required></label><label>Stop loss<input name="stop" type="number" step="any" required></label>
 <label>Take profit 1 (1:2)<input name="target" type="number" step="any" required></label><label>Take profit 2 (1:2,5)<input name="target2" type="number" step="any"></label><label>Výstup<input name="exit" type="number" step="any"></label>
-<label>Poplatky ($)<input name="fee" type="number" step="any"></label><label>Strategie<input name="strat" list="strs"></label><label>Trend dne<select name="trend"><option value="">–</option><option value="with">Obchoduji s trendem</option><option value="against">Obchoduji proti trendu</option></select></label><label>Účet<input name="acc" value="Hlavní" list="accs"></label></div><datalist id="strs"></datalist><datalist id="accs"></datalist>
+<label>Poplatky ($)<input name="fee" type="number" step="any"></label><label>Strategie<input name="strat" list="strs"></label><label>Trend dne<select name="trend"><option value="">–</option><option value="with">Obchoduji s trendem</option><option value="against">Obchoduji proti trendu</option></select></label><label>Účet<input name="acc" value="Hlavní" list="accs"></label><label>Štítky (čárkou)<input name="tags" placeholder="např. NFP, otevření"></label></div><p class="empty" id="pbnote" style="margin:6px 0 0"></p><datalist id="strs"></datalist><datalist id="accs"></datalist>
 <p class="empty" id="entrynote" style="margin:8px 0 0"></p><div class="note" id="rr" style="margin-top:12px">Zadej vstupní cenu a stop loss i oba take profity se doplní samy.</div>
 <div class="grid" style="margin-top:12px"><label>Dodržel jsem plán?<select name="plan"><option value="">–</option><option value="ano">Ano</option><option value="ne">Ne</option></select></label><label>Hodnocení obchodu<select name="rate"><option value="">–</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></label></div><label style="margin-top:12px">Chyby</label><div class="chips" id="d-mis"></div>
 <label style="margin-top:12px">Emoce</label><div class="chips" id="d-emo"></div>
@@ -197,14 +198,14 @@ const chips = (box, name) => $(box).innerHTML = EMO.map(([i, n]) => `<label clas
 chips("d-emo", "emo"); $("d-mis").innerHTML = MIS.map(n => `<label class="chip"><input type="checkbox" name="mis" value="${n}">${n}</label>`).join(""); chips("f-emo");
 document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => {
   document.querySelectorAll(".tabs button").forEach(x => x.setAttribute("aria-selected", x === b));
-  ["over", "trades", "rep", "ai"].forEach(k => $("t-" + k).hidden = k !== b.dataset.tab); if (b.dataset.tab === "ai") analysis(); });
+  ["over", "trades", "rep", "ai", "disc"].forEach(k => $("t-" + k).hidden = k !== b.dataset.tab); if (b.dataset.tab === "ai") analysis(); });
 $("flt").addEventListener("input", reports); $("f-emo").addEventListener("input", reports);
 $("f-reset").onclick = () => { document.querySelectorAll("#flt input,#flt select").forEach(i => i.value = ""); document.querySelectorAll("#f-emo input").forEach(i => i.checked = false); reports(); };
 
 function dlg(t) {
   const f = $("f"); f.reset(); shots = t ? [...imgs(t)] : []; touched = t ? {target: 1, target2: 1} : {}; dist = t ? (Math.abs(t.entry - t.stop) || null) : null; $("sd").value = lsGet("defStop35") || 35;
   $("dt").textContent = t ? "Upravit obchod" : "Nový obchod"; f.elements.opened.value = localNow(); f.elements.acc.value = lsGet("lastAcc") || "Hlavní";
-  if (t) { for (const k of ["id","opened","closed","inst","dir","size","pv","entry","stop","target","target2","exit","fee","strat","plan","rate","notes","trend","acc"]) f.elements[k].value = (k === "opened" ? when(t) : t[k]) ?? "";
+  if (t) { for (const k of ["id","opened","closed","inst","dir","size","pv","entry","stop","target","target2","exit","fee","strat","plan","rate","notes","trend","acc","tags"]) f.elements[k].value = (k === "opened" ? when(t) : t[k]) ?? "";
     f.querySelectorAll('[name=emo]').forEach(c => c.checked = (t.emo || []).includes(c.value));
     f.querySelectorAll('[name=mis]').forEach(c => c.checked = (t.mis || []).includes(c.value)); }
   rr(); $("shotinfo").textContent = shots.length ? shots.length + " screenshotů uloženo." : ""; $("dlg").showModal(); entryAuto = false; $("entrynote").textContent = ""; if (!t) fillEntry();
@@ -216,7 +217,7 @@ document.addEventListener("paste", e => { const f = [...(e.clipboardData?.files 
 $("f").onsubmit = async e => {
   e.preventDefault(); const f = e.target.elements, n = k => f[k].value === "" ? null : parseFloat(f[k].value);
   const t = {opened: f.opened.value, closed: f.closed.value || null, inst: f.inst.value.toUpperCase(), dir: f.dir.value, size: n("size") || 1, pv: n("pv"),
-    entry: n("entry"), stop: n("stop"), target: n("target"), target2: n("target2"), exit: n("exit"), fee: n("fee"), strat: f.strat.value.trim(), trend: f.trend.value, acc: f.acc.value.trim() || "Hlavní", notes: f.notes.value,
+    entry: n("entry"), stop: n("stop"), target: n("target"), target2: n("target2"), exit: n("exit"), fee: n("fee"), strat: f.strat.value.trim(), tags: f.tags.value.trim(), trend: f.trend.value, acc: f.acc.value.trim() || "Hlavní", notes: f.notes.value,
     emo: [...e.target.querySelectorAll("[name=emo]:checked")].map(c => c.value), plan: f.plan.value, rate: n("rate"),
     mis: [...e.target.querySelectorAll("[name=mis]:checked")].map(c => c.value), shots};
   if (f.id.value) t.id = parseInt(f.id.value);
@@ -348,5 +349,100 @@ function fillEntry() {
 $("f").elements.entry.addEventListener("input", () => { entryAuto = false; $("entrynote").textContent = ""; });
 $("f").elements.opened.addEventListener("change", () => { if (entryAuto || !$("f").elements.entry.value) fillEntry(); });
 $("f").elements.inst.addEventListener("change", () => { if (!$("f").elements.entry.value) fillEntry(); });
+/* ===== Disciplína, playbook, zmeškané obchody, rozbor týdne, záloha ===== */
+const LS = {get: (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } }, set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }};
+const todayS = () => localNow().slice(0, 10);
+const weekKey = (d0) => { const d = new Date(d0 + "T12:00"); const wd = (d.getDay() + 6) % 7; d.setDate(d.getDate() - wd); return d.toISOString().slice(0, 10); };
+const REASONS = ["Nesplnil jsem podmínky setupu", "Čekal jsem na větší timeframe", "Byl jsem na denním limitu", "Nebyl čas nebo klid", "Bál jsem se (chyba, setup byl platný)", "Jiný důvod"];
+const tbl = (head, rows) => `<div class="wrap"><table><thead><tr>${head.map((h, i) => `<th${i ? " class=\"n\"" : ""}>${h}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table></div>`;
+const rowH = a => "<tr>" + a.map((c, i) => `<td${i ? " class=\"n\"" : ""}>${c}</td>`).join("") + "</tr>";
+const cs = x => `<span class="${cl(x)}">${usd(x)}</span>`;
+
+function tilt(closed) {
+  if (!closed.length) return "<p class=\"empty\">Zatím žádné uzavřené obchody. Tiltmeter se začne kreslit po prvním obchodu.</p>";
+  const n = closed.length, W = Math.max(n, 12) * 14, H = 110; let c = 0; const eqv = closed.map(t => c += pnl(t));
+  const mn = Math.min(0, ...eqv), mx = Math.max(0, ...eqv), rg = (mx - mn) || 1, y = v => 8 + (1 - (v - mn) / rg) * 64;
+  const pts = eqv.map((v, i) => `${i * 14 + 7},${y(v).toFixed(1)}`).join(" ");
+  const cells = closed.map((t, i) => `<rect x="${i * 14 + 1}" y="88" width="12" height="16" rx="3" fill="${t.plan === "ano" ? "#2EE6A6" : t.plan === "ne" ? "#FF6B8A" : "#5B6785"}"><title>${day(t)}: ${usd(pnl(t))}${t.plan ? ", plán " + t.plan : ""}</title></rect>`).join("");
+  let cur = 0, curT = null; for (let i = n - 1; i >= 0; i--) { const p = closed[i].plan; if (p !== "ano" && p !== "ne") break; if (curT === null) curT = p; if (p !== curT) break; cur++; }
+  let best = 0, run = 0; closed.forEach(t => { if (t.plan === "ano") { run++; best = Math.max(best, run); } else run = 0; });
+  const msg = curT === "ano" ? `Aktuální série: ${cur}× po sobě jsi dodržel plán.` : curT === "ne" ? `Pozor: poslední ${cur}× jsi plán nedodržel. Zastav se a dej si pauzu.` : "U posledního obchodu není vyplněno, jestli jsi dodržel plán.";
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:130px"><line x1="0" x2="${W}" y1="${y(0).toFixed(1)}" y2="${y(0).toFixed(1)}" stroke="rgba(255,255,255,.25)" stroke-dasharray="4 4"/><polyline points="${pts}" fill="none" stroke="#8B7CFF" stroke-width="2.5" vector-effect="non-scaling-stroke"/>${cells}</svg>` +
+    `<p class="hint">Fialová čára je křivka účtu. Zelené čtverečky dole jsou obchody podle plánu, červené mimo plán, šedé bez odpovědi. ${msg} Nejdelší série podle plánu: ${best}.</p>`;
+}
+
+function missedHtml() {
+  const L = LS.get("jr:missed", []), ok = L.filter(x => x.ok).length;
+  return `<div class="grid"><label>Datum<input type="date" id="ms-d" value="${todayS()}"></label><label>Setup<input id="ms-s" list="pbl" placeholder="např. Break and retest"></label>` +
+    `<label>Proč jsem ho nevzal<select id="ms-r">${REASONS.map(r => `<option>${r}</option>`).join("")}</select></label></div>` +
+    `<label class="chip" style="margin-top:8px"><input type="checkbox" id="ms-ok" checked>Správně jsem počkal (byl jsem v souladu s plánem)</label><div class="row"><button type="button" id="ms-add">Zapsat zmeškaný obchod</button></div>` +
+    (L.length ? `<p class="hint">Celkem ${L.length} zmeškaných obchodů, z toho ${ok}× jsi správně počkal.</p>` + tbl(["Datum", "Setup", "Důvod", "Správně", ""], [...L].reverse().map(x => rowH([x.d, esc(x.s), esc(x.r), x.ok ? "<span class=\"up\">ano</span>" : "<span class=\"down\">ne</span>", `<button class="ghost sm" data-ms="${x.id}">Smazat</button>`]))) : "<p class=\"empty\">Zatím nic. Když uvidíš dobrý setup a nevezmeš ho, zapiš proč. Čekání je taky výsledek.</p>");
+}
+
+function reviewHtml(closed) {
+  const wk = weekKey(todayS()), R = LS.get("jr:rev", {}), cur = R[wk] || {}, tr = closed.filter(t => weekKey(day(t)) === wk), net = sum(tr.map(pnl));
+  const pl = tr.filter(t => t.plan === "ano").length, pn = tr.filter(t => t.plan === "ne").length, ms = LS.get("jr:missed", []).filter(x => weekKey(x.d) === wk && x.ok).length;
+  const stats = `<div class="kpis">${K(tr.length, "obchodů tento týden")}${K(cs(net), "výsledek týdne")}${K(pl + pn ? nf(pl / (pl + pn) * 100) + "&nbsp;%" : dash, "dodržení plánu")}${K(ms, "správně počkáno")}</div>`;
+  const q = [["a", "Co se mi tento týden dařilo?"], ["b", "Kde jsem porušil pravidla a proč?"], ["c", "Co zlepším příští týden? (jedna věc)"]];
+  const old = Object.keys(R).filter(k => k !== wk).sort().reverse().slice(0, 8);
+  return stats + q.map(([k, l]) => `<label style="margin-top:10px">${l}<textarea rows="2" data-rv="${k}">${esc(cur[k] || "")}</textarea></label>`).join("") +
+    `<label style="margin-top:10px;max-width:260px">Známka týdne<select data-rv="g"><option value="">–</option>${[1, 2, 3, 4, 5].map(i => `<option${String(cur.g) === String(i) ? " selected" : ""}>${i}</option>`).join("")}</select></label><p class="empty">Týden od ${wk}. Ukládá se samo. Nejlepší čas je neděle večer.</p>` +
+    (old.length ? `<details style="margin-top:10px"><summary>Dřívější rozbory (${old.length})</summary>${old.map(k => `<p class="hint"><b>Týden od ${k}</b>${R[k].g ? " (známka " + R[k].g + ")" : ""}<br>${esc(R[k].a || "")}<br>${esc(R[k].b || "")}<br><i>${esc(R[k].c || "")}</i></p>`).join("")}</details>` : "");
+}
+
+function playbookHtml(closed) {
+  const P = LS.get("jr:pb", []);
+  const rows = P.map(p => { const l = closed.filter(t => (t.strat || "").toLowerCase() === p.name.toLowerCase()), s = st(l); return rowH([`<b>${esc(p.name)}</b><br><span class="empty">${esc(p.desc || "")}</span><br><span class="empty">Vstup jen když: ${esc(p.rules || "–")}</span>`, s.n, s.wr == null ? dash : nf(s.wr) + "&nbsp;%", cs(s.net), `<button class="ghost sm" data-pbd="${esc(p.name)}">Smazat</button>`]); });
+  return `<div class="grid"><label>Název setupu<input id="pb-n" placeholder="např. Break and retest"></label><label>Popis<input id="pb-d" placeholder="co to je"></label><label>Podmínky vstupu<input id="pb-r" placeholder="např. větší TF souhlasí, retest, potvrzení"></label></div><div class="row"><button type="button" id="pb-add">Přidat do playbooku</button></div>` +
+    (P.length ? tbl(["Setup", "Obchodů", "Úspěšnost", "Výsledek", ""], rows) : "<p class=\"empty\">Playbook je seznam tvých pár ověřených setupů. Doporučuju mít jen 1 až 3. Ve formuláři obchodu pak vybereš setup a statistiky se spočítají zvlášť.</p>") + `<datalist id="pbl">${P.map(p => `<option value="${esc(p.name)}">`).join("")}</datalist>`;
+}
+
+function disc() {
+  const closed = ALL.filter(t => pnl(t) !== null).sort((a, b) => when(a).localeCompare(when(b))), s = st(closed);
+  const broken = closed.filter(t => t.plan === "ne"), leak = sum(broken.map(pnl)), ans = closed.filter(t => t.plan === "ano" || t.plan === "ne").length;
+  $("d-tilt").innerHTML = tilt(closed);
+  $("d-leak").innerHTML = closed.length ? `<div class="kpis">${K(cs(leak), "cena obchodů mimo plán (" + broken.length + "×)")}${K(cs(s.net - leak), "výsledek bez nich")}${K(ans ? nf((ans - broken.length) / ans * 100) + "&nbsp;%" : dash, "dodržení plánu")}</div><p class="hint">${leak < 0 ? "Kdybys těchto obchodů nevzal, měl bys na účtu o " + nf(Math.abs(leak)) + " $ víc. To je cena netrpělivosti." : broken.length ? "Obchody mimo plán dopadly dobře, ale jsou riziko. Dlouhodobě vždy platí plán." : "Zatím žádný obchod mimo plán. Skvělé."}</p>` : "<p class=\"empty\">Zatím žádné obchody.</p>";
+  const cost = (names, key) => names.map(n => { const l = closed.filter(t => (t[key] || []).includes(n)); return [n, l.length, sum(l.map(pnl))]; }).filter(x => x[1]).sort((a, b) => a[2] - b[2]);
+  const emo = cost(EMO.map(e => e[1]), "emo").map(x => [(EMO.find(e => e[1] === x[0]) || [""])[0] + " " + x[0], x[1], x[2]]), mis = cost(MIS, "mis");
+  const ct = r => r.length ? tbl(["", "Obchodů", "Součet", "Průměr"], r.map(x => rowH([x[0], x[1], cs(x[2]), cs(x[2] / x[1])]))) : "<p class=\"empty\">Zatím nic. Při zápisu obchodu odškrtni emoce a chyby.</p>";
+  $("d-emo").innerHTML = "<h3>Kolik tě stojí emoce</h3>" + ct(emo) + "<h3 style=\"margin-top:16px\">Nejdražší chyby</h3>" + ct(mis);
+  const tg = {}; closed.forEach(t => (t.tags || "").split(",").map(x => x.trim()).filter(Boolean).forEach(x => (tg[x.toLowerCase()] = tg[x.toLowerCase()] || []).push(t)));
+  const tk = Object.keys(tg);
+  $("d-tags").innerHTML = tk.length ? tbl(["Štítek", "Obchodů", "Úspěšnost", "Výsledek"], tk.map(k => { const q = st(tg[k]); return rowH([esc(k), q.n, q.wr == null ? dash : nf(q.wr) + "&nbsp;%", cs(q.net)]); })) : "<p class=\"empty\">Ve formuláři obchodu je políčko Štítky. Napiš třeba: NFP, otevření, retest. Tady se ukáže, který štítek ti vydělává.</p>";
+  $("d-miss").innerHTML = missedHtml(); $("d-rev").innerHTML = reviewHtml(closed); $("d-pb").innerHTML = playbookHtml(closed);
+  const strs = [...new Set([...ALL.map(t => t.strat), ...LS.get("jr:pb", []).map(p => p.name)].filter(Boolean))]; $("strs").innerHTML = strs.map(x => `<option value="${esc(x)}">`).join("");
+  bkInfo();
+}
+function bkInfo() {
+  const last = LS.get("jr:lastbk", null), days = last ? Math.floor((Date.now() - last) / 864e5) : null, need = ALL.length && (days === null || days >= 7);
+  $("bk").innerHTML = ALL.length ? `<div class="note" style="margin-bottom:12px${need ? ";border-color:#FF6B8A" : ""}">${last ? "Poslední záloha: před " + days + " dny." : "Deník ještě nikdy nebyl zálohovaný."} ${need ? "Doporučuju zálohovat teď. Deník je jen v tomto prohlížeči." : "Vše v pořádku."} <button class="ghost sm" id="bk-now" type="button">Zálohovat teď</button></div>` : "";
+  if ($("bk-now")) $("bk-now").onclick = () => $("exp").click();
+}
+document.addEventListener("click", e => {
+  const t = e.target, g = a => t.getAttribute && t.getAttribute(a);
+  if (t.id === "ms-add") { const s = $("ms-s").value.trim(); if (!s) { $("ms-s").focus(); return; } const L = LS.get("jr:missed", []); L.push({id: Date.now(), d: $("ms-d").value || todayS(), s, r: $("ms-r").value, ok: $("ms-ok").checked}); LS.set("jr:missed", L); disc(); }
+  else if (g("data-ms")) { LS.set("jr:missed", LS.get("jr:missed", []).filter(x => String(x.id) !== g("data-ms"))); disc(); }
+  else if (t.id === "pb-add") { const n = $("pb-n").value.trim(); if (!n) { $("pb-n").focus(); return; } const P = LS.get("jr:pb", []).filter(p => p.name.toLowerCase() !== n.toLowerCase()); P.push({name: n, desc: $("pb-d").value.trim(), rules: $("pb-r").value.trim()}); LS.set("jr:pb", P); disc(); }
+  else if (g("data-pbd")) { if (confirm("Smazat setup z playbooku? Obchody zůstanou.")) { LS.set("jr:pb", LS.get("jr:pb", []).filter(p => p.name !== g("data-pbd"))); disc(); } }
+});
+document.addEventListener("input", e => { const k = e.target.getAttribute && e.target.getAttribute("data-rv"); if (!k) return; const wk = weekKey(todayS()), R = LS.get("jr:rev", {}); R[wk] = R[wk] || {}; R[wk][k] = e.target.value; LS.set("jr:rev", R); });
+$("f").elements.strat.addEventListener("input", e => { const p = LS.get("jr:pb", []).find(x => x.name.toLowerCase() === e.target.value.trim().toLowerCase()); $("pbnote").textContent = p ? "Podmínky tohoto setupu: " + (p.rules || "nevyplněno") + ". Splňuješ je všechny?" : ""; });
+$("exp").onclick = async () => {
+  const out = []; for (const t of ALL) out.push({...t, shot: undefined, shots: await Promise.all(imgs(t).map(toUrl))});
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify({v: 2, trades: out, extra: {missed: LS.get("jr:missed", []), pb: LS.get("jr:pb", []), rev: LS.get("jr:rev", {})}})], {type: "application/json"}));
+  a.download = "zaloha-denik-" + todayS() + ".json"; a.click(); LS.set("jr:lastbk", Date.now()); bkInfo();
+};
+$("impf").onchange = async e => {
+  try { const raw = JSON.parse(await e.target.files[0].text()), ts = Array.isArray(raw) ? raw : raw.trades;
+    for (const t of ts) { t.shots = await Promise.all((t.shots || []).map(async u => (await fetch(u)).blob())); delete t.id; await tx("readwrite", s => s.add(t)); }
+    if (raw.extra) { const m = LS.get("jr:missed", []), ids = new Set(m.map(x => x.id)); (raw.extra.missed || []).forEach(x => { if (!ids.has(x.id)) m.push(x); }); LS.set("jr:missed", m);
+      const pb = LS.get("jr:pb", []), nm = new Set(pb.map(p => p.name.toLowerCase())); (raw.extra.pb || []).forEach(p => { if (!nm.has(p.name.toLowerCase())) pb.push(p); }); LS.set("jr:pb", pb);
+      LS.set("jr:rev", Object.assign({}, raw.extra.rev || {}, LS.get("jr:rev", {}))); }
+    render();
+  } catch (x) { alert("Soubor se nepodařilo načíst. Je to záloha z tohoto deníku?"); }
+  e.target.value = "";
+};
+const _render = render; render = async function () { await _render(); disc(); };
+
 open().then(d => { db = d; render(); });
 </script><script src="tips.js"></script></body></html>
