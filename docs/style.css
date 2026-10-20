@@ -1,4 +1,4 @@
-:root{--bg:#080C1A;--ink:#EEF1FA;--muted:#97A3BF;--rule:rgba(255,255,255,.09);--up:#2EE6A6;--down:#FF6B8A;--acc:#8B7CFF;--glass:rgba(255,255,255,.045);--field:rgba(255,255,255,.06);color-scheme:dark}
+:root{--bg:#080C1A;--ink:#EEF1FA;--muted:#C9D1E8;--rule:rgba(255,255,255,.09);--up:#2EE6A6;--down:#FF6B8A;--acc:#8B7CFF;--glass:rgba(255,255,255,.045);--field:rgba(255,255,255,.06);color-scheme:dark}
 *{box-sizing:border-box}
 body{margin:0;min-height:100vh;color:var(--ink);font:15px/1.55 "IBM Plex Sans",system-ui,sans-serif;background:radial-gradient(1100px 560px at 12% -8%,rgba(139,124,255,.30),transparent 60%),radial-gradient(900px 520px at 95% 4%,rgba(46,230,166,.14),transparent 60%),var(--bg) fixed}
 main{max-width:1000px;margin:0 auto;padding:28px 18px 72px}
@@ -114,7 +114,7 @@ a.tile{display:block;text-decoration:none;color:var(--ink);cursor:pointer}
 
 /* v12 */
 .side{width:268px;overflow-y:auto}.clock{margin:0 0 12px;padding:10px 14px}.clock b{font-size:29.6px}.brand{padding-bottom:14px}
-.tip{border-bottom:1px dotted #97A3BF;cursor:help;position:relative}.tip sup{color:#38BDF8;font-size:.7em;margin-left:1px;font-weight:700}
+.tip{border-bottom:1px dotted #C9D1E8;cursor:help;position:relative}.tip sup{color:#38BDF8;font-size:.7em;margin-left:1px;font-weight:700}
 .tip:hover::after,.tip:focus::after{content:attr(data-tip);position:absolute;left:0;top:calc(100% + 6px);z-index:60;width:max-content;max-width:260px;white-space:normal;text-align:left;background:#0C1124;border:1px solid rgba(139,124,255,.7);color:#EEF1FA;padding:10px 12px;border-radius:10px;font-size:16.0px;font-weight:400;font-style:normal;line-height:1.4;box-shadow:0 14px 34px -8px rgba(0,0,0,.9)}
 .tip.r:hover::after,.tip.r:focus::after{left:auto;right:0}
 .lede .tip sup,.k b .tip sup{font-size:.32em}
@@ -131,3 +131,22 @@ a.tile{display:block;text-decoration:none;color:var(--ink);cursor:pointer}
 .conf{position:fixed;top:-30px;font-size:29.6px;z-index:90;animation:fall 2s ease-in forwards;pointer-events:none}@keyframes fall{to{transform:translateY(110vh) rotate(360deg);opacity:.2}}
 .toast{position:fixed;left:50%;bottom:40px;transform:translateX(-50%);background:#0C1124;border:1px solid #8B7CFF;border-radius:14px;padding:14px 22px;font-weight:600;z-index:95;box-shadow:0 20px 50px -10px rgba(0,0,0,.9)}
 .lede.warn{color:#FFB454}
+
+/* v14 čitelnost */
+:root{--muted:#C9D1E8;--rule:rgba(255,255,255,.18);--ink:#FFFFFF}
+body{font-size:17px;background:radial-gradient(1000px 520px at 10% -12%,rgba(139,124,255,.38),transparent 62%),radial-gradient(800px 480px at 96% 2%,rgba(56,189,248,.24),transparent 60%),radial-gradient(700px 500px at 50% 112%,rgba(244,114,182,.18),transparent 60%),#121A33 fixed}
+.side{background:rgba(22,30,58,.94);border-right:1px solid rgba(255,255,255,.14)}
+.side a{color:#DCE2F4;font-size:16.5px}.side a:hover{background:rgba(255,255,255,.1);color:#fff}
+.grp{color:#9FD8FF;opacity:1;font-size:13.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.brand{font-size:21px}.brand small{font-size:13px;color:#C9D1E8;-webkit-text-fill-color:#C9D1E8}
+.clock{background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.2);color:#DCE2F4;font-size:14.5px}.clock b{color:#fff}
+section,.k,.step{background:linear-gradient(160deg,rgba(255,255,255,.12),rgba(255,255,255,.06));border:1px solid rgba(255,255,255,.2)}
+h2{font-size:20px;color:#fff}h2::before{content:"";display:inline-block;width:5px;height:18px;border-radius:3px;margin-right:10px;vertical-align:-2px;background:linear-gradient(#8B7CFF,#38BDF8)}
+h3{font-size:16.5px;color:#7DD3FC}
+.hint{color:#D5DCEF;font-size:16px}.facts{color:#E3E8F6}.facts li{margin:7px 0}.empty{color:#C9D1E8}
+.pagehead p{color:#D5DCEF;font-size:17px}label{color:#DCE2F4;font-size:15px}.k span{color:#D5DCEF;font-size:15px}
+th,td{font-size:16px}thead th{color:#C9D1E8}.bar span{color:#E3E8F6}.bar em{color:#C9D1E8}.tile span{color:rgba(255,255,255,.88)}footer{color:#C9D1E8}
+.pill-off{color:#DCE2F4!important;border-color:rgba(255,255,255,.28)!important}
+input,select,textarea{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.25)}button.ghost{border-color:rgba(255,255,255,.3)}
+.chip{border-color:rgba(255,255,255,.3);font-size:15px}.tip{border-bottom-color:#7DD3FC}.step span:last-child{color:#D5DCEF;font-size:15px}
+.badge{font-size:13.5px}.day{border-color:rgba(255,255,255,.2)}.day span{color:#D5DCEF}

@@ -61,7 +61,7 @@ tick();setInterval(tick,1000)})();</script><div class="content"><header class="p
 <dialog id="view"><div id="vbody"></div><div class="row"><button class="ghost" onclick="this.closest('dialog').close()">Zavřít</button></div></dialog>
 
 <script>
-if (window.Chart) { Chart.defaults.color = "#97A3BF"; Chart.defaults.borderColor = "rgba(255,255,255,.07)"; Chart.defaults.font.family = '"IBM Plex Sans",system-ui,sans-serif'; }
+if (window.Chart) { Chart.defaults.color = "#C9D1E8"; Chart.defaults.borderColor = "rgba(255,255,255,.07)"; Chart.defaults.font.family = '"IBM Plex Sans",system-ui,sans-serif'; }
 if (window.Chart) Chart.register({id: "cross", afterDraw(c) { if (c.config.type === "line" && c.tooltip && c.tooltip._active && c.tooltip._active.length) { const x = c.tooltip._active[0].element.x, a = c.chartArea, g = c.ctx; g.save(); g.beginPath(); g.moveTo(x, a.top); g.lineTo(x, a.bottom); g.lineWidth = 1; g.strokeStyle = "rgba(255,255,255,.28)"; g.setLineDash([4, 4]); g.stroke(); g.restore(); } }});
 const S = "trades", EMO = [["😌","Klid"],["💪","Sebevědomí"],["🏃","FOMO"],["🤑","Chamtivost"],["😨","Strach"],["😡","Revenge"],["⏱️","Netrpělivost"],["😕","Nejistota"],["🤯","Tilt"],["😴","Nuda"]];
 const MIS = ["Brzký vstup","Pozdní vstup","Přesunutý stop","Předčasný výstup","Přeobchodování","Bez setupu","FOMO","Revenge obchod","Moc velká pozice"];
