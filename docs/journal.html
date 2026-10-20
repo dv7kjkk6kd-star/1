@@ -4,7 +4,7 @@
 <title>Deník obchodů</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script></head>
-<body><div class="app"><aside class="side"><div class="brand">Obchodní cockpit</div><nav><p class="grp">Ráno před obchodováním</p><a href="index.html"><span>🏠</span>Přehled</a><a href="zpravy.html"><span>🗞️</span>Zprávy</a><a href="premarket.html"><span>🌅</span>Premarket</a><a href="fundament.html"><span>📰</span>Fundament</a><a href="predikce.html"><span>🔮</span>Predikce zpráv</a><a href="kalendar.html"><span>📅</span>Kalendář</a><a href="sentiment.html"><span>💬</span>Sentiment</a><p class="grp">Analýza</p><a href="bias.html"><span>🧭</span>Bias</a><a href="tyden.html"><span>🗓️</span>Týdenní výhled</a><a href="presnost.html"><span>🎯</span>Přesnost biasu</a><p class="grp">Příprava</p><a href="mindset.html"><span>🧘</span>Mindset</a><a href="plan.html"><span>📝</span>Plán dne</a><p class="grp">Obchodování</p><a href="journal.html" aria-current="page"><span>📓</span>Deník obchodů</a><p class="grp">Učení a nastavení</p><a href="roadmap.html"><span>🛣️</span>Roadmap</a><a href="prirucka.html"><span>📘</span>Příručka</a><a href="nastaveni.html"><span>⚙️</span>Nastavení</a></nav><div class="clock"><span id="mks">Burza</span><b id="mk">–</b><span>podle času v New Yorku, svátky nezohledňuje</span></div></aside><script>(function(){var el=document.getElementById("mk"),sub=document.getElementById("mks");if(!el)return;
+<body><div class="app"><aside class="side"><div class="brand">Trader Dojo<small>trénink trpělivosti</small></div><nav><p class="grp">Ráno před obchodováním</p><a href="index.html"><span>🏠</span>Přehled</a><a href="zpravy.html"><span>🗞️</span>Zprávy</a><a href="premarket.html"><span>🌅</span>Premarket</a><a href="fundament.html"><span>📰</span>Fundament</a><a href="predikce.html"><span>🔮</span>Predikce zpráv</a><a href="kalendar.html"><span>📅</span>Kalendář</a><a href="sentiment.html"><span>💬</span>Sentiment</a><p class="grp">Analýza</p><a href="bias.html"><span>🧭</span>Bias</a><a href="tyden.html"><span>🗓️</span>Týdenní výhled</a><a href="presnost.html"><span>🎯</span>Přesnost biasu</a><p class="grp">Příprava</p><a href="trpelivost.html"><span>⏳</span>Trpělivost</a><a href="mindset.html"><span>🧘</span>Mindset</a><a href="plan.html"><span>📝</span>Plán dne</a><p class="grp">Obchodování</p><a href="journal.html" aria-current="page"><span>📓</span>Deník obchodů</a><p class="grp">Učení a nastavení</p><a href="roadmap.html"><span>🛣️</span>Roadmap</a><a href="prirucka.html"><span>📘</span>Příručka</a><a href="nastaveni.html"><span>⚙️</span>Nastavení</a></nav><div class="clock"><span id="mks">Burza</span><b id="mk">–</b><span>podle času v New Yorku, svátky nezohledňuje</span></div></aside><script>(function(){var el=document.getElementById("mk"),sub=document.getElementById("mks");if(!el)return;
 var pad=function(n){return String(n).padStart(2,"0")},WD=["Mon","Tue","Wed","Thu","Fri"],ORD=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 function ny(){var o={};new Intl.DateTimeFormat("en-US",{timeZone:"America/New_York",hour12:false,weekday:"short",hour:"2-digit",minute:"2-digit",second:"2-digit"}).formatToParts(new Date()).forEach(function(x){o[x.type]=x.value});return{wd:o.weekday,s:(+o.hour%24)*3600+(+o.minute)*60+(+o.second)}}
 function tick(){var t=ny(),open=34200,close=57600,wk=WD.indexOf(t.wd)>=0,left,txt;
@@ -47,11 +47,11 @@ tick();setInterval(tick,1000)})();</script><div class="content"><header class="p
 <div class="grid">
 <label>Otevřeno<input name="opened" type="datetime-local" required></label><label>Zavřeno (po uzavření)<input name="closed" type="datetime-local"></label>
 <label>Instrument<input name="inst" value="MNQ" required></label><label>Směr<select name="dir"><option value="long">Long</option><option value="short">Short</option></select></label>
-<label>Počet mikro kontraktů<input name="size" type="number" step="1" min="1" value="1"></label><label>Vzdálenost stopu (body)<input id="sd" type="number" step="any" value="20"></label><input name="pv" type="hidden">
+<label>Počet mikro kontraktů<input name="size" type="number" step="1" min="1" value="1"></label><label>Vzdálenost stopu (body)<input id="sd" type="number" step="any" value="35"></label><input name="pv" type="hidden">
 <label>Vstup<input name="entry" type="number" step="any" required></label><label>Stop loss<input name="stop" type="number" step="any" required></label>
 <label>Take profit 1 (1:2)<input name="target" type="number" step="any" required></label><label>Take profit 2 (1:2,5)<input name="target2" type="number" step="any"></label><label>Výstup<input name="exit" type="number" step="any"></label>
 <label>Poplatky ($)<input name="fee" type="number" step="any"></label><label>Strategie<input name="strat" list="strs"></label><label>Trend dne<select name="trend"><option value="">–</option><option value="with">Obchoduji s trendem</option><option value="against">Obchoduji proti trendu</option></select></label><label>Účet<input name="acc" value="Hlavní" list="accs"></label></div><datalist id="strs"></datalist><datalist id="accs"></datalist>
-<div class="note" id="rr" style="margin-top:12px">Zadej vstupní cenu a stop loss i oba take profity se doplní samy.</div>
+<p class="empty" id="entrynote" style="margin:8px 0 0"></p><div class="note" id="rr" style="margin-top:12px">Zadej vstupní cenu a stop loss i oba take profity se doplní samy.</div>
 <div class="grid" style="margin-top:12px"><label>Dodržel jsem plán?<select name="plan"><option value="">–</option><option value="ano">Ano</option><option value="ne">Ne</option></select></label><label>Hodnocení obchodu<select name="rate"><option value="">–</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></label></div><label style="margin-top:12px">Chyby</label><div class="chips" id="d-mis"></div>
 <label style="margin-top:12px">Emoce</label><div class="chips" id="d-emo"></div>
 <label style="margin-top:12px">Poznámky<textarea name="notes" rows="3"></textarea></label>
@@ -195,12 +195,12 @@ $("flt").addEventListener("input", reports); $("f-emo").addEventListener("input"
 $("f-reset").onclick = () => { document.querySelectorAll("#flt input,#flt select").forEach(i => i.value = ""); document.querySelectorAll("#f-emo input").forEach(i => i.checked = false); reports(); };
 
 function dlg(t) {
-  const f = $("f"); f.reset(); shots = t ? [...imgs(t)] : []; touched = t ? {target: 1, target2: 1} : {}; dist = t ? (Math.abs(t.entry - t.stop) || null) : null; $("sd").value = lsGet("defStop") || 20;
+  const f = $("f"); f.reset(); shots = t ? [...imgs(t)] : []; touched = t ? {target: 1, target2: 1} : {}; dist = t ? (Math.abs(t.entry - t.stop) || null) : null; $("sd").value = lsGet("defStop35") || 35;
   $("dt").textContent = t ? "Upravit obchod" : "Nový obchod"; f.elements.opened.value = localNow(); f.elements.acc.value = lsGet("lastAcc") || "Hlavní";
   if (t) { for (const k of ["id","opened","closed","inst","dir","size","pv","entry","stop","target","target2","exit","fee","strat","plan","rate","notes","trend","acc"]) f.elements[k].value = (k === "opened" ? when(t) : t[k]) ?? "";
     f.querySelectorAll('[name=emo]').forEach(c => c.checked = (t.emo || []).includes(c.value));
     f.querySelectorAll('[name=mis]').forEach(c => c.checked = (t.mis || []).includes(c.value)); }
-  rr(); $("shotinfo").textContent = shots.length ? shots.length + " screenshotů uloženo." : ""; $("dlg").showModal();
+  rr(); $("shotinfo").textContent = shots.length ? shots.length + " screenshotů uloženo." : ""; $("dlg").showModal(); entryAuto = false; $("entrynote").textContent = ""; if (!t) fillEntry();
 }
 $("add").onclick = () => dlg(); $("cancel").onclick = () => $("dlg").close();
 $("f").elements.shot.onchange = e => { shots.push(...e.target.files); $("shotinfo").textContent = shots.length + " screenshotů připraveno."; e.target.value = ""; };
@@ -255,7 +255,7 @@ function auto(src) {
   if (src === "sd") { dist = null; touched.stop = 0; }
   const s0 = parseFloat(f.stop.value);
   if ((src === "stop" || (touched.stop && dist == null)) && !isNaN(s0) && s0 !== e) dist = Math.abs(e - s0);
-  const d = dist || parseFloat($("sd").value) || 20;
+  const d = dist || parseFloat($("sd").value) || 35;
   if (src !== "stop") f.stop.value = rnd(e - sg * d);
   if (!touched.target) f.target.value = rnd(e + sg * 2 * d);
   if (!touched.target2) f.target2.value = rnd(e + sg * 2.5 * d);
@@ -265,7 +265,7 @@ function auto(src) {
   fe.entry.addEventListener("input", () => auto("entry")); fe.dir.addEventListener("change", () => auto("dir")); fe.stop.addEventListener("input", () => auto("stop"));
   fe.target.addEventListener("input", () => { touched.target = 1; rr(); }); fe.target2.addEventListener("input", () => { touched.target2 = 1; rr(); });
   fe.size.addEventListener("input", rr); fe.inst.addEventListener("input", rr);
-  $("sd").addEventListener("input", () => { try { localStorage.setItem("defStop", JSON.stringify($("sd").value)); } catch (e) {} auto("sd"); }); }
+  $("sd").addEventListener("input", () => { try { localStorage.setItem("defStop35", JSON.stringify($("sd").value)); } catch (e) {} auto("sd"); }); }
 let HIST = [], radar = null, yearc = null;
 fetch("history.json", {cache: "no-store"}).then(r => r.ok ? r.json() : []).then(h => { HIST = Array.isArray(h) ? h : []; }).catch(() => {});
 function biasOf(t) { const h = HIST.find(x => x.date === day(t)); if (!h) return null; const b = (h.label || "").toLowerCase(); return b.includes("bullish") ? 1 : b.includes("bearish") ? -1 : 0; }
@@ -316,7 +316,7 @@ $("csvf").onchange = async e => {
     const ix = k => h.findIndex(x => x.startsWith(k));
     for (const ln of lines.slice(1)) { const c = ln.split(sep), v = k => c[ix(k)], num = k => { const x = parseFloat(String(v(k) ?? "").replace(",", ".")); return isNaN(x) ? null : x; };
       if (!v("dat") || num("vst") == null) continue; const d = String(v("dat")).trim().slice(0, 10), dr = /^short|^s$/i.test((v("sm") || v("dir") || "").trim()) ? "short" : "long";
-      const inst = (v("sym") || "MNQ").toUpperCase(), e0 = num("vst"), st0 = num("stop"), d0 = st0 != null ? Math.abs(e0 - st0) : 20, sg2 = dr === "short" ? -1 : 1;
+      const inst = (v("sym") || "MNQ").toUpperCase(), e0 = num("vst"), st0 = num("stop"), d0 = st0 != null ? Math.abs(e0 - st0) : 35, sg2 = dr === "short" ? -1 : 1;
       await tx("readwrite", s => s.add({opened: d + "T09:30", closed: d + "T10:00", inst, dir: dr, size: num("kontr") || 1, entry: e0, stop: st0 ?? rnd(e0 - sg2 * d0), target: rnd(e0 + sg2 * 2 * d0), target2: rnd(e0 + sg2 * 2.5 * d0), exit: num("vyst"), fee: num("poplat"), acc: "Import", emo: [], mis: [], shots: []})); n++; }
     alert("Načteno obchodů: " + n); render();
   } catch (x) { alert("CSV se nepodařilo načíst."); } e.target.value = "";
@@ -327,5 +327,19 @@ $("cp").onclick = async () => {
   const txt = `Rozeber mi můj obchodní deník (mikro kontrakty MNQ). Dej mi známku, silné a slabé stránky a 3 konkrétní kroky.\nSouhrn: obchodů ${s.n}, výsledek ${Math.round(s.net)} $, úspěšnost ${s.wr == null ? "-" : Math.round(s.wr)} %, profit factor ${s.pf == null ? "-" : s.pf.toFixed(2)}.\nSloupce: datum;symbol;směr;kontrakty;vstup;stop;výstup;výsledek $;trend;plán;emoce;chyby;strategie;účet\n${rows}`;
   try { await navigator.clipboard.writeText(txt); $("cpmsg").textContent = "Zkopírováno. Vlož do chatu na claude.ai."; } catch (x) { prompt("Zkopíruj text:", txt); }
 };
+let PR = {}, entryAuto = false;
+fetch("prices.json", {cache: "no-store"}).then(r => r.ok ? r.json() : {}).then(p => { PR = p || {}; if ($("dlg").open && !$("f").elements.id.value) fillEntry(); }).catch(() => {});
+function fillEntry() {
+  const f = $("f").elements, d = (f.opened.value || "").slice(0, 10);
+  if (f.id.value || !/^(MNQ|NQ)/i.test(f.inst.value)) return;
+  let v = PR.p && PR.p[d], txt = "";
+  if (v != null) txt = "Vstupní cena je předvyplněná cenou Nasdaq futures dne " + d + " v 15:00 pražského času. Můžeš ji přepsat.";
+  else if (PR.last && PR.last.d === d) { v = PR.last.v; txt = "Cena v 15:00 ještě není k dispozici. Předvyplněna je poslední známá cena (" + PR.last.t + "). Můžeš ji přepsat."; }
+  if (v == null) { $("entrynote").textContent = "Cena v 15:00 pro tento den není uložená. Zadej vstup ručně."; return; }
+  f.entry.value = rnd(v); entryAuto = true; $("entrynote").textContent = txt; auto("entry");
+}
+$("f").elements.entry.addEventListener("input", () => { entryAuto = false; $("entrynote").textContent = ""; });
+$("f").elements.opened.addEventListener("change", () => { if (entryAuto || !$("f").elements.entry.value) fillEntry(); });
+$("f").elements.inst.addEventListener("change", () => { if (!$("f").elements.entry.value) fillEntry(); });
 open().then(d => { db = d; render(); });
 </script></body></html>
