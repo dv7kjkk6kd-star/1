@@ -7,7 +7,12 @@ function tick(){var t=ny(),open=34200,close=57600,wk=WD.indexOf(t.wd)>=0,left,tx
 if(wk&&t.s>=open&&t.s<close){left=close-t.s;txt="Burza je otevřená, zavře za"}
 else{var idx=ORD.indexOf(t.wd),d=(wk&&t.s<open)?0:1;while(WD.indexOf(ORD[(idx+d)%7])<0)d++;left=d*86400+open-t.s;txt="Burza otevře za"}
 el.textContent=pad(Math.floor(left/3600))+":"+pad(Math.floor(left%3600/60))+":"+pad(left%60);sub.textContent=txt}
-tick();setInterval(tick,1000)})();</script><div class="content"><header class="pagehead"><h1>Plán dne</h1><p>Checklist, limity a kalkulačka rizika</p></header><main>
+tick();setInterval(tick,1000)})();(function(){var s=document.querySelector(".side");if(!s)return;
+try{var y=sessionStorage.getItem("sideY");if(y!==null)s.scrollTop=+y;}catch(e){}
+var a=s.querySelector("a[aria-current]");
+if(a){var r=a.getBoundingClientRect(),sr=s.getBoundingClientRect();if(r.bottom>sr.bottom-12||r.top<sr.top+12){s.scrollTop+=r.top-sr.top-s.clientHeight/2;}}
+var save=function(){try{sessionStorage.setItem("sideY",s.scrollTop)}catch(e){}};
+s.addEventListener("scroll",save);s.querySelectorAll("a").forEach(function(l){l.addEventListener("click",save)});})();</script><div class="content"><header class="pagehead"><h1>Plán dne</h1><p>Checklist, limity a kalkulačka rizika</p></header><main>
 <section class="hero"><div><p class="empty" style="margin:0 0 8px">Pravidla trpělivosti</p><p class="rule" id="pday" style="font-size:clamp(20px,3vw,26px);font-weight:600;margin:0"></p>
 <ul class="facts" id="plist" style="margin-top:12px"></ul>
 <div style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button id="pbtn">Dnes jsem se ovládl</button><span class="empty" id="pstreak"></span><a href="trpelivost.html">Trénink trpělivosti</a></div></div></section>
