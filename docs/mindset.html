@@ -1,12 +1,12 @@
 <!doctype html><html lang="cs"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Mindset</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="style.css">
 <style>
-.orb{width:190px;height:190px;border-radius:50%;margin:26px auto 12px;background:radial-gradient(circle at 35% 30%,#B3A9FF,#38BDF8 60%,#2B3A8F);box-shadow:0 0 70px rgba(139,124,255,.55);transform:scale(.6);transition:transform 4s linear}
+.orb{width:190px;height:190px;border-radius:50%;margin:26px auto 12px;background:radial-gradient(circle at 35% 30%,#B3A9FF,#38BDF8 60%,#2B3A8F);box-shadow:0 0 70px rgba(139,124,255,.55);transform:scale(.6);transition:transform var(--d,4s) linear}
 .orb.big{transform:scale(1.12)}.timer{font-size:46px;font-weight:700;text-align:center;font-variant-numeric:tabular-nums}.mid{text-align:center}
 .center{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px}.rule{font-size:clamp(20px,3vw,28px);font-weight:600;line-height:1.3;margin:0}
-.steps li{margin:8px 0}.links a{display:block;padding:10px 0;border-bottom:1px solid var(--rule)}input[type=range]{padding:0}
+.video{position:relative;padding-top:56.25%;border-radius:14px;overflow:hidden;border:1px solid var(--rule)}.video iframe{position:absolute;inset:0;width:100%;height:100%;border:0}.steps li{margin:8px 0}.links a{display:block;padding:10px 0;border-bottom:1px solid var(--rule)}input[type=range]{padding:0}
 </style></head>
-<body><div class="app"><aside class="side"><div class="brand">Obchodní cockpit</div><nav><p class="grp">Ráno před obchodováním</p><a href="index.html"><span>🏠</span>Přehled</a><a href="premarket.html"><span>🌅</span>Premarket</a><a href="fundament.html"><span>📰</span>Fundament</a><a href="kalendar.html"><span>📅</span>Kalendář</a><a href="sentiment.html"><span>💬</span>Sentiment</a><p class="grp">Příprava</p><a href="mindset.html" aria-current="page"><span>🧘</span>Mindset</a><a href="plan.html"><span>🎯</span>Plán dne</a><p class="grp">Obchodování</p><a href="journal.html"><span>📓</span>Deník obchodů</a></nav><div class="clock"><span id="mks">Burza</span><b id="mk">–</b><span>podle času v New Yorku, svátky nezohledňuje</span></div></aside><script>(function(){var el=document.getElementById("mk"),sub=document.getElementById("mks");if(!el)return;
+<body><div class="app"><aside class="side"><div class="brand">Obchodní cockpit</div><nav><p class="grp">Ráno před obchodováním</p><a href="index.html"><span>🏠</span>Přehled</a><a href="zpravy.html"><span>🗞️</span>Zprávy</a><a href="premarket.html"><span>🌅</span>Premarket</a><a href="fundament.html"><span>📰</span>Fundament</a><a href="predikce.html"><span>🔮</span>Predikce zpráv</a><a href="kalendar.html"><span>📅</span>Kalendář</a><a href="sentiment.html"><span>💬</span>Sentiment</a><p class="grp">Analýza</p><a href="bias.html"><span>🧭</span>Bias</a><a href="tyden.html"><span>🗓️</span>Týdenní výhled</a><a href="presnost.html"><span>🎯</span>Přesnost biasu</a><p class="grp">Příprava</p><a href="mindset.html" aria-current="page"><span>🧘</span>Mindset</a><a href="plan.html"><span>📝</span>Plán dne</a><p class="grp">Obchodování</p><a href="journal.html"><span>📓</span>Deník obchodů</a><p class="grp">Učení a nastavení</p><a href="roadmap.html"><span>🛣️</span>Roadmap</a><a href="prirucka.html"><span>📘</span>Příručka</a><a href="nastaveni.html"><span>⚙️</span>Nastavení</a></nav><div class="clock"><span id="mks">Burza</span><b id="mk">–</b><span>podle času v New Yorku, svátky nezohledňuje</span></div></aside><script>(function(){var el=document.getElementById("mk"),sub=document.getElementById("mks");if(!el)return;
 var pad=function(n){return String(n).padStart(2,"0")},WD=["Mon","Tue","Wed","Thu","Fri"],ORD=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 function ny(){var o={};new Intl.DateTimeFormat("en-US",{timeZone:"America/New_York",hour12:false,weekday:"short",hour:"2-digit",minute:"2-digit",second:"2-digit"}).formatToParts(new Date()).forEach(function(x){o[x.type]=x.value});return{wd:o.weekday,s:(+o.hour%24)*3600+(+o.minute)*60+(+o.second)}}
 function tick(){var t=ny(),open=34200,close=57600,wk=WD.indexOf(t.wd)>=0,left,txt;
@@ -14,24 +14,22 @@ if(wk&&t.s>=open&&t.s<close){left=close-t.s;txt="Burza je otevřená, zavře za"
 else{var idx=ORD.indexOf(t.wd),d=(wk&&t.s<open)?0:1;while(WD.indexOf(ORD[(idx+d)%7])<0)d++;left=d*86400+open-t.s;txt="Burza otevře za"}
 el.textContent=pad(Math.floor(left/3600))+":"+pad(Math.floor(left%3600/60))+":"+pad(left%60);sub.textContent=txt}
 tick();setInterval(tick,1000)})();</script><div class="content"><header class="pagehead"><h1>Mindset</h1><p>Klid, soustředění a rutina před obchodováním</p></header><main>
-<section class="hero"><div><p class="empty" style="margin:0 0 8px">Myšlenka dne</p><p class="rule" id="rule"></p></div></section>
+<section class="hero"><div><p class="empty" style="margin:0 0 8px">Můj úkol dne</p><p class="rule">Moje práce je čekat na příležitosti, kdy vím, že jsem silný.</p><p class="empty" style="margin:10px 0 0">Netlačím obchod každý den za každou cenu. Když nic neobchoduju a ovládnu se, je to moje výhra.</p></div></section>
+<section><h2>Vedená meditace (20 minut), hlavní část přípravy</h2><p class="hint">Zmáčkni přehrávání, zavři oči a poslouchej. Je to vedená meditace ve slovenštině.</p>
+<div class="video"><iframe src="https://www.youtube.com/embed/jd7adPU3JAw" title="Vedená meditácia - ZMENA REALITY" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe></div>
+<p class="mid empty"><a href="https://www.youtube.com/watch?v=jd7adPU3JAw" target="_blank" rel="noopener">Otevřít video na YouTube</a>, kdyby se zde nepřehrálo.</p></section>
 <section><h2>Jak se dnes cítím?</h2><div class="grid">
 <label>Klid: <b id="mv-calm"></b> z 5<input type="range" min="1" max="5" id="m-calm"></label>
 <label>Soustředění: <b id="mv-focus"></b> z 5<input type="range" min="1" max="5" id="m-focus"></label>
 <label>Energie: <b id="mv-energy"></b> z 5<input type="range" min="1" max="5" id="m-energy"></label></div>
 <div class="note" id="mood" style="margin-top:14px"></div></section>
-<section><h2>Dýchání do čtverce (nádech, zadržení, výdech, zadržení po 4 vteřinách)</h2>
+<section><h2>Dýchání</h2><p class="hint">Vyber způsob dýchání. Kruh roste při nádechu a zmenšuje se při výdechu. Dýchej nosem a pomalu.</p>
+<label style="max-width:360px;margin:0 auto">Způsob<select id="pat"><option value="box">Do čtverce: 4 nádech, 4 zadržet, 4 výdech, 4 zadržet</option><option value="calm">Uklidňující: 4 nádech, 6 výdech</option><option value="478">Spánek a klid: 4 nádech, 7 zadržet, 8 výdech</option></select></label>
 <div class="orb" id="orb"></div><div class="timer" id="otxt">Připraven</div><p class="mid empty" id="ocyc"></p>
-<div class="center"><button onclick="startBreath(1)">1 minuta</button><button onclick="startBreath(3)">3 minuty</button><button onclick="startBreath(5)">5 minut</button><button class="ghost" onclick="stopBreath()">Zastavit</button></div>
-<p class="mid empty">Kruh se zvětšuje při nádechu a zmenšuje při výdechu. Dýchej nosem a pomalu.</p></section>
-<section><h2>Ticho: meditační časovač</h2><div class="timer" id="med">00:00</div>
-<div class="center"><button onclick="startCD('med',180)">3 min</button><button onclick="startCD('med',300)">5 min</button><button onclick="startCD('med',600)">10 min</button><button onclick="startCD('med',900)">15 min</button><button class="ghost" onclick="stopCD('med');$('med').textContent='00:00'">Zastavit</button></div>
-<p class="mid empty">Sedni si, zavři oči a všímej si dechu. Když se myšlenky rozběhnou, vrať se k dechu. Na konci zazní jemný tón.</p></section>
-<section><h2>Pauza po ztrátě</h2><div class="timer" id="pause">00:00</div>
-<div class="center"><button onclick="startCD('pause',300)">5 min</button><button onclick="startCD('pause',600)">10 min</button><button onclick="startCD('pause',900)">15 min</button><button class="ghost" onclick="stopCD('pause');$('pause').textContent='00:00'">Zastavit</button></div>
-<p class="mid empty">Vstaň od grafu. Nic si nedokazuj a nepřidávej velikost. Obchoduj dál až po pauze a jen podle plánu.</p></section>
+<div class="center"><button onclick="startBreath(1)">1 minuta</button><button onclick="startBreath(3)">3 minuty</button><button onclick="startBreath(5)">5 minut</button><button class="ghost" onclick="stopBreath()">Zastavit</button></div></section>
+<section><h2>Pravidla trpělivosti</h2><ol class="steps" id="pat-rules"></ol></section>
 <section><h2>Rutina před otevřením burzy (asi 20 minut)</h2><ol class="steps">
-<li><b>Voda a pohyb (3 min):</b> napij se a projdi se nebo se protáhni.</li><li><b>Dýchání (3 min):</b> spusť dýchání do čtverce výše.</li>
+<li><b>Voda a pohyb (3 min):</b> napij se a projdi se nebo se protáhni.</li><li><b>Meditace a dýchání (20 min):</b> pusť si video výše, případně jen dýchání.</li>
 <li><b>Ranní briefing (5 min):</b> přečti si záložku Přehled a Fundament. Poznamenej si zprávy a jejich čas.</li><li><b>Plán dne (5 min):</b> v záložce Plán dne vyplň bias, úrovně a limity.</li>
 <li><b>Zavři rušení (1 min):</b> vypni sociální sítě a oznámení až do prvního obchodu.</li><li><b>Řekni si pravidlo:</b> „Dnes dodržím plán, i kdyby nebyl žádný obchod."</li></ol></section>
 <section><h2>Meditace zdarma</h2><div class="links">
@@ -55,7 +53,9 @@ const RULES = ["Moje práce není předvídat trh, ale dodržet plán.", "Žádn
   "Neobchoduji, abych si něco dokázal, ani abych se odrazil ze ztráty.", "Jeden dobrý setup stačí.", "Nejdřív pozoruji emoci, potom jednám. Ne naopak.",
   "Úspěch měřím dodržením procesu, ne výsledkem jednoho dne.", "Když váhám, nevstupuji."];
 $("rules").innerHTML = RULES.map(r => `<li>${r}</li>`).join("");
-$("rule").textContent = RULES[Math.floor(Date.now() / 86400000) % RULES.length];
+const PAT_RULES = ["Stačí si počkat na ten můj obchod.", "Trh nezajímám a proti ničemu nebojuji.", "Nemám emoce, mám jen trpělivost.", "Snažím se být nejlepší verzí sebe sama.",
+  "Když nic neobchoduju, ale sedím u grafu a dokážu se ovládnout, je to moje výhra.", "Moje práce je čekat na příležitosti, kdy vím, že jsem silný.", "Netlačím každý den za každou cenu."];
+$("pat-rules").innerHTML = PAT_RULES.map(r => `<li>${r}</li>`).join("");
 const mk = "mood:" + today(); let M = ls.get(mk) || {calm: 3, focus: 3, energy: 3};
 function mood() { ["calm", "focus", "energy"].forEach(k => $("mv-" + k).textContent = M[k]);
   $("mood").textContent = (M.calm <= 2 || M.focus <= 2) ? "Dnes nejsi v optimálním stavu. Nejdřív 3 minuty dýchání. Obchoduj jen se zmenšenou velikostí, nebo vůbec."
@@ -64,16 +64,14 @@ function mood() { ["calm", "focus", "energy"].forEach(k => $("mv-" + k).textCont
 const rk = "refl:" + today(), R = ls.get(rk) || {}; ["a", "b", "c"].forEach(k => { $("r-" + k).value = R[k] || ""; $("r-" + k).oninput = () => { R[k] = $("r-" + k).value; ls.set(rk, R); }; });
 function chime() { try { const a = new (window.AudioContext || window.webkitAudioContext)(); [0, 0.9, 1.8].forEach((d, i) => { const o = a.createOscillator(), g = a.createGain(); o.frequency.value = [528, 396, 528][i];
   o.connect(g); g.connect(a.destination); const t = a.currentTime + d; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.25, t + .05); g.gain.exponentialRampToValueAtTime(.001, t + 1.6); o.start(t); o.stop(t + 1.7); }); } catch (e) {} }
-const CD = {};
-function startCD(id, secs) { stopCD(id); const end = Date.now() + secs * 1000;
-  const draw = () => { const s = Math.max(0, Math.round((end - Date.now()) / 1000)); $(id).textContent = String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0"); if (s <= 0) stopCD(id, true); };
-  draw(); CD[id] = setInterval(draw, 250); }
-function stopCD(id, done) { if (CD[id]) { clearInterval(CD[id]); delete CD[id]; if (done) chime(); } }
-let br = null; const PH = ["Nádech", "Zadrž", "Výdech", "Zadrž"];
-function startBreath(mins) { stopBreath(); let t = 0; const orb = $("orb");
-  const tick = () => { if (t >= mins * 60) { stopBreath(true); return; } const p = Math.floor(t / 4) % 4;
-    if (t % 4 === 0) { if (p === 0) orb.classList.add("big"); if (p === 2) orb.classList.remove("big"); }
-    $("otxt").textContent = PH[p] + " " + (4 - t % 4); $("ocyc").textContent = "Dokončených cyklů: " + Math.floor(t / 16); t++; };
+let br = null;
+const PAT = {box: [["Nádech", 4, 1], ["Zadrž", 4, 1], ["Výdech", 4, 0], ["Zadrž", 4, 0]], calm: [["Nádech", 4, 1], ["Výdech", 6, 0]], "478": [["Nádech", 4, 1], ["Zadrž", 7, 1], ["Výdech", 8, 0]]};
+function startBreath(mins) { stopBreath(); const P = PAT[$("pat").value], total = P.reduce((a, p) => a + p[1], 0), orb = $("orb"); let t = 0, ph = 0, left = P[0][1], cyc = 0;
+  const setPhase = () => { const p = P[ph]; orb.style.setProperty("--d", (p[0] === "Zadrž" ? 0.01 : p[1]) + "s"); if (p[0] === "Nádech") orb.classList.add("big"); if (p[0] === "Výdech") orb.classList.remove("big"); };
+  setPhase();
+  const tick = () => { if (t >= mins * 60) { stopBreath(true); return; }
+    $("otxt").textContent = P[ph][0] + " " + left; $("ocyc").textContent = "Dokončených cyklů: " + cyc; t++; left--;
+    if (left <= 0) { ph = (ph + 1) % P.length; if (ph === 0) cyc++; left = P[ph][1]; setPhase(); } };
   tick(); br = setInterval(tick, 1000); }
 function stopBreath(done) { clearInterval(br); br = null; $("orb").classList.remove("big"); $("otxt").textContent = done ? "Hotovo. Jak se cítíš?" : "Připraven"; if (done) chime(); }
 </script></body></html>
