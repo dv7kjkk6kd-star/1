@@ -14,12 +14,20 @@ const TIPS = {"Bullish": "Čekáš, že cena poroste. Hledáš long (nákup).", 
     nodes.forEach(n => { const t = n.nodeValue, frag = document.createDocumentFragment(), seen = seenIn(n.parentElement.closest("section") || document.body); let last = 0, m; reG.lastIndex = 0;
       while ((m = reG.exec(t))) { const k = m[0].toLowerCase(); if (seen.has(k) || !lower[k]) continue; seen.add(k); frag.append(t.slice(last, m.index));
         const s = document.createElement("span"); s.className = "tip"; s.tabIndex = 0; s.dataset.tip = lower[k]; s.textContent = m[0];
-        const q = document.createElement("sup"); q.textContent = "?"; s.append(q); frag.append(s); last = m.index + m[0].length; }
+        const q = document.createElement("sup"); q.textContent = "*"; s.append(q); frag.append(s); last = m.index + m[0].length; }
       if (last) { frag.append(t.slice(last)); n.replaceWith(frag); } });
     busy = false;
   }
-  function start() { const main = document.querySelector("main") || document.body; run(main);
+  const box = document.createElement("div"); box.id = "tipbox"; try { box.setAttribute("popover", "manual"); } catch (e) {}
+  const hide = () => { try { if (box.matches(":popover-open")) box.hidePopover(); } catch (e) {} box.style.display = "none"; };
+  function show(t) { box.textContent = t.dataset.tip; box.style.display = "block"; try { box.showPopover(); } catch (e) {}
+    const r = t.getBoundingClientRect(), bw = box.offsetWidth, bh = box.offsetHeight; let x = Math.min(Math.max(8, r.left), window.innerWidth - bw - 8), y = r.bottom + 8;
+    if (y + bh > window.innerHeight - 8) y = Math.max(8, r.top - bh - 8); box.style.left = x + "px"; box.style.top = y + "px"; }
+  function start() { document.body.appendChild(box); const main = document.querySelector("main") || document.body; run(main);
     new MutationObserver(() => { if (busy) return; clearTimeout(tm); tm = setTimeout(() => run(main), 150); }).observe(main, {childList: true, subtree: true});
-    document.addEventListener("mouseover", e => { const t = e.target.closest && e.target.closest(".tip"); if (t) t.classList.toggle("r", t.getBoundingClientRect().left > window.innerWidth - 300); }); }
+    document.addEventListener("mouseover", e => { const t = e.target.closest && e.target.closest(".tip"); if (t) show(t); });
+    document.addEventListener("mouseout", e => { const t = e.target.closest && e.target.closest(".tip"); if (t) hide(); });
+    document.addEventListener("focusin", e => { const t = e.target.closest && e.target.closest(".tip"); if (t) show(t); });
+    document.addEventListener("focusout", hide); window.addEventListener("scroll", hide, true); }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start); else start();
 })();
