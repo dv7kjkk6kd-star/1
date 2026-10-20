@@ -113,7 +113,7 @@ a.tile{display:block;text-decoration:none;color:var(--ink);cursor:pointer}
 .exm{margin:6px 0 0;font-size:16.0px}details summary{cursor:pointer}
 
 /* v12 */
-.side{width:268px;overflow-y:auto}.clock{margin:0 0 12px;padding:10px 14px}.clock b{font-size:29.6px}.brand{padding-bottom:14px}
+.side{width:268px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}.gword{font-size:22.8px;font-weight:700;letter-spacing:.02em}.gword.up{color:var(--up)}.gword.down{color:var(--down)}.gdyn{margin:10px 0 4px;display:flex;justify-content:center}.clock{margin:0 0 12px;padding:10px 14px}.clock b{font-size:29.6px}.brand{padding-bottom:14px}
 .tip{border-bottom:1px dotted #C9D1E8;cursor:help;position:relative}.tip sup{color:#38BDF8;font-size:.7em;margin-left:1px;font-weight:700}
 .tip:hover::after,.tip:focus::after{content:attr(data-tip);position:absolute;left:0;top:calc(100% + 6px);z-index:60;width:max-content;max-width:260px;white-space:normal;text-align:left;background:#0C1124;border:1px solid rgba(139,124,255,.7);color:#EEF1FA;padding:10px 12px;border-radius:10px;font-size:16.0px;font-weight:400;font-style:normal;line-height:1.4;box-shadow:0 14px 34px -8px rgba(0,0,0,.9)}
 .tip.r:hover::after,.tip.r:focus::after{left:auto;right:0}

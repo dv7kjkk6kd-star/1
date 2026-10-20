@@ -11,6 +11,7 @@ tick();setInterval(tick,1000)})();(function(){var s=document.querySelector(".sid
 try{var y=sessionStorage.getItem("sideY");if(y!==null)s.scrollTop=+y;}catch(e){}
 var a=s.querySelector("a[aria-current]");
 if(a){var r=a.getBoundingClientRect(),sr=s.getBoundingClientRect();if(r.bottom>sr.bottom-12||r.top<sr.top+12){s.scrollTop+=r.top-sr.top-s.clientHeight/2;}}
+s.addEventListener("wheel",function(e){var up=e.deltaY<0;if((up&&s.scrollTop<=0)||(!up&&s.scrollTop+s.clientHeight>=s.scrollHeight-1)){e.preventDefault();}},{passive:false});
 var save=function(){try{sessionStorage.setItem("sideY",s.scrollTop)}catch(e){}};
 s.addEventListener("scroll",save);s.querySelectorAll("a").forEach(function(l){l.addEventListener("click",save)});})();</script><div class="content"><header class="pagehead"><h1>Plán dne</h1><p>Checklist, limity a kalkulačka rizika</p></header><main>
 <section class="hero"><div><p class="empty" style="margin:0 0 8px">Pravidla trpělivosti</p><p class="rule" id="pday" style="font-size:clamp(20px,3vw,26px);font-weight:600;margin:0"></p>
@@ -24,7 +25,7 @@ s.addEventListener("scroll",save);s.querySelectorAll("a").forEach(function(l){l.
 <label style="margin-top:12px">Setupy, které dnes obchoduji<textarea id="p-setups" rows="2"></textarea></label>
 <label style="margin-top:12px">Poznámky<textarea id="p-notes" rows="2"></textarea></label>
 <p class="empty">Plán se ukládá do tohoto prohlížeče, pro každý den zvlášť.</p></section>
-<section><h2>Checklist před obchodováním <span id="cprog" class="empty"></span></h2><p class="hint">Zaškrtni, co máš hotové. Když něco chybí, nejdřív to dodělej.</p><div class="chips" id="checks"></div></section>
+<section><h2>Checklist před obchodováním <span id="cprog" class="empty"></span></h2><div class="gdyn" id="gdyn"></div><p class="hint">Zaškrtni, co máš hotové. Když něco chybí, nejdřív to dodělej.</p><div class="chips" id="checks"></div></section>
 <section><h2>Měsíční cíl</h2><div class="grid"><label>Cíl na měsíc ($)<input id="m-goal" type="number"></label></div><div id="mprog" style="margin-top:12px"></div></section>
 <section><h2>Pravidla rizika</h2><ol class="steps"><li>Na jeden obchod riskuji nejvýš 1 % účtu (u účtu 50 000 $ je to 500 $).</li><li>Stop zadám před vstupem a nikdy ho neposouvám dál od vstupu.</li>
 <li>Po dvou ztrátách za sebou dělám pauzu a vstávám od grafu.</li><li>Před důležitou zprávou z USA nevstupuji, počkám na reakci trhu.</li><li>Jestli nevidím svůj setup, neobchoduji. Čekání je také pozice.</li></ol></section>
@@ -44,7 +45,7 @@ const key = "plan:" + today(), F = ["bias", "levels", "setups", "maxTrades", "ma
 let P = ls.get(key) || {checks: []};
 F.forEach(f => { $("p-" + f).value = P[f] ?? ""; $("p-" + f).addEventListener("input", () => { P[f] = $("p-" + f).value; ls.set(key, P); live(); }); });
 $("checks").innerHTML = CHECK.map((t, i) => `<label class="chip"><input type="checkbox" data-i="${i}" ${P.checks.includes(i) ? "checked" : ""}>${t}</label>`).join("");
-const prog = () => { $("cprog").textContent = P.checks.length + " z " + CHECK.length; };
+function dg(el,v,big,sub,word,cls,cap){var a=Math.max(-1,Math.min(1,v))*80;el.innerHTML=`<div class="gbox"><svg class="gauge" viewBox="0 0 200 110"><defs><linearGradient id="gd"><stop offset="0" stop-color="#FF6B8A"/><stop offset=".5" stop-color="#C9D1E8"/><stop offset="1" stop-color="#2EE6A6"/></linearGradient></defs><path d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke="url(#gd)" stroke-width="14" stroke-linecap="round"/><g transform="rotate(${a} 100 100)"><line x1="100" y1="100" x2="100" y2="34" stroke="#EEF1FA" stroke-width="3" stroke-linecap="round"/></g><circle cx="100" cy="100" r="6" fill="#EEF1FA"/></svg><div class="gnum ${cls}">${big}<span> ${sub}</span></div><div class="gword ${cls}">${word}</div><div class="gcap">${cap}</div></div>`;}const prog = () => { $("cprog").textContent = P.checks.length + " z " + CHECK.length; var f = P.checks.length / CHECK.length; dg($("gdyn"), f * 2 - 1, P.checks.length, "z " + CHECK.length, f >= 1 ? "Připraven" : f >= 0.5 ? "Skoro připraven" : "Nepřipraven", f >= 1 ? "up" : f < 0.5 ? "down" : "", "checklist před obchodem"); };
 $("checks").addEventListener("input", e => { const i = +e.target.dataset.i; P.checks = P.checks.filter(x => x !== i); if (e.target.checked) P.checks.push(i); ls.set(key, P); prog(); }); prog();
 $("m-goal").value = ls.get("mgoal") ?? ""; $("m-goal").addEventListener("input", () => { ls.set("mgoal", $("m-goal").value); live(); });
 

@@ -15,13 +15,14 @@ tick();setInterval(tick,1000)})();(function(){var s=document.querySelector(".sid
 try{var y=sessionStorage.getItem("sideY");if(y!==null)s.scrollTop=+y;}catch(e){}
 var a=s.querySelector("a[aria-current]");
 if(a){var r=a.getBoundingClientRect(),sr=s.getBoundingClientRect();if(r.bottom>sr.bottom-12||r.top<sr.top+12){s.scrollTop+=r.top-sr.top-s.clientHeight/2;}}
+s.addEventListener("wheel",function(e){var up=e.deltaY<0;if((up&&s.scrollTop<=0)||(!up&&s.scrollTop+s.clientHeight>=s.scrollHeight-1)){e.preventDefault();}},{passive:false});
 var save=function(){try{sessionStorage.setItem("sideY",s.scrollTop)}catch(e){}};
 s.addEventListener("scroll",save);s.querySelectorAll("a").forEach(function(l){l.addEventListener("click",save)});})();</script><div class="content"><header class="pagehead"><h1>Deník obchodů</h1><p>Tvoje obchody, statistiky a poučení</p></header><main>
 <div class="head"><div class="tabs" role="tablist">
 <button role="tab" data-tab="over" aria-selected="true">Přehled</button><button role="tab" data-tab="trades" aria-selected="false">Obchody</button><button role="tab" data-tab="rep" aria-selected="false">Reporty</button><button role="tab" data-tab="ai" aria-selected="false">Analýza</button></div>
 <button id="add" type="button">+ Přidat obchod</button></div>
 
-<div id="t-over"><div class="kpis" id="kpis"></div>
+<div id="t-over"><div class="gdyn" id="gdyn"></div><div class="kpis" id="kpis"></div>
 <section class="p"><h2>Vývoj zisku (najeď myší na graf)</h2><div id="curve"></div></section>
 <section class="p"><h2>Výsledek po dnech</h2><div class="chartbox" style="height:220px"><canvas id="c-day"></canvas></div></section>
 <section class="p"><div class="calhead"><button class="ghost sm" onclick="mv(-1)" aria-label="Předchozí měsíc">‹</button><b id="calt"></b><button class="ghost sm" onclick="mv(1)" aria-label="Další měsíc">›</button><span id="calsum"></span></div><div class="cal" id="cal"></div></section></div>
@@ -109,7 +110,8 @@ const K = (v, l) => `<div class="k"><b>${v}</b><span>${l}</span></div>`;
 const dash = "–";
 
 function over(trades) {
-  const s = st(trades);
+function dg(el,v,big,sub,word,cls,cap){var a=Math.max(-1,Math.min(1,v))*80;el.innerHTML=`<div class="gbox"><svg class="gauge" viewBox="0 0 200 110"><defs><linearGradient id="gd"><stop offset="0" stop-color="#FF6B8A"/><stop offset=".5" stop-color="#C9D1E8"/><stop offset="1" stop-color="#2EE6A6"/></linearGradient></defs><path d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke="url(#gd)" stroke-width="14" stroke-linecap="round"/><g transform="rotate(${a} 100 100)"><line x1="100" y1="100" x2="100" y2="34" stroke="#EEF1FA" stroke-width="3" stroke-linecap="round"/></g><circle cx="100" cy="100" r="6" fill="#EEF1FA"/></svg><div class="gnum ${cls}">${big}<span> ${sub}</span></div><div class="gword ${cls}">${word}</div><div class="gcap">${cap}</div></div>`;}  const s = st(trades);
+  dg($("gdyn"), Math.max(-1, Math.min(1, s.net / 500)), usd(s.net), "", s.n === 0 ? "Zatím bez obchodů" : s.net > 0 ? "Bullish výsledek" : s.net < 0 ? "Bearish výsledek" : "Neutral", s.net > 0 ? "up" : s.net < 0 ? "down" : "", s.n + " obchodů celkem");
   $("kpis").innerHTML = K(`<span class="${cl(s.net)}">${usd(s.net)}</span>`, `Celkový zisk, ${s.n} obchodů`) +
     K(s.wr == null ? dash : nf(s.wr, 1) + "\u00a0%", `Úspěšnost (${s.win} výher, ${s.loss} proher, ${s.be} BE)`) +
     K(s.pf == null ? dash : nf(s.pf, 2), `Profit factor (prům. výhra ${nf(s.avgW)} $ / ztráta ${nf(Math.abs(s.avgL))} $)`) +
