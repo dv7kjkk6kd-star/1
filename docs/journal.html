@@ -3,7 +3,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Deník obchodů</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=31"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><style>
+<link rel="stylesheet" href="style.css?v=32"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><style>
 #f .grid{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}#f .grid>label{min-width:0}#f select,#f input{width:100%;min-width:0;text-overflow:ellipsis}#f input[type=checkbox]{width:auto;flex:none;margin:0}#f .chip{white-space:nowrap;display:inline-flex}
 #f .sec{margin:20px 0 8px;padding-top:12px;border-top:1px solid var(--rule);font-size:16px}#f .sec:first-of-type{border-top:0;margin-top:6px;padding-top:0}
 #f label em{font-style:normal;color:var(--acc);font-weight:600}
@@ -203,7 +203,7 @@ window.TDme=function(){
 </main></div></div>
 
 <dialog id="dlg"><form id="f"><h2 id="dt">Nový obchod</h2><input type="hidden" name="id">
-<h3 class="sec">1. Před obchodem</h3>
+<h3 class="sec">1. Zápis obchodu: vstup</h3>
 <div class="grid">
 <label>Otevřeno: den<input name="od" type="date" required></label><label>Otevřeno: čas<input name="ot" type="time" required></label>
 <label>Instrument<input name="inst" value="MNQ" required></label><label>Směr<select name="dir"><option value="long">Long</option><option value="short">Short</option></select></label>
@@ -214,11 +214,11 @@ window.TDme=function(){
 <label>Strategie<select name="strat" id="strat"></select></label><label>Trend dne<select name="trend"><option value="">–</option><option value="with">S trendem</option><option value="against">Proti trendu</option></select></label><label>Účet<input name="acc" value="Hlavní" list="accs"></label></div>
 <p class="empty" id="pbnote" style="margin:6px 0 0"></p><p class="empty" style="margin:4px 0 0">Strategie si zakládáš v záložce Disciplína → Playbook, nebo volbou „➕ Nová strategie“ v seznamu.</p><datalist id="accs"></datalist>
 <p class="empty" id="entrynote" style="margin:8px 0 0"></p><div class="note" id="rr" style="margin-top:12px">Zadej vstupní cenu a stop loss i oba take profity se doplní samy.</div>
-<details class="mdl" open><summary>Vstupní model: checklist před vstupem</summary>
+<details class="mdl" open><summary>Vstupní model: checklist (co platilo při vstupu)</summary>
 <blockquote class="qt">Každý vstup musí být v souladu s tvojí celkovou obchodní strategií a pravidly řízení rizika. Bez výjimek!</blockquote>
 <h4>Podmínky pro vstup</h4><div class="chips" id="d-cond"></div>
 <h4>Konfluence: u každého bodu vyber Pro nebo Proti</h4><div class="cfgrid" id="d-conf"></div><div class="note" id="cfsum"></div></details>
-<h3 class="sec">2. Po obchodu</h3>
+<h3 class="sec">2. Výsledek obchodu</h3>
 <div class="grid">
 <label>Výsledek obchodu<select name="outc"><option value="">Zatím otevřeno</option><option value="sl">Stop loss</option><option value="be">Break even</option><option value="tp1">Celá pozice na TP1</option><option value="tp1be">TP1 + break even</option><option value="tp1tp2">TP1 + TP2</option><option value="other">Jiný výstup (zadám cenu)</option></select></label>
 <label id="n1w" style="display:none">Kolik kontraktů vyšlo na TP1<input name="n1" type="number" step="1" min="1"></label>
