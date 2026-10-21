@@ -1,5 +1,5 @@
 <!doctype html><html lang="cs"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Mindset</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="style.css"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="style.css?v=26"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu">
 <style>
 .orb{width:190px;height:190px;border-radius:50%;margin:26px auto 12px;background:radial-gradient(circle at 35% 30%,#B3A9FF,#38BDF8 60%,#2B3A8F);box-shadow:0 0 70px rgba(139,124,255,.55);transform:scale(.6);transition:transform var(--d,4s) linear}
 .orb.big{transform:scale(1.12)}.timer{font-size:46px;font-weight:700;text-align:center;font-variant-numeric:tabular-nums}.mid{text-align:center}
@@ -32,8 +32,8 @@ function lab(){if(!tb)return;var l=H.getAttribute("data-theme")==="light";tb.inn
 if(tb){lab();tb.onclick=function(){var n=H.getAttribute("data-theme")==="light"?"dark":"light";H.setAttribute("data-theme",n);try{localStorage.setItem("theme",n)}catch(e){}lab();if(window.Chart)location.reload()}}
 /* mobilní menu */
 var side=D.querySelector(".side");
-if(side){var nb=D.createElement("button");nb.id="navbtn";nb.type="button";nb.setAttribute("aria-label","Menu");nb.textContent="☰";D.body.appendChild(nb);
-var ov=D.createElement("div");ov.id="navov";D.body.appendChild(ov);
+if(side){var nb=D.createElement("button");nb.id="navbtn";nb.type="button";nb.setAttribute("aria-label","Menu");nb.textContent="☰";nb.style.display="none";D.body.appendChild(nb);
+var ov=D.createElement("div");ov.id="navov";ov.style.display="none";D.body.appendChild(ov);
 var tg=function(o){side.classList.toggle("open",o);ov.classList.toggle("on",o)};
 nb.onclick=function(){tg(!side.classList.contains("open"))};ov.onclick=function(){tg(false)};
 side.addEventListener("click",function(e){if(e.target.closest&&e.target.closest("a"))tg(false)})}
