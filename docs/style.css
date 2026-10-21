@@ -113,7 +113,56 @@ a.tile{display:block;text-decoration:none;color:var(--ink);cursor:pointer}
 .exm{margin:6px 0 0;font-size:16.0px}details summary{cursor:pointer}
 
 /* v12 */
-.side{width:268px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}.gword{font-size:22.8px;font-weight:700;letter-spacing:.02em}.gword.up{color:var(--up)}.gword.down{color:var(--down)}.gdyn{margin:10px 0 4px;display:flex;justify-content:center}.clock{margin:0 0 12px;padding:10px 14px}.clock b{font-size:29.6px}.brand{padding-bottom:14px}
+.side{width:268px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}.gword{font-size:22.8px;font-weight:700;letter-spacing:.02em}.gword.up{color:var(--up)}.gword.down{color:var(--down)}.gdyn{margin:10px 0 4px;display:flex;justify-content:center}.themebtn{display:flex;align-items:center;gap:12px;width:100%;margin-top:14px;padding:11px 14px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.22);border-radius:12px;color:var(--ink);font-size:18.2px;font-weight:600;cursor:pointer}.themebtn span{font-size:20.5px}.themebtn:hover{background:rgba(139,124,255,.25)}
+.guard{margin:0 0 14px;padding:14px 18px;border-radius:16px;font-size:19.4px;line-height:1.45;border:1px solid}.guard.pause{background:rgba(255,180,84,.16);border-color:rgba(255,180,84,.7)}.guard.stop{background:rgba(255,107,138,.18);border-color:rgba(255,107,138,.75)}
+.mebar{display:grid;grid-template-columns:90px 1fr 56px;gap:12px;align-items:center;margin:8px 0}.mebar i{display:block;height:14px;border-radius:99px;background:rgba(255,255,255,.12);overflow:hidden}.mebar u{display:block;height:100%;border-radius:99px;text-decoration:none}.mebar b{text-align:right}
+.rstep{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;margin:8px 0;border-radius:14px;border:1px solid var(--rule);background:rgba(255,255,255,.04);cursor:pointer}.rstep input{width:22px;height:22px;margin:2px 0 0;flex:none}.rstep.on{border-color:var(--up);background:rgba(46,230,166,.12)}.rstep b{display:block}.rstep a{font-size:16.0px;color:#7DD3FC}
+.bigok{width:100%;padding:18px;font-size:22.8px;border-radius:16px}.okline{font-size:22.8px;font-weight:700;text-align:center;margin-top:10px}
+#navbtn,#navov{display:none}
+@media (max-width:760px){
+#navbtn{display:flex!important;position:fixed;top:10px;left:10px;z-index:90;width:46px;height:46px;padding:0;align-items:center;justify-content:center;font-size:25.1px;border-radius:14px}
+.app{flex-direction:column!important}
+.side{position:fixed!important;top:0;left:0;height:100vh!important;width:min(300px,86vw)!important;z-index:100;transform:translateX(-105%);transition:transform .25s;overflow-y:auto!important;padding:18px 14px!important;border-right:1px solid var(--rule)!important;border-bottom:0!important}
+.side.open{transform:none}
+.side .brand,.side .clock,.side .grp{display:block!important}
+.side nav{display:block!important;overflow:visible!important;flex-direction:column!important}
+.side a{white-space:normal!important}
+#navov.on{display:block;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:95}
+.content{padding-top:62px!important;margin-left:0!important}
+.guard{font-size:18.2px}
+html,body{overflow-x:hidden}.bar{min-width:0;max-width:100%}.bar.wide{overflow:hidden}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))!important}.k{min-width:0}.k b{font-size:22.8px!important}.tabs{overflow-x:auto;max-width:100%;white-space:nowrap}.head{flex-wrap:wrap}
+}
+html[data-theme=light]{--bg:#F1F4FB;--ink:#161B33;--muted:#465070;--rule:rgba(20,30,70,.18);--up:#0A8F63;--down:#D02A52;--acc:#6D5DF0;--glass:rgba(255,255,255,.85);--field:#fff;color-scheme:light}
+html[data-theme=light] body{background:radial-gradient(1000px 520px at 10% -12%,rgba(139,124,255,.20),transparent 62%),radial-gradient(800px 480px at 96% 2%,rgba(56,189,248,.16),transparent 60%),#EEF2FA fixed;color:#161B33}
+html[data-theme=light] body::before{filter:invert(1);opacity:.14}
+html[data-theme=light] .side{background:rgba(255,255,255,.97);border-right:1px solid rgba(20,30,70,.15)}
+html[data-theme=light] .side a{color:#26304F}html[data-theme=light] .side a:hover{background:rgba(109,93,240,.12);color:#161B33}
+html[data-theme=light] .side a[aria-current]{background:linear-gradient(135deg,rgba(109,93,240,.22),rgba(56,189,248,.16));color:#161B33;border-color:rgba(109,93,240,.5)}
+html[data-theme=light] .brand{background:linear-gradient(90deg,#161B33,#6D5DF0);-webkit-background-clip:text;background-clip:text;color:transparent}
+html[data-theme=light] .brand small{color:#465070;-webkit-text-fill-color:#465070}html[data-theme=light] .brand small.mot{color:#1B63A8;-webkit-text-fill-color:#1B63A8}
+html[data-theme=light] .clock{background:rgba(109,93,240,.08);border-color:rgba(20,30,70,.18);color:#26304F}html[data-theme=light] .clock b{color:#161B33}
+html[data-theme=light] .themebtn{background:rgba(109,93,240,.1);border-color:rgba(20,30,70,.22)}
+html[data-theme=light] section,html[data-theme=light] .k,html[data-theme=light] .step{background:#fff;border:1px solid rgba(20,30,70,.14);box-shadow:0 14px 30px -24px rgba(20,30,70,.45)}
+html[data-theme=light] h2{color:#161B33}html[data-theme=light] .pagehead h1{background:linear-gradient(90deg,#161B33,#5B4BE0);-webkit-background-clip:text;background-clip:text;color:transparent}
+html[data-theme=light] .hint,html[data-theme=light] .facts,html[data-theme=light] .empty,html[data-theme=light] .bar span,html[data-theme=light] .bar em,html[data-theme=light] thead th,html[data-theme=light] footer,html[data-theme=light] .step span:last-child,html[data-theme=light] .day span,html[data-theme=light] .gnum span,html[data-theme=light] .gcap,html[data-theme=light] .brand small{color:#3B4668}
+html[data-theme=light] input,html[data-theme=light] select,html[data-theme=light] textarea{background:#fff;border-color:rgba(20,30,70,.28);color:#161B33}
+html[data-theme=light] select option{background:#fff;color:#161B33}
+html[data-theme=light] dialog{background:#fff;color:#161B33}html[data-theme=light] dialog::backdrop{background:rgba(20,30,70,.45)}
+html[data-theme=light] .toast,html[data-theme=light] #tipbox{background:#fff;color:#161B33;border-color:#6D5DF0}
+html[data-theme=light] .ring::before{background:#fff}html[data-theme=light] .ring,html[data-theme=light] .xpbar,html[data-theme=light] .mebar i{background:rgba(20,30,70,.14)}
+html[data-theme=light] .tile span,html[data-theme=light] .tile.ev span{color:#26304F}html[data-theme=light] .tile{color:#161B33}
+html[data-theme=light] .pill-off{color:#26304F!important;border-color:rgba(20,30,70,.3)!important}
+html[data-theme=light] .chip,html[data-theme=light] button.ghost,html[data-theme=light] .day,html[data-theme=light] .rstep{border-color:rgba(20,30,70,.28)}
+html[data-theme=light] .rstep{background:#fff}html[data-theme=light] .rstep.on{background:rgba(10,143,99,.1)}html[data-theme=light] .rstep a{color:#1B63A8}
+html[data-theme=light] .tabs button{color:#3B4668}html[data-theme=light] .tabs button[aria-selected=true]{color:#fff}
+html[data-theme=light] .gauge g line{stroke:#161B33}html[data-theme=light] .gauge circle{fill:#161B33}
+html[data-theme=light] .tip{border-bottom-color:#1B63A8}html[data-theme=light] .tip sup{color:#1B63A8}
+html[data-theme=light] .note{color:#161B33}html[data-theme=light] .facts li,html[data-theme=light] p,html[data-theme=light] li,html[data-theme=light] td,html[data-theme=light] th,html[data-theme=light] label{color:#161B33}
+html[data-theme=light] .empty,html[data-theme=light] .hint,html[data-theme=light] thead th,html[data-theme=light] .brand small{color:#3B4668}
+html[data-theme=light] .up{color:#0A8F63}html[data-theme=light] .down{color:#D02A52}
+html[data-theme=light] .guard.pause{background:#FFF1DA}html[data-theme=light] .guard.stop{background:#FFE3EA}
+html[data-theme=light] .warn{color:#B86E00}
+html[data-theme=light] .k span,html[data-theme=light] .tile .k span{color:#3B4668}html[data-theme=light] .side a span{opacity:1}.clock{margin:0 0 12px;padding:10px 14px}.clock b{font-size:29.6px}.brand{padding-bottom:14px}
 .tip{border-bottom:1px dotted #C9D1E8;cursor:help;position:relative}.tip sup{color:#38BDF8;font-size:.7em;margin-left:1px;font-weight:700}
 .tip:hover::after,.tip:focus::after{content:attr(data-tip);position:absolute;left:0;top:calc(100% + 6px);z-index:60;width:max-content;max-width:260px;white-space:normal;text-align:left;background:#0C1124;border:1px solid rgba(139,124,255,.7);color:#EEF1FA;padding:10px 12px;border-radius:10px;font-size:16.0px;font-weight:400;font-style:normal;line-height:1.4;box-shadow:0 14px 34px -8px rgba(0,0,0,.9)}
 .tip.r:hover::after,.tip.r:focus::after{left:auto;right:0}
