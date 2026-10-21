@@ -3,7 +3,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Deník obchodů</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=30"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><style>
+<link rel="stylesheet" href="style.css?v=31"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><style>
 #f .grid{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}#f .grid>label{min-width:0}#f select,#f input{width:100%;min-width:0;text-overflow:ellipsis}#f input[type=checkbox]{width:auto;flex:none;margin:0}#f .chip{white-space:nowrap;display:inline-flex}
 #f .sec{margin:20px 0 8px;padding-top:12px;border-top:1px solid var(--rule);font-size:16px}#f .sec:first-of-type{border-top:0;margin-top:6px;padding-top:0}
 #f label em{font-style:normal;color:var(--acc);font-weight:600}
@@ -173,12 +173,7 @@ window.TDme=function(){
 <button role="tab" data-tab="over" aria-selected="true">Přehled</button><button role="tab" data-tab="trades" aria-selected="false">Obchody</button><button role="tab" data-tab="rep" aria-selected="false">Reporty</button><button role="tab" data-tab="ai" aria-selected="false">Analýza</button><button role="tab" data-tab="disc" aria-selected="false">Disciplína</button></div>
 <button id="add" type="button">+ Přidat obchod</button></div>
 
-<div id="t-over"><details class="guide"><summary>📘 Návod: jak s deníkem začít, co vyplnit před obchodem a po něm (klikni)</summary>
-<h3>Jak začít</h3><ol><li>V záložce Nastavení si zkontroluj účet a riziko (max 1 % na obchod).</li><li>Před 15. hodinou projdi Pre-session rituál a Plán dne.</li><li>Když chceš obchodovat, zmáčkni <b>+ Přidat obchod</b> nahoře.</li></ol>
-<h3>Před obchodem (část 1 ve formuláři)</h3><ol><li>Vyber směr, napiš vstupní cenu a stop loss. Take profity se doplní samy a půjdou přepsat.</li><li>Vyber strategii ze svého playbooku (nové si vytvoříš volbou „Nová strategie“ nebo v záložce Disciplína).</li><li>Projdi <b>Vstupní model</b>: tři podmínky a konfluence, u každé vyber Pro nebo Proti. Celkově musí vyjít víc Pro než Proti. Bez výjimek.</li></ol>
-<h3>Po obchodu (část 2 a 3)</h3><ol><li>Otevři obchod tlačítkem Upravit, vyber výsledek (stop loss, break even, TP1 + break even, TP1 + TP2) a u dvou cílů napiš, kolik kontraktů vyšlo na TP1. Zbytek se dopočítá.</li><li>Vlož 4 screenshoty: timeframe obchodu, 1 minuta, 5 minut a 15 minut.</li><li>Označ chyby a emoce a napiš poznámku.</li></ol>
-<h3>Večer a týdně</h3><ul><li>Každý den projdi stránku <b>Uzavření dne</b> (je v menu hned pod Obchodováním).</li><li>Jednou týdně otevři záložku Disciplína a udělej rozbor týdne. Pak si stáhni zálohu.</li></ul></details>
-<section class="p why"><h2>Proč to všechno dělám</h2><p style="margin:0;font-size:16px">Dělám to pro sebe, a dělají to všichni úspěšní tradeři. A chci být jako oni, tak dělám to, co dělají oni.</p></section>
+<div id="t-over"><section class="p why"><h2>Proč to všechno dělám</h2><p style="margin:0;font-size:16px">Dělám to pro sebe, a dělají to všichni úspěšní tradeři. A chci být jako oni, tak dělám to, co dělají oni.</p></section>
 <div id="bk"></div><div class="gdyn" id="gdyn"></div><div class="kpis" id="kpis"></div>
 <section class="p"><h2>Vývoj zisku (najeď myší na graf)</h2><div id="curve"></div></section>
 <section class="p"><h2>Výsledek po dnech</h2><div class="chartbox" style="height:220px"><canvas id="c-day"></canvas></div></section>
@@ -213,11 +208,11 @@ window.TDme=function(){
 <label>Otevřeno: den<input name="od" type="date" required></label><label>Otevřeno: čas<input name="ot" type="time" required></label>
 <label>Instrument<input name="inst" value="MNQ" required></label><label>Směr<select name="dir"><option value="long">Long</option><option value="short">Short</option></select></label>
 <label>Počet mikro kontraktů<input name="size" type="number" step="1" min="1" value="1"></label><label>Vzdálenost stopu (body)<input id="sd" type="number" step="any" value="35"></label><input name="pv" type="hidden">
-<label>Typ vstupu<select name="otype"><option value="">–</option><option value="market">Market</option><option value="limit">Limit</option><option value="stop">Stop (průraz)</option><option value="jiny">Jiný</option></select></label><label>Vstup (cena)<input name="entry" type="number" step="any" required></label>
+<label>Typ vstupu<select name="otype"><option value="">–</option><option value="market">Market</option><option value="limit">Limit</option><option value="stop">Stop (průraz)</option></select></label><label>Vstup (cena)<input name="entry" type="number" step="any" required></label>
 <label>Stop loss<input name="stop" type="number" step="any" required></label>
 <label>Take profit 1 <em id="r1"></em><input name="target" type="number" step="any" required></label><label>Take profit 2 <em id="r2"></em><input name="target2" type="number" step="any"></label>
 <label>Strategie<select name="strat" id="strat"></select></label><label>Trend dne<select name="trend"><option value="">–</option><option value="with">S trendem</option><option value="against">Proti trendu</option></select></label><label>Účet<input name="acc" value="Hlavní" list="accs"></label></div>
-<p class="empty" id="pbnote" style="margin:6px 0 0"></p><datalist id="accs"></datalist>
+<p class="empty" id="pbnote" style="margin:6px 0 0"></p><p class="empty" style="margin:4px 0 0">Strategie si zakládáš v záložce Disciplína → Playbook, nebo volbou „➕ Nová strategie“ v seznamu.</p><datalist id="accs"></datalist>
 <p class="empty" id="entrynote" style="margin:8px 0 0"></p><div class="note" id="rr" style="margin-top:12px">Zadej vstupní cenu a stop loss i oba take profity se doplní samy.</div>
 <details class="mdl" open><summary>Vstupní model: checklist před vstupem</summary>
 <blockquote class="qt">Každý vstup musí být v souladu s tvojí celkovou obchodní strategií a pravidly řízení rizika. Bez výjimek!</blockquote>
@@ -679,7 +674,7 @@ function disc() {
   $("d-leak").innerHTML = closed.length ? `<div class="kpis">${K(cs(leak), "cena obchodů mimo plán (" + broken.length + "×)")}${K(cs(s.net - leak), "výsledek bez nich")}${K(ans ? nf((ans - broken.length) / ans * 100) + "&nbsp;%" : dash, "dodržení plánu")}</div><p class="hint">${leak < 0 ? "Kdybys těchto obchodů nevzal, měl bys na účtu o " + nf(Math.abs(leak)) + " $ víc. To je cena netrpělivosti." : broken.length ? "Obchody mimo plán dopadly dobře, ale jsou riziko. Dlouhodobě vždy platí plán." : "Zatím žádný obchod mimo plán. Skvělé."}</p>` : "<p class=\"empty\">Zatím žádné obchody.</p>";
   const cost = (names, key) => names.map(n => { const l = closed.filter(t => (t[key] || []).includes(n)); return [n, l.length, sum(l.map(pnl))]; }).filter(x => x[1]).sort((a, b) => a[2] - b[2]);
   const emo = cost(EMO.map(e => e[1]), "emo").map(x => [(EMO.find(e => e[1] === x[0]) || [""])[0] + " " + x[0], x[1], x[2]]), mis = cost(MIS, "mis");
-  const ct = r => r.length ? tbl(["", "Obchodů", "Součet", "Průměr"], r.map(x => rowH([x[0], x[1], cs(x[2]), cs(x[2] / x[1])]))) : "<p class=\"empty\">Zatím nic. Při zápisu obchodu odškrtni emoce a chyby.</p>";
+  const ct = r => r.length ? tbl(["", "Obchodů", "Součet", "Průměr"], r.map(x => rowH([x[0], x[1], cs(x[2]), cs(x[2] / x[1])]))) : "<p class=\"empty\">Zatím nic. Při zápisu obchodu zaškrtni emoce a chyby.</p>";
   $("d-emoc").innerHTML = "<h3>Kolik tě stojí emoce</h3>" + ct(emo) + "<h3 style=\"margin-top:16px\">Nejdražší chyby</h3>" + ct(mis);
   $("d-miss").innerHTML = missedHtml(); $("d-rev").innerHTML = reviewHtml(closed); $("d-pb").innerHTML = playbookHtml(closed);
   const strs = [...new Set([...ALL.map(t => t.strat), ...LS.get("jr:pb", []).map(p => p.name)].filter(Boolean))];
