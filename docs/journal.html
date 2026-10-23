@@ -3,7 +3,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Deník obchodů</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=34"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><style>
+<link rel="stylesheet" href="style.css?v=36"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><style>
 #f .grid{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}#f .grid>label{min-width:0}#f select,#f input{width:100%;min-width:0;text-overflow:ellipsis}#f input[type=checkbox]{width:auto;flex:none;margin:0}#f .chip{white-space:nowrap;display:inline-flex}
 #f .sec{margin:20px 0 8px;padding-top:12px;border-top:1px solid var(--rule);font-size:16px}#f .sec:first-of-type{border-top:0;margin-top:6px;padding-top:0}
 #f label em{font-style:normal;color:var(--acc);font-weight:600}
@@ -18,7 +18,7 @@
 </style>
 <style>.cal{grid-template-columns:repeat(5,1fr) 1.3fr}.day b{display:block;font-size:13px;font-weight:600;white-space:nowrap}.day.wk{background:rgba(139,124,255,.14);border-color:rgba(139,124,255,.45)}.day.wk em{font-style:normal;font-size:12px;color:var(--muted)}.day.wk.up b{color:var(--up)}.day.wk.down b{color:var(--down)}@media(max-width:560px){.day b{font-size:11px}.cal{gap:3px}}</style>
 </head>
-<body class="bg-diary"><div class="app"><aside class="side"><div class="brand">Kompas klidu<small>Trénink trpělivosti a ovládnutí sebe sama</small><small class="mot">Všechno ostatní si mě ve správný moment najde. Na nic netlačím, trh nezajímá, co chci. Nebojuju s ním a jen čekám na to, kde jsem silný.</small></div><div class="clock"><span id="mks">Burza</span><b id="mk">–</b><span>podle času v New Yorku</span></div><nav><p class="grp">Dnes</p><a href="index.html"><span>🏠</span>Přehled</a><p class="grp">Zprávy a fundament</p><a href="zpravy.html"><span>🗞️</span>Zprávy</a><a href="sentiment.html"><span>💬</span>Sentiment</a><a href="kalendar.html"><span>📅</span>Kalendář</a><a href="predikce.html"><span>🔮</span>Predikce zpráv</a><a href="fundament.html"><span>📰</span>Fundament</a><p class="grp">Analýza</p><a href="premarket.html"><span>🌅</span>Pre-market akcí</a><a href="bias.html"><span>🧭</span>Bias</a><a href="tyden.html"><span>🗓️</span>Týdenní výhled</a><a href="presnost.html"><span>🎯</span>Přesnost biasu</a><p class="grp">Příprava</p><a href="ritual.html"><span>🔔</span>Pre-session rituál</a><a href="trpelivost.html"><span>⏳</span>Trpělivost</a><a href="mindset.html"><span>🧘</span>Mindset</a><a href="plan.html"><span>📝</span>Plán dne</a><p class="grp">Obchodování</p><a href="journal.html" aria-current="page"><span>📓</span>Deník obchodů</a><p class="grp">Uzavření dne</p><a href="evening.html"><span>🌙</span>Uzavření dne</a><p class="grp">Učení a nastavení</p><a href="roadmap.html"><span>🛣️</span>Roadmap</a><a href="prirucka.html"><span>📘</span>Příručka</a><a href="nastaveni.html"><span>⚙️</span>Nastavení</a></nav><button type="button" class="themebtn" id="themebtn"></button></aside><script>(function(){
+<body class="bg-diary"><div class="app"><aside class="side"><div class="brand">Kompas klidu<small>Trénink trpělivosti a ovládnutí sebe sama</small><small class="mot">Všechno ostatní si mě ve správný moment najde. Na nic netlačím, trh nezajímá, co chci. Nebojuju s ním a jen čekám na to, kde jsem silný.</small></div><div class="clock"><span id="mks">Burza</span><b id="mk">–</b><span>podle času v New Yorku</span></div><nav><p class="grp">Dnes</p><a href="index.html"><span>🏠</span>Přehled</a><p class="grp">Zprávy a fundament</p><a href="zpravy.html"><span>🗞️</span>Zprávy</a><a href="sentiment.html"><span>💬</span>Sentiment</a><a href="kalendar.html"><span>📅</span>Kalendář</a><a href="predikce.html"><span>🔮</span>Predikce zpráv</a><a href="fundament.html"><span>📰</span>Fundament</a><p class="grp">Analýza</p><a href="premarket.html"><span>🌅</span>Pre-market akcí</a><a href="bias.html"><span>🧭</span>Bias</a><a href="tyden.html"><span>🗓️</span>Týdenní výhled</a><a href="presnost.html"><span>🎯</span>Přesnost biasu</a><p class="grp">Příprava</p><a href="ritual.html"><span>🔔</span>Pre-session rituál</a><a href="trpelivost.html"><span>⏳</span>Trpělivost</a><a href="mindset.html"><span>🧘</span>Mindset</a><a href="plan.html"><span>📝</span>Plán dne</a><p class="grp">Obchodování</p><a href="journal.html" aria-current="page"><span>📓</span>Deník obchodů</a><a href="backtest.html"><span>🧪</span>Backtest deník</a><p class="grp">Uzavření dne</p><a href="evening.html"><span>🌙</span>Uzavření dne</a><p class="grp">Učení a nastavení</p><a href="roadmap.html"><span>🛣️</span>Roadmap</a><a href="prirucka.html"><span>📘</span>Příručka</a><a href="nastaveni.html"><span>⚙️</span>Nastavení</a></nav><button type="button" class="themebtn" id="themebtn"></button></aside><script>(function(){
 var NAMES={ny:"Nový rok",mlk:"Den Martina Luthera Kinga",pres:"Den prezidentů",gf:"Velký pátek",mem:"Memorial Day",jun:"Juneteenth",ind:"Den nezávislosti",lab:"Labor Day",thx:"Díkuvzdání",xmas:"Vánoce"};
 var DAYS=["neděle","pondělí","úterý","středa","čtvrtek","pátek","sobota"];
 function U(y,m,d){return new Date(Date.UTC(y,m,d))}
@@ -209,11 +209,12 @@ window.TDme=function(){
 <label>Otevřeno: den<input name="od" type="date" required></label><label>Otevřeno: čas<input name="ot" type="time" required></label>
 <label>Instrument<input name="inst" value="MNQ" required></label><label>Směr<select name="dir"><option value="long">Long</option><option value="short">Short</option></select></label>
 <label>Počet mikro kontraktů<input name="size" type="number" step="1" min="1" value="1"></label><label>Vzdálenost stopu (body)<input id="sd" type="number" step="any" value="35"></label><input name="pv" type="hidden">
+<label id="tfw">Timeframe vstupu<select name="tfm"><option value="">–</option><option value="1m">1 minuta</option><option value="2m">2 minuty</option><option value="3m">3 minuty</option><option value="5m">5 minut</option><option value="15m">15 minut</option></select></label>
 <label>Typ vstupu<select name="otype"><option value="">–</option><option value="market">Market</option><option value="limit">Limit</option><option value="stop">Stop (průraz)</option></select></label><label>Vstup (cena)<input name="entry" type="number" step="any" required></label>
 <label>Stop loss<input name="stop" type="number" step="any" required></label>
 <label>Take profit 1 <em id="r1"></em><input name="target" type="number" step="any" required></label><label>Take profit 2 <em id="r2"></em><input name="target2" type="number" step="any"></label>
 <label>Strategie<select name="strat" id="strat"></select></label><label>Trend dne<select name="trend"><option value="">–</option><option value="with">S trendem</option><option value="against">Proti trendu</option></select></label><label>Účet<input name="acc" value="Hlavní" list="accs"></label></div>
-<p class="empty" id="pbnote" style="margin:6px 0 0"></p><p class="empty" style="margin:4px 0 0">Strategie si zakládáš v záložce Disciplína → Playbook, nebo volbou „➕ Nová strategie“ v seznamu.</p><datalist id="accs"></datalist>
+<p class="empty" id="tfnote" style="margin:6px 0 0;display:none">Nejnižší timeframe je 1 minuta. Timeframey 15 s a 30 s tu nejsou, protože v minulosti je TradingView nezobrazí.</p><p class="empty" id="pbnote" style="margin:6px 0 0"></p><p class="empty" style="margin:4px 0 0">Strategie si zakládáš v záložce Disciplína → Playbook, nebo volbou „➕ Nová strategie“ v seznamu.</p><datalist id="accs"></datalist>
 <p class="empty" id="entrynote" style="margin:8px 0 0"></p><div class="note" id="rr" style="margin-top:12px">Zadej vstupní cenu a stop loss i oba take profity se doplní samy.</div>
 <details class="mdl" open><summary>Vstupní model: checklist (co platilo při vstupu)</summary>
 <blockquote class="qt">Každý vstup musí být v souladu s tvojí celkovou obchodní strategií a pravidly řízení rizika. Bez výjimek!</blockquote>
@@ -221,8 +222,9 @@ window.TDme=function(){
 <h4>Konfluence: u každého bodu vyber Pro nebo Proti</h4><div class="cfgrid" id="d-conf"></div><div class="note" id="cfsum"></div></details>
 <h3 class="sec">2. Výsledek obchodu</h3>
 <div class="grid">
-<label>Výsledek obchodu<select name="outc"><option value="">Zatím otevřeno</option><option value="sl">Stop loss</option><option value="be">Break even</option><option value="tp1">Celá pozice na TP1</option><option value="tp1be">TP1 + break even</option><option value="tp1tp2">TP1 + TP2</option><option value="other">Jiný výstup (zadám cenu)</option></select></label>
+<label>Výsledek obchodu<select name="outc"><option value="">Zatím otevřeno</option><option value="sl">Stop loss</option><option value="be">Break even</option><option value="tp1">Celá pozice na TP1</option><option value="tp1be">TP1 + break even</option><option value="tp1tp2">TP1 + TP2</option><option value="tp1trail">TP1 + TP2 trail</option><option value="other">Jiný výstup (zadám cenu)</option></select></label>
 <label id="n1w" style="display:none">Kolik kontraktů vyšlo na TP1<input name="n1" type="number" step="1" min="1"></label>
+<label id="trw" style="display:none">Kde skončil zbytek (cena trailing stopu)<input name="trp" type="number" step="any"></label>
 <label id="exw" style="display:none">Výstupní cena<input name="exit" type="number" step="any"></label>
 <label>Zavřeno: den<input name="cd" type="date"></label><label>Zavřeno: čas<input name="ct" type="time"></label></div>
 <div class="note" id="outnote" style="margin-top:10px;display:none"></div>
@@ -240,8 +242,9 @@ window.TDme=function(){
 <script>
 if (window.Chart) { const LIGHT = document.documentElement.getAttribute("data-theme") === "light"; Chart.defaults.color = LIGHT ? "#3B4668" : "#C9D1E8"; Chart.defaults.borderColor = LIGHT ? "rgba(20,30,70,.12)" : "rgba(255,255,255,.07)"; Chart.defaults.font.family = '"IBM Plex Sans",system-ui,sans-serif'; }
 if (window.Chart) Chart.register({id: "cross", afterDraw(c) { if (c.config.type === "line" && c.tooltip && c.tooltip._active && c.tooltip._active.length) { const x = c.tooltip._active[0].element.x, a = c.chartArea, g = c.ctx; g.save(); g.beginPath(); g.moveTo(x, a.top); g.lineTo(x, a.bottom); g.lineWidth = 1; g.strokeStyle = "rgba(255,255,255,.28)"; g.setLineDash([4, 4]); g.stroke(); g.restore(); } }});
+const BT = false; let calSet = false;
 const S = "trades", EMO = [["😌","Klid"],["💪","Sebevědomí"],["🏃","FOMO"],["🤑","Chamtivost"],["😨","Strach"],["😡","Revenge"],["⏱️","Netrpělivost"],["😕","Nejistota"],["🤯","Tilt"],["😴","Nuda"]];
-const MIS = ["Brzký vstup","Pozdní vstup","Přesunutý stop","Předčasný výstup","Přeobchodování","Bez setupu","Bez korelace s ES","FOMO","Revenge obchod","Moc velká pozice"];
+const MIS = ["Brzký vstup","Pozdní vstup","Přesunutý stop","Předčasný výstup","Přeobchodování","Bez setupu","Bez korelace s ES","Uzavřel skrz BE","Vstup mezi 18. a 19. hodinou","FOMO","Revenge obchod","Moc velká pozice"];
 const lsGet = k => { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } };
 const PV = {NQ:20, MNQ:2, ES:50, MES:5, YM:5, MYM:0.5};
 let touched = {}, dist = null, dayc = null, eq = null, db, shots = [], calD = new Date(), E = Object.create(null);
@@ -318,13 +321,13 @@ function dayChart(s) {
 const mv = n => { calD = new Date(calD.getFullYear(), calD.getMonth() + n, 1); render(); };
 
 const emoStr = t => (t.emo || []).map(e => (EMO.find(x => x[1] === e) || [""])[0]).join("");
-const OUTL = {sl: "Stop loss", be: "Break even", tp1: "TP1", tp1be: "TP1 + BE", tp1tp2: "TP1 + TP2", other: "Vlastní výstup"};
+const OUTL = {sl: "Stop loss", be: "Break even", tp1: "TP1", tp1be: "TP1 + BE", tp1tp2: "TP1 + TP2", tp1trail: "TP1 + TP2 trail", other: "Vlastní výstup"};
 function table(rows, isOpen) {
   if (!rows.length) return `<p class="empty">${isOpen ? "Žádná otevřená pozice." : "Zatím žádný obchod. Přidej první tlačítkem nahoře."}</p>`;
   const head = isOpen ? ["Otevřeno", "Obchod", "Vstup", "Stop", "TP1", "TP2"] : ["Otevřeno", "Obchod", "Vstup", "Výstup", "Net P&amp;L", "R"];
   return `<div class="wrap"><table class="tt"><thead><tr>${head.map((h, i) => `<th${i > 1 ? ' class="n"' : ""}>${h}</th>`).join("")}<th></th></tr></thead><tbody>` +
   rows.map(t => { const p = pnl(t), r = real(t);
-    const who = `${esc(t.inst)} ${t.dir === "short" ? "Short" : "Long"} ×${nf(t.size || 1, 0)}` + (!isOpen && t.outc ? ` <span class="empty">${OUTL[t.outc] || ""}</span>` : "") + (!isOpen && (t.emo || t.strat) ? `<br><span class="empty">${emoStr(t)} ${esc(t.strat || "")}</span>` : "");
+    const who = `${esc(t.inst)} ${t.dir === "short" ? "Short" : "Long"} ×${nf(t.size || 1, 0)}` + (t.tfm ? ` <span class="empty">${t.tfm}</span>` : "") + (!isOpen && t.outc ? ` <span class="empty">${OUTL[t.outc] || ""}</span>` : "") + (!isOpen && (t.emo || t.strat) ? `<br><span class="empty">${emoStr(t)} ${esc(t.strat || "")}</span>` : "");
     return `<tr><td>${esc(when(t).slice(0, 10))}<br><span class="empty">${esc(when(t).slice(11, 16))}</span></td><td>${who}</td><td class="n">${nf(t.entry, 2)}</td>` +
     (isOpen ? `<td class="n">${nf(t.stop, 2)}</td><td class="n">${nf(t.target, 2)} <span class="empty">(1:${nf(plan(t) || 0, 1)})</span></td><td class="n">${t.target2 != null ? nf(t.target2, 2) + ' <span class="empty">(1:' + nf(Math.abs(t.target2 - t.entry) / (risk(t) || 1), 1) + ")</span>" : dash}</td>`
       : `<td class="n">${nf(t.exit, 2)}</td><td class="n ${cl(p)}">${usd(p)}</td><td class="n">${r == null ? dash : sg(r, 2) + "R"}</td>`) +
@@ -360,6 +363,7 @@ function reports() {
 let ALL = [];
 async function render() {
   ALL = await tx("readonly", s => s.getAll());
+  if (BT && !calSet && ALL.length) { const l = [...ALL].map(day).sort().pop(); calD = new Date(+l.slice(0, 4), +l.slice(5, 7) - 1, 1); calSet = true; }
   const rows = [...ALL].sort((a, b) => when(b).localeCompare(when(a)));
   over(ALL);
   $("open").innerHTML = table(rows.filter(t => t.exit == null), true);
@@ -424,32 +428,33 @@ function outcome() {
   const ok = x => isNaN(x) ? null : {exit: x};
   if (oc === "sl") return ok(s); if (oc === "be") return ok(e); if (oc === "tp1") return ok(t1); if (oc === "other") return ok(parseFloat(f.exit.value));
   let n1 = parseInt(f.n1.value); if (isNaN(n1)) n1 = Math.max(1, Math.floor(size / 2)); n1 = Math.min(Math.max(1, n1), size);
-  const rest = size - n1, rp = oc === "tp1be" ? e : t2;
+  const rest = size - n1, rp = oc === "tp1be" ? e : oc === "tp1trail" ? parseFloat(f.trp.value) : t2;
   if (isNaN(t1) || (rest > 0 && isNaN(rp))) return null;
   return {exit: (n1 * t1 + rest * (rest ? rp : 0)) / size, n1, rest, rp};
 }
 function outUI() {
   const fe = $("f").elements, oc = fe.outc.value, size = Math.max(1, parseInt(fe.size.value) || 1), note = $("outnote");
-  $("n1w").style.display = (oc === "tp1be" || oc === "tp1tp2") ? "" : "none"; $("exw").style.display = oc === "other" ? "" : "none";
+  $("n1w").style.display = (oc === "tp1be" || oc === "tp1tp2" || oc === "tp1trail") ? "" : "none"; $("trw").style.display = oc === "tp1trail" ? "" : "none"; $("exw").style.display = oc === "other" ? "" : "none";
   fe.n1.placeholder = "např. " + Math.max(1, Math.floor(size / 2)); fe.n1.max = size;
   if (!oc) { note.style.display = "none"; return; } note.style.display = "";
-  const o = outcome(); if (!o) { note.textContent = "Doplň vstup, stop a take profity (u vlastního výstupu i cenu), ať jde výsledek spočítat."; return; }
+  const o = outcome(); if (!o) { note.textContent = "Doplň vstup, stop a take profity (u vlastního výstupu a u trailu i cenu), ať jde výsledek spočítat."; return; }
   const e = parseFloat(fe.entry.value), s = parseFloat(fe.stop.value), sgn = fe.dir.value === "short" ? -1 : 1, p = (o.exit - e) * sgn * size * pvOf(), r = e === s ? null : (o.exit - e) * sgn / Math.abs(e - s);
   let txt = "";
   if (o.rest === 0) txt = "Celá pozice vyšla na TP1. ";
-  else if (o.rest != null) txt = `Na TP1 vyšlo ${o.n1} ks (${nf(parseFloat(fe.target.value), 2)}), zbylých ${o.rest} ks ${oc === "tp1be" ? "na break even (vstup " + nf(e, 2) + ")" : "na TP2 (" + nf(o.rp, 2) + ")"}. `;
+  else if (o.rest != null) txt = `Na TP1 vyšlo ${o.n1} ks (${nf(parseFloat(fe.target.value), 2)}), zbylých ${o.rest} ks ${oc === "tp1be" ? "na break even (vstup " + nf(e, 2) + ")" : (oc === "tp1trail" ? "vystopováno na " + nf(o.rp, 2) : "na TP2 (" + nf(o.rp, 2) + ")")}. `;
   note.innerHTML = txt + `Průměrná výstupní cena ${nf(o.exit, 2)}, výsledek <b class="${cl(p)}">${usd(p)}</b>${r == null ? "" : " (" + sg(r, 2) + " R)"}.`;
 }
+if (!BT) $("tfw").style.display = "none"; else $("tfnote").style.display = "";
 const nowT = () => localNow().slice(11, 16);
 function dlg(t, toOut) {
   const f = $("f"), fe = f.elements; f.reset();
   shots = t ? [...(t.shots || (t.shot ? [t.shot] : []))] : []; slotsD = t && t.slots ? {...t.slots} : {}; curSlot = null;
   touched = t ? {target: 1, target2: 1} : {}; dist = t ? (Math.abs(t.entry - t.stop) || null) : null; $("sd").value = lsGet("defStop35") || 35;
   $("dt").textContent = t ? "Upravit obchod" : "Nový obchod";
-  const o = t ? when(t) : localNow(); fe.od.value = o.slice(0, 10); fe.ot.value = o.slice(11, 16); fe.acc.value = lsGet("lastAcc") || "Hlavní";
+  const o = t ? when(t) : (BT ? (LS.get("bt:lastd", "") + "T") : localNow()); fe.od.value = o.slice(0, 10); fe.ot.value = o.slice(11, 16); fe.acc.value = lsGet("lastAcc") || "Hlavní";
   fillStrat(t ? t.strat : "");
-  if (t) { for (const k of ["id","inst","dir","size","pv","entry","stop","target","target2","plan","rate","notes","trend","acc","otype"]) fe[k].value = t[k] ?? "";
-    if (t.exit != null) { fe.outc.value = t.outc || "other"; fe.n1.value = t.n1 ?? ""; if (fe.outc.value === "other") fe.exit.value = t.exit; }
+  if (t) { for (const k of ["id","inst","dir","size","pv","entry","stop","target","target2","plan","rate","notes","trend","acc","otype","tfm"]) fe[k].value = t[k] ?? "";
+    if (t.exit != null) { fe.outc.value = t.outc || "other"; fe.n1.value = t.n1 ?? ""; fe.trp.value = t.trp ?? ""; if (fe.outc.value === "other") fe.exit.value = t.exit; }
     if (t.closed) { fe.cd.value = t.closed.slice(0, 10); fe.ct.value = t.closed.slice(11, 16); }
     f.querySelectorAll('[name=emo]').forEach(c => c.checked = (t.emo || []).includes(c.value));
     f.querySelectorAll('[name=mis]').forEach(c => c.checked = (t.mis || []).includes(c.value));
@@ -462,14 +467,14 @@ $("add").onclick = () => dlg(); $("cancel").onclick = () => $("dlg").close();
 $("f").onsubmit = async e => {
   e.preventDefault(); const f = e.target.elements, n = k => f[k].value === "" ? null : parseFloat(f[k].value), oc = f.outc.value, o = outcome();
   if (oc && !o) { alert("Doplň vstup, stop a take profity (u vlastního výstupu i cenu), ať jde spočítat výsledek."); return; }
-  const closed = oc ? (f.cd.value || localNow().slice(0, 10)) + "T" + (f.ct.value || nowT()) : null;
+  const closed = oc ? (f.cd.value || (BT ? f.od.value : localNow().slice(0, 10))) + "T" + (f.ct.value || (BT ? (f.ot.value || "00:00") : nowT())) : null;
   const t = {opened: f.od.value + "T" + (f.ot.value || "00:00"), closed, inst: f.inst.value.toUpperCase(), dir: f.dir.value, size: n("size") || 1, pv: n("pv"), otype: f.otype.value,
-    entry: n("entry"), stop: n("stop"), target: n("target"), target2: n("target2"), exit: o ? o.exit : null, outc: oc, n1: o && o.n1 != null ? o.n1 : null,
+    entry: n("entry"), stop: n("stop"), target: n("target"), target2: n("target2"), exit: o ? o.exit : null, outc: oc, n1: o && o.n1 != null ? o.n1 : null, trp: oc === "tp1trail" ? n("trp") : null, tfm: f.tfm.value,
     strat: f.strat.value === "__new__" ? "" : f.strat.value, trend: f.trend.value, acc: f.acc.value.trim() || "Hlavní", notes: f.notes.value,
     emo: [...e.target.querySelectorAll("[name=emo]:checked")].map(c => c.value), plan: f.plan.value, rate: n("rate"),
     mis: [...e.target.querySelectorAll("[name=mis]:checked")].map(c => c.value), cond: [...e.target.querySelectorAll("[name=cond]:checked")].map(c => c.value), conf: confGet(), slots: slotsD, shots};
   if (f.id.value) t.id = parseInt(f.id.value);
-  try { localStorage.setItem("lastAcc", JSON.stringify(t.acc)); } catch (x) {} await tx("readwrite", s => s.put(t)); $("dlg").close(); render();
+  if (BT) LS.set("bt:lastd", f.od.value); try { localStorage.setItem("lastAcc", JSON.stringify(t.acc)); } catch (x) {} await tx("readwrite", s => s.put(t)); $("dlg").close(); render();
 };
 function pickLevels(text, dir) {
   const raw = (String(text).match(/\d{4,6}(?:[.,]\d{1,2})?/g) || []).map(x => parseFloat(x.replace(",", "."))).filter(x => x > 1000);
@@ -511,7 +516,7 @@ const toUrl = b => new Promise(r => { const f = new FileReader(); f.onload = () 
 $("exp").onclick = async () => {
   const out = []; for (const t of ALL) out.push({...t, shot: undefined, shots: await Promise.all((t.shots || []).map(toUrl)), slots: Object.fromEntries(await Promise.all(Object.entries(t.slots || {}).filter(x => x[1]).map(async ([k, v]) => [k, await toUrl(v)])))});
   const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(out)], {type: "application/json"}));
-  a.download = "zaloha-denik-" + new Date().toISOString().slice(0, 10) + ".json"; a.click();
+  a.download = (BT ? "zaloha-backtest-" : "zaloha-denik-") + new Date().toISOString().slice(0, 10) + ".json"; a.click();
 };
 $("imp").onclick = () => $("impf").click();
 $("impf").onchange = async e => {
@@ -547,8 +552,8 @@ function auto(src) {
 { const fe = $("f").elements;
   fe.entry.addEventListener("input", () => auto("entry")); fe.dir.addEventListener("change", () => auto("dir")); fe.stop.addEventListener("input", () => auto("stop"));
   fe.target.addEventListener("input", () => { touched.target = 1; rr(); }); fe.target2.addEventListener("input", () => { touched.target2 = 1; rr(); });
-  fe.size.addEventListener("input", rr); fe.inst.addEventListener("input", rr); fe.n1.addEventListener("input", outUI); fe.exit.addEventListener("input", outUI);
-  fe.outc.addEventListener("change", () => { if (fe.outc.value && !fe.cd.value) { fe.cd.value = localNow().slice(0, 10); fe.ct.value = nowT(); } outUI(); });
+  fe.size.addEventListener("input", rr); fe.inst.addEventListener("input", rr); fe.n1.addEventListener("input", outUI); fe.trp.addEventListener("input", outUI); fe.exit.addEventListener("input", outUI);
+  fe.outc.addEventListener("change", () => { if (fe.outc.value && !fe.cd.value) { fe.cd.value = BT ? fe.od.value : localNow().slice(0, 10); fe.ct.value = BT ? fe.ot.value : nowT(); } outUI(); });
   $("sd").addEventListener("input", () => { try { localStorage.setItem("defStop35", JSON.stringify($("sd").value)); } catch (e) {} auto("sd"); }); }
 let HIST = [], radar = null, yearc = null;
 fetch("history.json", {cache: "no-store"}).then(r => r.ok ? r.json() : []).then(h => { HIST = Array.isArray(h) ? h : []; }).catch(() => {});
@@ -615,7 +620,7 @@ let PR = {}, entryAuto = false;
 fetch("prices.json", {cache: "no-store"}).then(r => r.ok ? r.json() : {}).then(p => { PR = p || {}; if ($("dlg").open && !$("f").elements.id.value) fillEntry(); }).catch(() => {});
 function fillEntry() {
   const f = $("f").elements, d = f.od.value || "";
-  if (f.id.value || !/^(MNQ|NQ)/i.test(f.inst.value)) return;
+  if (BT || f.id.value || !/^(MNQ|NQ)/i.test(f.inst.value)) return;
   let v = PR.p && PR.p[d], txt = "";
   if (v != null) txt = "Vstupní cena je předvyplněná cenou Nasdaq futures dne " + d + " v 15:00 pražského času. Můžeš ji přepsat.";
   else if (PR.last && PR.last.d === d) { v = PR.last.v; txt = "Cena v 15:00 ještě není k dispozici. Předvyplněna je poslední známá cena (" + PR.last.t + "). Můžeš ji přepsat."; }
@@ -703,7 +708,7 @@ $("f").elements.strat.addEventListener("input", e => { const p = LS.get("jr:pb",
 $("exp").onclick = async () => {
   const out = []; for (const t of ALL) out.push({...t, shot: undefined, shots: await Promise.all((t.shots || []).map(toUrl)), slots: Object.fromEntries(await Promise.all(Object.entries(t.slots || {}).filter(x => x[1]).map(async ([k, v]) => [k, await toUrl(v)])))});
   const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify({v: 2, trades: out, extra: {missed: LS.get("jr:missed", []), pb: LS.get("jr:pb", []), rev: LS.get("jr:rev", {})}})], {type: "application/json"}));
-  a.download = "zaloha-denik-" + todayS() + ".json"; a.click(); LS.set("jr:lastbk", Date.now()); bkInfo();
+  a.download = (BT ? "zaloha-backtest-" : "zaloha-denik-") + todayS() + ".json"; a.click(); LS.set("jr:lastbk", Date.now()); bkInfo();
 };
 $("impf").onchange = async e => {
   try { const raw = JSON.parse(await e.target.files[0].text()), ts = Array.isArray(raw) ? raw : raw.trades;
@@ -715,7 +720,7 @@ $("impf").onchange = async e => {
   } catch (x) { alert("Soubor se nepodařilo načíst. Je to záloha z tohoto deníku?"); }
   e.target.value = "";
 };
-const _render = render; render = async function () { await _render(); disc(); if (window.TDguard) TDguard(); };
+const _render = render; render = async function () { await _render(); disc(); if (!BT && window.TDguard) TDguard(); };
 
 open().then(d => { db = d; render(); });
 </script><script src="tips.js"></script></body></html>
