@@ -3,7 +3,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Backtest deník</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=46"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><style>
+<link rel="stylesheet" href="style.css?v=47"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><style>
 #f .grid{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}#f .grid>label{min-width:0}#f select,#f input{width:100%;min-width:0;text-overflow:ellipsis}#f input[type=checkbox]{width:auto;flex:none;margin:0}#f .chip{white-space:nowrap;display:inline-flex}
 #f .sec{margin:20px 0 8px;padding-top:12px;border-top:1px solid var(--rule);font-size:16px}#f .sec:first-of-type{border-top:0;margin-top:6px;padding-top:0}
 #f label em{font-style:normal;color:var(--acc);font-weight:600}
@@ -779,27 +779,42 @@ function reviewHtml(closed) {
     (old.length ? `<details style="margin-top:10px"><summary>Dřívější rozbory (${old.length})</summary>${old.map(k => `<p class="hint"><b>Týden od ${k}</b>${R[k].g ? " (známka " + R[k].g + ")" : ""}<br>${esc(R[k].a || "")}<br>${esc(R[k].b || "")}<br><i>${esc(R[k].c || "")}</i></p>`).join("")}</details>` : "");
 }
 
+function pbLib() {
+  const P = LS.get("jr:pb", []), gm = new Map(), cs_ = new Set(CONDS);
+  ENTRY.forEach(([g, a]) => { if (!gm.has(g)) gm.set(g, new Set()); a.forEach(n => gm.get(g).add(n)); });
+  P.forEach(p => { (p.conds || []).forEach(c => cs_.add(c)); (p.groups || []).forEach(([g, a]) => { if (!gm.has(g)) gm.set(g, new Set()); a.forEach(n => gm.get(g).add(n)); }); });
+  return {conds: [...cs_], groups: [...gm].map(([g, a]) => [g, [...a]])};
+}
+function pickHtml() {
+  const L = pbLib();
+  return `<details class="pbpick" open><summary>Vybrat z nabídky: podmínky a konfluence (zaškrtni, co ke strategii patří)</summary>
+<h4>Podmínky vstupu</h4><div class="chips">${L.conds.map(c => `<label class="chip"><input type="checkbox" name="pbc" value="${esc(c)}">${esc(c)}</label>`).join("")}</div>
+<h4>Konfluence</h4><div class="cfgrid">${L.groups.map(([g, a]) => `<div class="cfg"><b>${esc(g)}</b><div class="chips">${a.map(n => `<label class="chip"><input type="checkbox" name="pbg" data-g="${esc(g)}" value="${esc(n)}">${esc(n)}</label>`).join("")}</div></div>`).join("")}</div></details>
+<details class="pbpick"><summary>Přidat vlastní body, které v nabídce nejsou (psaním)</summary>
+<label>Podmínky vstupu (každá na nový řádek)<textarea id="pb-c" rows="3" placeholder="např. Max 2 obchody denně"></textarea></label>
+<label>Konfluence (jedna skupina na řádek, tvar: Název skupiny: bod, bod)<textarea id="pb-g" rows="3" placeholder="např. Moje skupina: nový bod, další bod"></textarea></label></details>`;
+}
 function playbookHtml(closed) {
   const P = LS.get("jr:pb", []);
   const rows = P.map(p => { const l = closed.filter(t => (t.strat || "").toLowerCase() === p.name.toLowerCase()), s = st(l), nc = (p.conds || []).length, ng = (p.groups || []).reduce((a, g) => a + g[1].length, 0);
     return rowH([`<b>${esc(p.name)}</b><br><span class="empty">${esc(p.desc || "")}</span><br><span class="empty">Podmínky: ${nc}, konfluence: ${ng}</span>`, s.n, s.wr == null ? dash : nf(s.wr) + "&nbsp;%", cs(s.net), `<button class="ghost sm" data-pbe="${esc(p.name)}">Upravit</button> <button class="ghost sm" data-pbd="${esc(p.name)}">Smazat</button>`]); });
   return `<p class="hint">Tady jednou nastavíš strategii, její podmínky a konfluence. Ve formuláři obchodu pak stačí vybrat strategii a všechny kolonky se objeví a předvyplní samy. Ty odklikneš jen výjimky.</p>
 <div class="grid"><label>Název strategie<input id="pb-n" placeholder="např. ICT 15m RSI Cross + CISD"></label><label>Popis<input id="pb-d" placeholder="co to je"></label></div>
-<label>Podmínky vstupu (každá na nový řádek)<textarea id="pb-c" rows="4" placeholder="Killzone – NY seance&#10;Max 1 % risk&#10;Max. 1 SL tento den"></textarea></label>
-<label>Konfluence (jedna skupina na řádek, tvar: Název skupiny: bod, bod, bod)<textarea id="pb-g" rows="6" placeholder="Základní: ES divergence, wOpen, dOpen&#10;HTF – 1H: OB, FVG, VRVP&#10;LTF – 1/3/5min: FVG, CISD"></textarea></label>
+${pickHtml()}
 <div class="grid"><label>Výchozí timeframe<select id="pb-tf"><option value="">–</option><option value="1m">1 minuta</option><option value="2m">2 minuty</option><option value="3m">3 minuty</option><option value="5m">5 minut</option><option value="15m">15 minut</option></select></label>
 <label>Výchozí typ vstupu<select id="pb-ot"><option value="">–</option><option value="market">Market</option><option value="limit">Limit</option><option value="stop">Stop (průraz)</option></select></label>
 <label>Výchozí stop (body)<input id="pb-st" type="number" step="any"></label><label>Výchozí počet kontraktů<input id="pb-sz" type="number" min="1"></label></div>
-<label class="chip" style="margin-top:12px"><input type="checkbox" id="pb-pre" checked>Po výběru strategie předvyplnit všechny podmínky a konfluence jako splněné (Pro)</label>
+<label class="chk"><input type="checkbox" id="pb-pre" checked>Po výběru strategie předvyplnit všechny podmínky a konfluence jako splněné (Pro)</label>
 <div class="row"><button type="button" id="pb-add">Uložit strategii</button> <button type="button" class="ghost" id="pb-clr">Vyčistit formulář</button></div>` +
     (P.length ? tbl(["Strategie", "Obchodů", "Úspěšnost", "Výsledek", ""], rows) : "<p class=\"empty\">Zatím tu žádná strategie není. Vyplň formulář výše a ulož.</p>") + `<datalist id="pbl">${P.map(p => `<option value="${esc(p.name)}">`).join("")}</datalist>`;
 }
 
-function pbClear() { ["pb-n", "pb-d", "pb-c", "pb-g", "pb-tf", "pb-ot", "pb-st", "pb-sz"].forEach(i => $(i).value = ""); $("pb-pre").checked = true; $("pb-add").textContent = "Uložit strategii"; }
-function pbEdit(name) { const p = LS.get("jr:pb", []).find(x => x.name === name); if (!p) return;
-  $("pb-n").value = p.name; $("pb-d").value = p.desc || ""; $("pb-c").value = (p.conds && p.conds.length ? p.conds : (p.rules ? p.rules.split(",").map(x => x.trim()) : [])).join("\n");
-  $("pb-g").value = (p.groups || []).map(([g, a]) => g + ": " + a.join(", ")).join("\n"); const d = p.def || {};
-  $("pb-tf").value = d.tfm || ""; $("pb-ot").value = d.otype || ""; $("pb-st").value = d.stop || ""; $("pb-sz").value = d.size || ""; $("pb-pre").checked = p.pre !== false;
+function pbClear() { ["pb-n", "pb-d", "pb-c", "pb-g", "pb-tf", "pb-ot", "pb-st", "pb-sz"].forEach(i => $(i).value = ""); document.querySelectorAll("#d-pb [name=pbc],#d-pb [name=pbg]").forEach(i => i.checked = false); $("pb-pre").checked = true; $("pb-add").textContent = "Uložit strategii"; }
+function pbEdit(name) { const p = LS.get("jr:pb", []).find(x => x.name === name); if (!p) return; pbClear();
+  $("pb-n").value = p.name; $("pb-d").value = p.desc || ""; const cl_ = p.conds && p.conds.length ? p.conds : (p.rules ? p.rules.split(",").map(x => x.trim()) : []);
+  const miss = []; cl_.forEach(c => { const i = [...document.querySelectorAll("#d-pb [name=pbc]")].find(x => x.value === c); if (i) i.checked = true; else miss.push(c); }); $("pb-c").value = miss.join("\n");
+  const gmiss = []; (p.groups || []).forEach(([g, a]) => { const rest = []; a.forEach(n => { const i = [...document.querySelectorAll("#d-pb [name=pbg]")].find(x => x.dataset.g === g && x.value === n); if (i) i.checked = true; else rest.push(n); }); if (rest.length) gmiss.push(g + ": " + rest.join(", ")); }); $("pb-g").value = gmiss.join("\n");
+  const d = p.def || {}; $("pb-tf").value = d.tfm || ""; $("pb-ot").value = d.otype || ""; $("pb-st").value = d.stop || ""; $("pb-sz").value = d.size || ""; $("pb-pre").checked = p.pre !== false;
   $("pb-add").textContent = "Uložit změny"; $("pb-n").scrollIntoView({block: "center"}); $("pb-n").focus(); }
 function disc() {
   const closed = ALL.filter(t => pnl(t) !== null).sort((a, b) => when(a).localeCompare(when(b))), s = st(closed);
@@ -824,8 +839,11 @@ document.addEventListener("click", e => {
   if (t.id === "ms-add") { const s = $("ms-s").value.trim(); if (!s) { $("ms-s").focus(); return; } const L = LS.get("bt:missed", []); L.push({id: Date.now(), d: $("ms-d").value || todayS(), s, r: $("ms-r").value, ok: $("ms-ok").checked}); LS.set("bt:missed", L); disc(); }
   else if (g("data-ms")) { LS.set("bt:missed", LS.get("bt:missed", []).filter(x => String(x.id) !== g("data-ms"))); disc(); }
   else if (t.id === "pb-add") { const n = $("pb-n").value.trim(); if (!n) { $("pb-n").focus(); return; }
-    const conds = $("pb-c").value.split("\n").map(x => x.trim()).filter(Boolean);
-    const groups = $("pb-g").value.split("\n").map(x => x.trim()).filter(Boolean).map(l => { const k = l.indexOf(":"), g = k < 0 ? "Konfluence" : l.slice(0, k).trim() || "Konfluence", a = (k < 0 ? l : l.slice(k + 1)).split(",").map(x => x.trim()).filter(Boolean); return [g, a]; }).filter(x => x[1].length);
+    const conds = [...document.querySelectorAll("#d-pb [name=pbc]:checked")].map(i => i.value);
+    $("pb-c").value.split("\n").map(x => x.trim()).filter(Boolean).forEach(c => { if (!conds.includes(c)) conds.push(c); });
+    const gm = new Map(); document.querySelectorAll("#d-pb [name=pbg]:checked").forEach(i => { const g = i.dataset.g; if (!gm.has(g)) gm.set(g, []); gm.get(g).push(i.value); });
+    $("pb-g").value.split("\n").map(x => x.trim()).filter(Boolean).forEach(l => { const k = l.indexOf(":"), g = k < 0 ? "Konfluence" : l.slice(0, k).trim() || "Konfluence", a = (k < 0 ? l : l.slice(k + 1)).split(",").map(x => x.trim()).filter(Boolean); if (!gm.has(g)) gm.set(g, []); a.forEach(x => { if (!gm.get(g).includes(x)) gm.get(g).push(x); }); });
+    const groups = [...gm].filter(x => x[1].length);
     const def = {}; if ($("pb-tf").value) def.tfm = $("pb-tf").value; if ($("pb-ot").value) def.otype = $("pb-ot").value; if (parseFloat($("pb-st").value) > 0) def.stop = parseFloat($("pb-st").value); if (parseInt($("pb-sz").value) > 0) def.size = parseInt($("pb-sz").value);
     const P = LS.get("jr:pb", []).filter(p => p.name.toLowerCase() !== n.toLowerCase()); P.push({name: n, desc: $("pb-d").value.trim(), rules: conds.join(", "), conds, groups, def, pre: $("pb-pre").checked}); LS.set("jr:pb", P); disc(); }
   else if (t.id === "pb-clr") { pbClear(); }
