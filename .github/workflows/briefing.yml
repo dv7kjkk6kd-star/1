@@ -1,29 +1,50 @@
 name: Ranní briefing
-
 on:
   schedule:
     - cron: "30 12 * * 1-5"
+    - cron: "30 13 * * 1-5"
+    - cron: "20 13 * * 1-5"
+    - cron: "20 14 * * 1-5"
+    - cron: "30 17 * * 0"
+    - cron: "30 18 * * 0"
   workflow_dispatch:
-
 permissions:
   contents: write
-
+concurrency:
+  group: briefing
+  cancel-in-progress: false
 jobs:
-  briefing:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Kontrola času
+        id: t
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          H=$(TZ=Europe/Prague date +%H%M)
+          D=$(TZ=Europe/Prague date +%u)
+          if [ "$EVENT" = "workflow_dispatch" ]; then R=yes
+          elif [ "$D" = "7" ] && [ "$H" -ge 1850 ] && [ "$H" -le 2010 ]; then R=yes
+          elif [ "$H" -ge 1425 ] && [ "$H" -le 1450 ]; then R=yes
+          elif [ "$H" -ge 1515 ] && [ "$H" -le 1545 ]; then R=yes
+          else R=no; fi
+          echo "run=$R" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-python@v5
+        if: steps.t.outputs.run == 'yes'
         with:
           python-version: "3.12"
-          cache: pip
-      - run: pip install -r requirements.txt
-      - name: Spustit nejnovější verzi
+      - name: Instalace
+        if: steps.t.outputs.run == 'yes'
+        run: pip install -r requirements.txt
+      - name: Spuštění
+        if: steps.t.outputs.run == 'yes'
+        run: python "$(ls briefing_v*.py | sort -V | tail -1)"
+      - name: Uložení
+        if: steps.t.outputs.run == 'yes'
         run: |
-          python "$(ls briefing_v*.py | sort -V | tail -1)"
-      - run: |
           git config user.name "briefing-bot"
-          git config user.email "briefing-bot@users.noreply.github.com"
+          git config user.email "bot@users.noreply.github.com"
           git add docs
-          git diff --cached --quiet || git commit -m "Briefing $(date -u +%F)"
-          git push
+          git diff --cached --quiet || (git commit -m "Aktualizace" && git push)
