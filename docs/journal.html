@@ -3,7 +3,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Deník obchodů</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=36"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><style>
+<link rel="stylesheet" href="style.css?v=39"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><style>
 #f .grid{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}#f .grid>label{min-width:0}#f select,#f input{width:100%;min-width:0;text-overflow:ellipsis}#f input[type=checkbox]{width:auto;flex:none;margin:0}#f .chip{white-space:nowrap;display:inline-flex}
 #f .sec{margin:20px 0 8px;padding-top:12px;border-top:1px solid var(--rule);font-size:16px}#f .sec:first-of-type{border-top:0;margin-top:6px;padding-top:0}
 #f label em{font-style:normal;color:var(--acc);font-weight:600}
@@ -17,8 +17,29 @@
 .guide{margin:0 0 14px;border:1px solid var(--rule);border-radius:14px;padding:12px 16px;background:var(--glass)}.guide summary{cursor:pointer;font-weight:600}.guide h3{margin:14px 0 4px;font-size:15px}.guide ol,.guide ul{margin:4px 0 0;padding-left:22px}.guide li{margin:3px 0}
 </style>
 <style>.cal{grid-template-columns:repeat(5,1fr) 1.3fr}.day b{display:block;font-size:13px;font-weight:600;white-space:nowrap}.day.wk{background:rgba(139,124,255,.14);border-color:rgba(139,124,255,.45)}.day.wk em{font-style:normal;font-size:12px;color:var(--muted)}.day.wk.up b{color:var(--up)}.day.wk.down b{color:var(--down)}@media(max-width:560px){.day b{font-size:11px}.cal{gap:3px}}</style>
+<style>
+.tz main{font-size:16px}.tz .p{padding:26px 28px;border-radius:20px}.tz .p h2{font-size:19px;margin-bottom:12px}
+.tz .tabs button{padding:11px 20px;font-size:15px}.tz #add{padding:13px 24px;font-size:16px;border-radius:14px}
+.dash{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin-bottom:18px}
+.tile{border:1px solid var(--rule);border-radius:20px;padding:20px 22px;background:var(--glass);display:flex;flex-direction:column;gap:6px;min-height:150px}
+.tile h3{margin:0;font-size:13px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.tile .big{font-size:36px;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums}.tile .sub{font-size:14px;color:var(--muted)}
+.tile .rw{display:flex;align-items:center;gap:16px}.tile svg.ring{width:92px;height:92px;flex:none}.ring text{fill:var(--ink);font:700 22px "IBM Plex Sans",sans-serif}
+.tile .badges2{display:flex;gap:6px;flex-wrap:wrap}.bdg{padding:3px 10px;border-radius:99px;font-size:13px;font-weight:600}.bdg.up{background:rgba(46,230,166,.16)}.bdg.down{background:rgba(255,107,138,.16)}.bdg.n{background:rgba(255,255,255,.1);text-align:left}
+.hb{height:12px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden;margin:3px 0}.hb i{display:block;height:100%;border-radius:99px}
+.dgrid{display:grid;grid-template-columns:1.45fr 1fr;gap:18px}.dgrid .chartbox{height:290px!important}@media(max-width:1100px){.dgrid{grid-template-columns:1fr}}
+.day{min-height:84px;padding:9px 11px;font-size:14px;border-radius:12px}.day b{font-size:15px!important}.cal{gap:8px}
+.tt td,.tt th{padding:15px 10px;font-size:15px}.tt tr.rowlink{cursor:pointer}.tt tr.rowlink:hover td{background:rgba(255,255,255,.05)}.tt tr.win td:first-child{box-shadow:inset 4px 0 var(--up)}.tt tr.loss td:first-child{box-shadow:inset 4px 0 var(--down)}
+.tt .pl{font-weight:700;font-size:16px}.tt input[type=checkbox]{width:18px;height:18px}
+.bulk{display:none;gap:10px;align-items:center;flex-wrap:wrap;padding:12px 16px;margin-bottom:12px;border:1px solid var(--acc);border-radius:14px;background:rgba(139,124,255,.12)}
+#view{width:min(1040px,96vw)}#view .vh{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:flex-start;margin-bottom:14px}#view .vh h2{font-size:24px;margin:0 0 4px}
+#view .vpl{font-size:34px;font-weight:700;text-align:right}#view .vpl small{display:block;font-size:15px;font-weight:500;color:var(--muted)}
+#view .tags{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}#view .shots{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:14px}#view .shots img{width:100%;border-radius:12px;border:1px solid var(--rule)}#view .shots h3{margin:0 0 6px;font-size:14px;color:var(--muted)}
+#view .dash{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}#view .dash .tile{min-height:0;padding:12px 14px}#view .dash .big{font-size:22px}#view .k{padding:12px 14px}#view .k b{font-size:20px;line-height:1.2}
+@media(max-width:700px){#view .shots{grid-template-columns:1fr}.tile .big{font-size:30px}}
+</style>
 </head>
-<body class="bg-diary"><div class="app"><aside class="side"><div class="brand">Kompas klidu<small>Trénink trpělivosti a ovládnutí sebe sama</small><small class="mot">Všechno ostatní si mě ve správný moment najde. Na nic netlačím, trh nezajímá, co chci. Nebojuju s ním a jen čekám na to, kde jsem silný.</small></div><div class="clock"><span id="mks">Burza</span><b id="mk">–</b><span>podle času v New Yorku</span></div><nav><p class="grp">Dnes</p><a href="index.html"><span>🏠</span>Přehled</a><p class="grp">Zprávy a fundament</p><a href="zpravy.html"><span>🗞️</span>Zprávy</a><a href="sentiment.html"><span>💬</span>Sentiment</a><a href="kalendar.html"><span>📅</span>Kalendář</a><a href="predikce.html"><span>🔮</span>Predikce zpráv</a><a href="fundament.html"><span>📰</span>Fundament</a><p class="grp">Analýza</p><a href="premarket.html"><span>🌅</span>Pre-market akcí</a><a href="bias.html"><span>🧭</span>Bias</a><a href="tyden.html"><span>🗓️</span>Týdenní výhled</a><a href="presnost.html"><span>🎯</span>Přesnost biasu</a><p class="grp">Příprava</p><a href="ritual.html"><span>🔔</span>Pre-session rituál</a><a href="trpelivost.html"><span>⏳</span>Trpělivost</a><a href="mindset.html"><span>🧘</span>Mindset</a><a href="plan.html"><span>📝</span>Plán dne</a><p class="grp">Obchodování</p><a href="journal.html" aria-current="page"><span>📓</span>Deník obchodů</a><a href="backtest.html"><span>🧪</span>Backtest deník</a><p class="grp">Uzavření dne</p><a href="evening.html"><span>🌙</span>Uzavření dne</a><p class="grp">Učení a nastavení</p><a href="roadmap.html"><span>🛣️</span>Roadmap</a><a href="prirucka.html"><span>📘</span>Příručka</a><a href="nastaveni.html"><span>⚙️</span>Nastavení</a></nav><button type="button" class="themebtn" id="themebtn"></button></aside><script>(function(){
+<body class="bg-diary tz"><div class="app"><aside class="side"><div class="brand">Kompas klidu<small>Trénink trpělivosti a ovládnutí sebe sama</small><small class="mot">Všechno ostatní si mě ve správný moment najde. Na nic netlačím, trh nezajímá, co chci. Nebojuju s ním a jen čekám na to, kde jsem silný.</small></div><div class="clock"><span id="mks">Burza</span><b id="mk">–</b><span>podle času v New Yorku</span></div><nav><p class="grp">Dnes</p><a href="index.html"><span>🏠</span>Přehled</a><p class="grp">Zprávy a fundament</p><a href="zpravy.html"><span>🗞️</span>Zprávy</a><a href="sentiment.html"><span>💬</span>Sentiment</a><a href="kalendar.html"><span>📅</span>Kalendář</a><a href="predikce.html"><span>🔮</span>Predikce zpráv</a><a href="fundament.html"><span>📰</span>Fundament</a><p class="grp">Analýza</p><a href="premarket.html"><span>🌅</span>Pre-market akcí</a><a href="bias.html"><span>🧭</span>Bias</a><a href="tyden.html"><span>🗓️</span>Týdenní výhled</a><a href="presnost.html"><span>🎯</span>Přesnost biasu</a><p class="grp">Příprava</p><a href="ritual.html"><span>🔔</span>Pre-session rituál</a><a href="trpelivost.html"><span>⏳</span>Trpělivost</a><a href="mindset.html"><span>🧘</span>Mindset</a><a href="plan.html"><span>📝</span>Plán dne</a><p class="grp">Obchodování</p><a href="journal.html" aria-current="page"><span>📓</span>Deník obchodů</a><a href="backtest.html"><span>🧪</span>Backtest deník</a><p class="grp">Uzavření dne</p><a href="evening.html"><span>🌙</span>Uzavření dne</a><p class="grp">Učení a nastavení</p><a href="roadmap.html"><span>🛣️</span>Roadmap</a><a href="prirucka.html"><span>📘</span>Příručka</a><a href="nastaveni.html"><span>⚙️</span>Nastavení</a></nav><button type="button" class="themebtn" id="themebtn"></button></aside><script>(function(){
 var NAMES={ny:"Nový rok",mlk:"Den Martina Luthera Kinga",pres:"Den prezidentů",gf:"Velký pátek",mem:"Memorial Day",jun:"Juneteenth",ind:"Den nezávislosti",lab:"Labor Day",thx:"Díkuvzdání",xmas:"Vánoce"};
 var DAYS=["neděle","pondělí","úterý","středa","čtvrtek","pátek","sobota"];
 function U(y,m,d){return new Date(Date.UTC(y,m,d))}
@@ -175,13 +196,13 @@ window.TDme=function(){
 <button id="add" type="button">+ Přidat obchod</button></div>
 
 <div id="t-over"><section class="p why"><h2>Proč to všechno dělám</h2><p style="margin:0;font-size:16px">Dělám to pro sebe, a dělají to všichni úspěšní tradeři. A chci být jako oni, tak dělám to, co dělají oni.</p></section>
-<div id="bk"></div><div class="gdyn" id="gdyn"></div><div class="kpis" id="kpis"></div>
-<section class="p"><h2>Vývoj zisku (najeď myší na graf)</h2><div id="curve"></div></section>
-<section class="p"><h2>Výsledek po dnech</h2><div class="chartbox" style="height:220px"><canvas id="c-day"></canvas></div></section>
+<div id="bk"></div><div class="dash" id="kpis"></div>
+<div class="dgrid"><section class="p"><h2>Vývoj zisku</h2><div id="curve"></div></section>
+<section class="p"><h2>Výsledek po dnech</h2><div class="chartbox"><canvas id="c-day"></canvas></div></section></div>
 <section class="p"><div class="calhead"><button class="ghost sm" onclick="mv(-1)" aria-label="Předchozí měsíc">‹</button><b id="calt"></b><button class="ghost sm" onclick="mv(1)" aria-label="Další měsíc">›</button><span id="calsum"></span></div><div class="cal" id="cal"></div></section></div>
 
 <div id="t-trades" hidden><section class="p"><h2>Otevřené pozice</h2><div id="open"></div></section>
-<section class="p"><h2>Všechny obchody</h2><div id="list"></div>
+<section class="p"><h2>Všechny obchody</h2><div class="bulk" id="bulk">Vybráno: <b id="bn">0</b><select id="bstrat"></select><button type="button" id="bapply">Nastavit strategii</button><button type="button" class="ghost" id="bdel">Smazat vybrané</button></div><div id="list"></div>
 <div class="row"><button class="ghost" id="exp" type="button">Zálohovat do souboru</button><button class="ghost" id="imp" type="button">Obnovit ze zálohy</button><input id="impf" type="file" accept="application/json" hidden></div>
 <p class="empty">Obchody se ukládají jen v tomto prohlížeči na tomto zařízení. Zálohuj je pravidelně.</p></section></div>
 
@@ -285,12 +306,16 @@ const dash = "–";
 
 function over(trades) {
 function dg(el,v,big,sub,word,cls,cap){var a=Math.max(-1,Math.min(1,v))*80;el.innerHTML=`<div class="gbox"><svg class="gauge" viewBox="0 0 200 110"><defs><linearGradient id="gd"><stop offset="0" stop-color="#FF6B8A"/><stop offset=".5" stop-color="#C9D1E8"/><stop offset="1" stop-color="#2EE6A6"/></linearGradient></defs><path d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke="url(#gd)" stroke-width="14" stroke-linecap="round"/><g transform="rotate(${a} 100 100)"><line x1="100" y1="100" x2="100" y2="34" stroke="#EEF1FA" stroke-width="3" stroke-linecap="round"/></g><circle cx="100" cy="100" r="6" fill="#EEF1FA"/></svg><div class="gnum ${cls}">${big}<span> ${sub}</span></div><div class="gword ${cls}">${word}</div><div class="gcap">${cap}</div></div>`;}  const s = st(trades);
-  dg($("gdyn"), Math.max(-1, Math.min(1, s.net / 500)), usd(s.net), "", s.n === 0 ? "Zatím bez obchodů" : s.net > 0 ? "Bullish výsledek" : s.net < 0 ? "Bearish výsledek" : "Neutral", s.net > 0 ? "up" : s.net < 0 ? "down" : "", s.n + " obchodů celkem");
-  $("kpis").innerHTML = K(`<span class="${cl(s.net)}">${usd(s.net)}</span>`, `Celkový zisk, ${s.n} obchodů`) +
-    K(s.wr == null ? dash : nf(s.wr, 1) + "\u00a0%", `Úspěšnost (${s.win} výher, ${s.loss} proher, ${s.be} BE)`) +
-    K(s.pf == null ? dash : nf(s.pf, 2), `Profit factor (prům. výhra ${nf(s.avgW)} $ / ztráta ${nf(Math.abs(s.avgL))} $)`) +
-    K(s.dayWin == null ? dash : nf(s.dayWin, 1) + "\u00a0%", "Ziskové dny") +
-    K(`<span class="down">${usd(s.dd)}</span>`, "Maximální drawdown");
+  const ring = (pct, col, mid) => { const p = Math.max(0, Math.min(100, pct || 0)), C = 2 * Math.PI * 44; return `<svg class="ring" viewBox="0 0 110 110"><circle cx="55" cy="55" r="44" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="11"/><circle cx="55" cy="55" r="44" fill="none" stroke="${col}" stroke-width="11" stroke-linecap="round" stroke-dasharray="${C * p / 100} ${C}" transform="rotate(-90 55 55)"/><text x="55" y="63" text-anchor="middle">${mid}</text></svg>`; };
+  const aw = s.avgW, al = Math.abs(s.avgL), mxw = Math.max(aw, al, 1), sc3 = s.n >= 3 ? grade(score(s, s.d)) : null;
+  $("kpis").innerHTML =
+    `<div class="tile"><h3>Čistý výsledek</h3><div class="big ${cl(s.net)}">${usd(s.net)}</div><div class="sub">${s.n} obchodů celkem</div><div class="badges2"><span class="bdg up">${s.win} výher</span><span class="bdg down">${s.loss} proher</span><span class="bdg n">${s.be} BE</span></div></div>` +
+    `<div class="tile"><h3>Úspěšnost</h3><div class="rw">${ring(s.wr, "#2EE6A6", s.wr == null ? dash : nf(s.wr, 0) + "%")}<div class="sub">výhry z uzavřených obchodů<br>Série výher ${s.mw}, proher ${s.ml}</div></div></div>` +
+    `<div class="tile"><h3>Profit factor</h3><div class="rw">${ring(s.pf == null ? 0 : s.pf / 3 * 100, "#8B7CFF", s.pf == null ? dash : nf(s.pf, 2))}<div class="sub">součet zisků ÷ součet ztrát<br>Nad 1,5 je dobré</div></div></div>` +
+    `<div class="tile"><h3>Ø výhra a ztráta</h3><div class="sub">Výhra <b class="up">${usd(aw)}</b></div><div class="hb"><i style="width:${aw / mxw * 100}%;background:var(--up)"></i></div><div class="sub">Ztráta <b class="down">${usd(-al)}</b></div><div class="hb"><i style="width:${al / mxw * 100}%;background:var(--down)"></i></div></div>` +
+    `<div class="tile"><h3>Ziskové dny</h3><div class="rw">${ring(s.dayWin, "#38BDF8", s.dayWin == null ? dash : nf(s.dayWin, 0) + "%")}<div class="sub">dnů v plusu<br>Průměrné R: ${s.avgR == null ? dash : sg(s.avgR, 2)}</div></div></div>` +
+    `<div class="tile"><h3>Maximální drawdown</h3><div class="big down">${usd(s.dd)}</div><div class="sub">Nejlepší ${usd(s.best)}<br>Nejhorší ${usd(s.worst)}</div></div>` +
+    `<div class="tile"><h3>Skóre tradera</h3>${sc3 ? `<div class="rw">${ring(sc3[1], "#FBBF24", sc3[0])}<div class="sub">${nf(sc3[1], 0)} ze 100<br>Detail v záložce Analýza</div></div>` : '<div class="sub">Přidej aspoň 3 uzavřené obchody.</div>'}</div>`;
   if (eq) { eq.destroy(); eq = null; }
   $("curve").innerHTML = s.n < 2 ? '<p class="empty">Graf se zobrazí od dvou uzavřených obchodů.</p>' : '<div class="chartbox"><canvas id="c-eq"></canvas></div>';
   if (s.n >= 2 && window.Chart) { let c = 0; const cum = s.p.map(x => c += x);
@@ -324,13 +349,13 @@ const emoStr = t => (t.emo || []).map(e => (EMO.find(x => x[1] === e) || [""])[0
 const OUTL = {sl: "Stop loss", be: "Break even", tp1: "TP1", tp1be: "TP1 + BE", tp1tp2: "TP1 + TP2", tp1trail: "TP1 + TP2 trail", other: "Vlastní výstup"};
 function table(rows, isOpen) {
   if (!rows.length) return `<p class="empty">${isOpen ? "Žádná otevřená pozice." : "Zatím žádný obchod. Přidej první tlačítkem nahoře."}</p>`;
-  const head = isOpen ? ["Otevřeno", "Obchod", "Vstup", "Stop", "TP1", "TP2"] : ["Otevřeno", "Obchod", "Vstup", "Výstup", "Net P&amp;L", "R"];
-  return `<div class="wrap"><table class="tt"><thead><tr>${head.map((h, i) => `<th${i > 1 ? ' class="n"' : ""}>${h}</th>`).join("")}<th></th></tr></thead><tbody>` +
+  const head = isOpen ? ["Otevřeno", "Obchod", "Vstup", "Stop", "TP1", "TP2"] : ["Otevřeno", "Obchod", "Vstup", "Výstup", "Net P&amp;L", "R"], ck = isOpen ? "" : '<th><input type="checkbox" data-selall></th>';
+  return `<div class="wrap"><table class="tt"><thead><tr>${ck}${head.map((h, i) => `<th${i > 1 ? ' class="n"' : ""}>${h}</th>`).join("")}<th></th></tr></thead><tbody>` +
   rows.map(t => { const p = pnl(t), r = real(t);
     const who = `${esc(t.inst)} ${t.dir === "short" ? "Short" : "Long"} ×${nf(t.size || 1, 0)}` + (t.tfm ? ` <span class="empty">${t.tfm}</span>` : "") + (!isOpen && t.outc ? ` <span class="empty">${OUTL[t.outc] || ""}</span>` : "") + (!isOpen && (t.emo || t.strat) ? `<br><span class="empty">${emoStr(t)} ${esc(t.strat || "")}</span>` : "");
-    return `<tr><td>${esc(when(t).slice(0, 10))}<br><span class="empty">${esc(when(t).slice(11, 16))}</span></td><td>${who}</td><td class="n">${nf(t.entry, 2)}</td>` +
+    return `<tr class="rowlink ${isOpen ? "" : p > 0 ? "win" : p < 0 ? "loss" : ""}" data-a="view" data-id="${t.id}">${isOpen ? "" : `<td><input type="checkbox" data-sel="${t.id}"></td>`}<td>${esc(when(t).slice(0, 10))}<br><span class="empty">${esc(when(t).slice(11, 16))}</span></td><td>${who}</td><td class="n">${nf(t.entry, 2)}</td>` +
     (isOpen ? `<td class="n">${nf(t.stop, 2)}</td><td class="n">${nf(t.target, 2)} <span class="empty">(1:${nf(plan(t) || 0, 1)})</span></td><td class="n">${t.target2 != null ? nf(t.target2, 2) + ' <span class="empty">(1:' + nf(Math.abs(t.target2 - t.entry) / (risk(t) || 1), 1) + ")</span>" : dash}</td>`
-      : `<td class="n">${nf(t.exit, 2)}</td><td class="n ${cl(p)}">${usd(p)}</td><td class="n">${r == null ? dash : sg(r, 2) + "R"}</td>`) +
+      : `<td class="n">${nf(t.exit, 2)}</td><td class="n ${cl(p)}"><span class="pl">${usd(p)}</span></td><td class="n">${r == null ? dash : sg(r, 2) + "R"}</td>`) +
     `<td class="act"><div><button class="ghost sm" data-a="view" data-id="${t.id}">${imgs(t).length ? "📷 " + imgs(t).length : "Detail"}</button>` +
     `<button class="ghost sm" data-a="edit" data-id="${t.id}">Upravit</button>` +
     (isOpen ? `<button class="sm" data-a="close" data-id="${t.id}">Uzavřít</button>` : "") +
@@ -501,17 +526,34 @@ $("ocr").onclick = async () => {
 };
 
 document.addEventListener("click", async e => {
-  const b = e.target.closest("[data-a]"); if (!b) return; const t = ALL.find(x => x.id == b.dataset.id), a = b.dataset.a;
+  if (e.target.closest("input,select,label")) return; const b = e.target.closest("[data-a]"); if (!b) return; const t = ALL.find(x => x.id == b.dataset.id), a = b.dataset.a;
+  if ($("view").open && (a === "edit" || a === "del")) $("view").close();
   if (a === "edit") dlg(t);
   else if (a === "del") { if (confirm("Smazat tento obchod?")) { await tx("readwrite", s => s.delete(t.id)); render(); } }
   else if (a === "close") dlg(t, true);
-  else if (a === "view") { const cf = Object.values(t.conf || {}), pro = cf.filter(x => x === "pro").length, con = cf.length - pro;
-    $("vbody").innerHTML = `<h2>${esc(t.inst)} ${t.dir}, ${esc(when(t).replace("T", " "))}</h2><p>${esc(t.notes || "Bez poznámky.")}</p><p>Strategie: ${esc(t.strat || "–")} | Typ vstupu: ${esc(t.otype || "–")} | Výsledek: ${OUTL[t.outc] || "–"}${t.n1 != null ? " (na TP1 " + t.n1 + " ks)" : ""}</p><p>Plán: ${t.plan || "–"} | Hodnocení: ${t.rate || "–"} | Chyby: ${esc((t.mis || []).join(", ") || "žádné")}</p>` +
-      (cf.length || (t.cond || []).length ? `<p>Vstupní model: podmínky ${(t.cond || []).length} ze 3, konfluence Pro ${pro}, Proti ${con}, celkově ${sg(pro - con)}</p>` : "");
-    const add = (b, n) => { const h = document.createElement("h3"); h.textContent = n; const i = document.createElement("img"); i.src = URL.createObjectURL(b); i.alt = n; $("vbody").append(h, i); };
-    SLOTS.forEach(([k, n]) => { if ((t.slots || {})[k]) add(t.slots[k], n); }); (t.shots || (t.shot ? [t.shot] : [])).forEach(b => add(b, "Další screenshot")); $("view").showModal(); }
+  else if (a === "view") { const cf = Object.entries(t.conf || {}), pro = cf.filter(x => x[1] === "pro"), con = cf.filter(x => x[1] !== "pro"), p = pnl(t), r = real(t), nfx = x => x == null ? dash : nf(x, 2);
+    const chip = (x, c) => `<span class="bdg ${c || "n"}">${esc(x)}</span>`;
+    $("vbody").innerHTML = `<div class="vh"><div><h2>${esc(t.inst)} ${t.dir === "short" ? "Short" : "Long"} ×${nf(t.size || 1, 0)}</h2><p class="empty" style="margin:0">${esc(when(t).replace("T", " "))}${t.closed ? " → " + esc(t.closed.replace("T", " ")) : ""}${t.otype ? " · " + esc(t.otype) : ""}${t.tfm ? " · " + t.tfm : ""}${t.acc ? " · " + esc(t.acc) : ""}</p></div>` +
+      (p == null ? "" : `<div class="vpl ${cl(p)}">${usd(p)}<small>${r == null ? "" : sg(r, 2) + " R"}</small></div>`) + `</div>` +
+      `<div class="dash">${K(nfx(t.entry), "Vstup")}${K(nfx(t.stop), "Stop loss")}${K(nfx(t.target), "TP1")}${K(nfx(t.target2), "TP2")}${K(nfx(t.exit), "Výstup")}${K(OUTL[t.outc] || dash, "Výsledek" + (t.n1 != null ? " (TP1: " + t.n1 + " ks)" : ""))}</div>` +
+      `<div class="tags">${t.strat ? chip("📌 " + t.strat, "up") : ""}${t.trend ? chip(t.trend === "with" ? "S trendem" : "Proti trendu") : ""}${t.plan ? chip(t.plan === "ano" ? "Plán dodržen" : "Plán porušen", t.plan === "ano" ? "up" : "down") : ""}${t.rate ? chip("Hodnocení " + t.rate + "/5") : ""}${(t.emo || []).map(x => chip(((EMO.find(y => y[1] === x) || [""])[0]) + " " + x)).join("")}${(t.mis || []).map(x => chip("⚠ " + x, "down")).join("")}</div>` +
+      (cf.length || (t.cond || []).length ? `<h3>Vstupní model</h3><div class="tags">${chip("Podmínky " + (t.cond || []).length + " ze 3")}${pro.map(x => chip("＋ " + x[0].split("|")[1], "up")).join("")}${con.map(x => chip("− " + x[0].split("|")[1], "down")).join("")}${chip("Celkově " + sg(pro.length - con.length))}</div>` : "") +
+      `<h3>Poznámka</h3><p>${esc(t.notes || "Bez poznámky.")}</p>`;
+    const sh = document.createElement("div"); sh.className = "shots";
+    const add = (b, n) => { const d = document.createElement("div"), h = document.createElement("h3"), i = document.createElement("img"); h.textContent = n; i.src = URL.createObjectURL(b); i.alt = n; d.append(h, i); sh.appendChild(d); };
+    SLOTS.forEach(([k, n]) => { if ((t.slots || {})[k]) add(t.slots[k], n); }); (t.shots || (t.shot ? [t.shot] : [])).forEach(b => add(b, "Další screenshot"));
+    if (sh.children.length) { const h = document.createElement("h3"); h.textContent = "Screenshoty"; $("vbody").append(h, sh); }
+    const ac = document.createElement("div"); ac.className = "row"; ac.innerHTML = `<button data-a="edit" data-id="${t.id}">Upravit obchod</button><button class="ghost" data-a="del" data-id="${t.id}">Smazat</button>`; $("vbody").appendChild(ac); $("view").showModal(); }
 });
 
+
+function bulkUI() { const n = document.querySelectorAll("[data-sel]:checked").length; $("bulk").style.display = n ? "flex" : "none"; $("bn").textContent = n;
+  if (n) { const names = [...new Set([...LS.get("jr:pb", []).map(p => p.name), ...ALL.map(t => t.strat)].filter(Boolean))]; if (!$("bstrat").dataset.f) { $("bstrat").innerHTML = names.map(x => `<option>${esc(x)}</option>`).join(""); $("bstrat").dataset.f = 1; } } }
+document.addEventListener("change", async e => { const t = e.target;
+  if (t.matches && t.matches("[data-selall]")) { document.querySelectorAll("[data-sel]").forEach(c => c.checked = t.checked); bulkUI(); }
+  else if (t.matches && t.matches("[data-sel]")) bulkUI(); });
+$("bapply").onclick = async () => { const v = $("bstrat").value; if (!v) return; for (const c of document.querySelectorAll("[data-sel]:checked")) { const t = ALL.find(x => x.id == c.dataset.sel); if (t) { t.strat = v; await tx("readwrite", s => s.put(t)); } } $("bstrat").dataset.f = ""; await render(); bulkUI(); };
+$("bdel").onclick = async () => { const ids = [...document.querySelectorAll("[data-sel]:checked")].map(c => +c.dataset.sel); if (!ids.length || !confirm("Smazat " + ids.length + " vybraných obchodů?")) return; for (const id of ids) await tx("readwrite", s => s.delete(id)); await render(); bulkUI(); };
 const toUrl = b => new Promise(r => { const f = new FileReader(); f.onload = () => r(f.result); f.readAsDataURL(b); });
 $("exp").onclick = async () => {
   const out = []; for (const t of ALL) out.push({...t, shot: undefined, shots: await Promise.all((t.shots || []).map(toUrl)), slots: Object.fromEntries(await Promise.all(Object.entries(t.slots || {}).filter(x => x[1]).map(async ([k, v]) => [k, await toUrl(v)])))});
