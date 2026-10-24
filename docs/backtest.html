@@ -3,7 +3,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Backtest deník</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=45"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><style>
+<link rel="stylesheet" href="style.css?v=46"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><style>
 #f .grid{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}#f .grid>label{min-width:0}#f select,#f input{width:100%;min-width:0;text-overflow:ellipsis}#f input[type=checkbox]{width:auto;flex:none;margin:0}#f .chip{white-space:nowrap;display:inline-flex}
 #f .sec{margin:20px 0 8px;padding-top:12px;border-top:1px solid var(--rule);font-size:16px}#f .sec:first-of-type{border-top:0;margin-top:6px;padding-top:0}
 #f label em{font-style:normal;color:var(--acc);font-weight:600}
@@ -223,7 +223,7 @@ window.TDme=function(){
 <section class="p"><h2>Účty</h2><div id="accbars"></div></section>
 <section class="p"><h2>Import a data pro Claude</h2><div class="row"><button class="ghost" id="csvb" type="button">Importovat obchody z CSV</button><input id="csvf" type="file" accept=".csv,text/csv" hidden><button id="cp" type="button">Zkopírovat data pro Claude</button></div>
 <p class="empty">CSV musí mít hlavičku se sloupci: datum, symbol, smer, kontrakty, vstup, vystup, stop (stop je nepovinný). Zkopírovaná data vlož do chatu na claude.ai a napiš: „Rozeber mi můj deník.“</p><p id="cpmsg" class="empty"></p></section></div>
-<div id="t-disc" hidden><section class="p"><h2>Tiltmeter: křivka účtu a dodržování plánu</h2><div id="d-tilt"></div></section><section class="p"><h2>Cena obchodů mimo plán</h2><div id="d-leak"></div></section><section class="p"><h2>Emoce a chyby v penězích</h2><div id="d-emoc"></div></section><section class="p"><h2>Zmeškané obchody (čekání je taky výsledek)</h2><div id="d-miss"></div></section><section class="p"><h2>Rozbor týdne</h2><div id="d-rev"></div></section><section class="p"><h2>Playbook: moje setupy</h2><div id="d-pb"></div></section></div>
+<div id="t-disc" hidden><section class="p"><h2>Tiltmeter: křivka účtu a dodržování plánu</h2><div id="d-tilt"></div></section><section class="p"><h2>Cena obchodů mimo plán</h2><div id="d-leak"></div></section><section class="p"><h2>Emoce a chyby v penězích</h2><div id="d-emoc"></div></section><section class="p"><h2>Zmeškané obchody (čekání je taky výsledek)</h2><div id="d-miss"></div></section><section class="p"><h2>Rozbor týdne</h2><div id="d-rev"></div></section><section class="p"><h2>Strategie a konfluence</h2><div id="d-pb"></div></section></div>
 </main></div></div>
 
 <dialog id="dlg"><form id="f"><h2 id="dt">Nový obchod</h2><input type="hidden" name="id">
@@ -237,7 +237,7 @@ window.TDme=function(){
 <label>Stop loss<input name="stop" type="number" step="any" required></label>
 <label>Take profit 1 <em id="r1"></em><input name="target" type="number" step="any" required></label><label>Take profit 2 <em id="r2"></em><input name="target2" type="number" step="any"></label>
 <label>Strategie<select name="strat" id="strat"></select></label><label>Trend dne<select name="trend"><option value="">–</option><option value="with">S trendem</option><option value="against">Proti trendu</option></select></label><label>Účet<input name="acc" value="Hlavní" list="accs"></label></div>
-<p class="empty" id="tfnote" style="margin:6px 0 0;display:none">Nejnižší timeframe je 1 minuta. Timeframey 15 s a 30 s tu nejsou, protože v minulosti je TradingView nezobrazí.</p><p class="empty" id="pbnote" style="margin:6px 0 0"></p><p class="empty" style="margin:4px 0 0">Strategie si zakládáš v záložce Disciplína → Playbook, nebo volbou „➕ Nová strategie“ v seznamu.</p><datalist id="accs"></datalist>
+<p class="empty" id="tfnote" style="margin:6px 0 0;display:none">Nejnižší timeframe je 1 minuta. Timeframey 15 s a 30 s tu nejsou, protože v minulosti je TradingView nezobrazí.</p><p class="empty" id="pbnote" style="margin:6px 0 0"></p><p class="empty" style="margin:4px 0 0">Strategii i s jejími podmínkami a konfluencemi si nastavíš v záložce Disciplína → Strategie. Po jejím výběru se checklist vyplní sám.</p><datalist id="accs"></datalist>
 <p class="empty" id="entrynote" style="margin:8px 0 0"></p><div class="note" id="rr" style="margin-top:12px">Zadej vstupní cenu a stop loss i oba take profity se doplní samy.</div>
 <details class="mdl" open><summary>Vstupní model: checklist (co platilo při vstupu)</summary>
 <blockquote class="qt">Každý vstup musí být v souladu s tvojí celkovou obchodní strategií a pravidly řízení rizika. Bez výjimek!</blockquote>
@@ -415,12 +415,36 @@ const SLOTS = [["tf", "Timeframe, na kterém jsem obchod vzal"], ["m1", "1 minut
 const ENTRY = [["Základní", ["ES divergence", "wOpen", "dOpen", "Trend", "Stocks"]], ["Indikátory", ["VWAP", "RSI – cross / div"]], ["HTF – 1H", ["OB", "FVG / iFVG / BPR", "VRVP / SVP"]], ["LTF – 1/3/5min", ["FVG / iFVG / BPR", "CISD"]]];
 const CONDS = ["Killzone – NY seance", "Max 1 % risk", "Max. 1 SL tento den"];
 let slotsD = {}, curSlot = null, slotUrls = [];
-$("d-cond").innerHTML = CONDS.map(n => `<label class="chip"><input type="checkbox" name="cond" value="${n}">${n}</label>`).join("");
-$("d-conf").innerHTML = ENTRY.map(([g, a]) => `<div class="cfg"><b>${g}</b>` + a.map(n => `<div class="cfr"><span>${n}</span><label class="chip"><input type="checkbox" data-cf="${g}|${n}" data-v="pro">Pro</label><label class="chip"><input type="checkbox" data-cf="${g}|${n}" data-v="proti">Proti</label></div>`).join("") + "</div>").join("");
+let curConds = CONDS;
+const stratOf = n => LS.get("jr:pb", []).find(p => p.name.toLowerCase() === String(n || "").trim().toLowerCase());
+function buildList(name, conf, cond, saved) {
+  const p = stratOf(name), cs_ = p && p.conds && p.conds.length ? [...p.conds] : [...CONDS];
+  const gr = (p && p.groups && p.groups.length ? p.groups : ENTRY).map(([g, a]) => [g, a.map(n => [g + "|" + n, n])]);
+  (cond || []).forEach(c => { if (!cs_.includes(c)) cs_.push(c); });
+  const known = new Set(); gr.forEach(([g, a]) => a.forEach(x => known.add(x[0])));
+  const extra = Object.keys(conf || {}).filter(k => !known.has(k));
+  if (extra.length) gr.push(["Dříve zapsané", extra.map(k => [k, k.split("|").slice(1).join("|") || k])]);
+  curConds = cs_;
+  $("d-cond").innerHTML = cs_.map(n => `<label class="chip"><input type="checkbox" name="cond" value="${esc(n)}">${esc(n)}</label>`).join("");
+  $("d-conf").innerHTML = gr.map(([g, a]) => `<div class="cfg"><b>${esc(g)}</b>` + a.map(([k, n]) => `<div class="cfr"><span>${esc(n)}</span><label class="chip"><input type="checkbox" data-cf="${esc(k)}" data-v="pro">Pro</label><label class="chip"><input type="checkbox" data-cf="${esc(k)}" data-v="proti">Proti</label></div>`).join("") + "</div>").join("");
+  document.querySelectorAll("#d-cond input").forEach(i => i.checked = (cond || []).includes(i.value));
+  document.querySelectorAll("#d-conf input").forEach(i => i.checked = (conf || {})[i.dataset.cf] === i.dataset.v);
+  if (!saved && p && p.pre !== false && ((p.conds && p.conds.length) || (p.groups && p.groups.length))) {
+    document.querySelectorAll("#d-cond input").forEach(i => i.checked = true);
+    document.querySelectorAll('#d-conf input[data-v="pro"]').forEach(i => i.checked = true);
+  }
+  confSum();
+}
+function onStrat(v, isNew) {
+  buildList(v, {}, [], false);
+  const p = stratOf(v), fe = $("f").elements;
+  if (p && p.def && isNew) { if (p.def.tfm) fe.tfm.value = p.def.tfm; if (p.def.otype) fe.otype.value = p.def.otype; if (p.def.size) fe.size.value = p.def.size;
+    if (p.def.stop) { $("sd").value = p.def.stop; $("sd").dispatchEvent(new Event("input")); } }
+}
 function confGet() { const o = {}; document.querySelectorAll("#d-conf input:checked").forEach(i => o[i.dataset.cf] = i.dataset.v); return o; }
 function confSum() {
   const c = confGet(), v = Object.values(c), pro = v.filter(x => x === "pro").length, con = v.length - pro, ck = [...document.querySelectorAll("[name=cond]:checked")].length;
-  $("cfsum").innerHTML = `Souhrnný počet konfluencí: Pro <b>${pro}</b> · Proti <b>${con}</b> · Celkově <b class="${cl(pro - con)}">${sg(pro - con)}</b>. Podmínky: <b>${ck} ze ${CONDS.length}</b> splněno.`;
+  $("cfsum").innerHTML = `Souhrnný počet konfluencí: Pro <b>${pro}</b> · Proti <b>${con}</b> · Celkově <b class="${cl(pro - con)}">${sg(pro - con)}</b>. Podmínky: <b>${ck} ze ${curConds.length}</b> splněno.`;
 }
 $("d-conf").addEventListener("change", e => { const i = e.target; if (i.checked) document.querySelectorAll(`#d-conf input[data-cf="${i.dataset.cf}"]`).forEach(o => { if (o !== i) o.checked = false; }); confSum(); });
 $("d-cond").addEventListener("change", confSum);
@@ -430,7 +454,7 @@ function fillStrat(cur) {
   $("strat").innerHTML = '<option value="">– vyber –</option>' + names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join("") + '<option value="__new__">➕ Nová strategie…</option>';
   $("strat").value = cur || ""; $("strat").dispatchEvent(new Event("input"));
 }
-$("strat").addEventListener("change", () => { if ($("strat").value !== "__new__") return;
+$("strat").addEventListener("change", () => { if ($("strat").value !== "__new__") { onStrat($("strat").value, !$("f").elements.id.value); return; }
   const n = (prompt("Název nové strategie (například Silver Bullet)?") || "").trim();
   if (n) { const P = LS.get("jr:pb", []); if (!P.some(p => p.name.toLowerCase() === n.toLowerCase())) { P.push({name: n, desc: "", rules: ""}); LS.set("jr:pb", P); try { disc(); } catch (x) {} } fillStrat(n); } else fillStrat(""); });
 function drawSlots() {
@@ -486,7 +510,8 @@ function dlg(t, toOut) {
     f.querySelectorAll('[name=emo]').forEach(c => c.checked = (t.emo || []).includes(c.value));
     f.querySelectorAll('[name=mis]').forEach(c => c.checked = (t.mis || []).includes(c.value));
     f.querySelectorAll('[name=cond]').forEach(c => c.checked = (t.cond || []).includes(c.value));
-    document.querySelectorAll("#d-conf input").forEach(i => i.checked = (t.conf || {})[i.dataset.cf] === i.dataset.v); }
+    buildList(t.strat, t.conf, t.cond, true); }
+  if (!t) { if (!fe.strat.value) { const ls = LS.get("lastStrat" + (BT ? "bt" : "jr"), ""); if (ls && stratOf(ls)) fillStrat(ls); } onStrat(fe.strat.value, true); }
   confSum(); drawSlots(); rr(); $("dlg").showModal(); entryAuto = false; $("entrynote").textContent = ""; if (!t) fillEntry();
   if (toOut) { fe.outc.focus(); fe.outc.scrollIntoView({block: "center"}); }
 }
@@ -501,7 +526,7 @@ $("f").onsubmit = async e => {
     emo: [...e.target.querySelectorAll("[name=emo]:checked")].map(c => c.value), plan: f.plan.value, rate: n("rate"),
     mis: [...e.target.querySelectorAll("[name=mis]:checked")].map(c => c.value), cond: [...e.target.querySelectorAll("[name=cond]:checked")].map(c => c.value), conf: confGet(), slots: slotsD, shots};
   if (f.id.value) t.id = parseInt(f.id.value);
-  if (BT) LS.set("bt:lastd", f.od.value); try { localStorage.setItem("lastAcc", JSON.stringify(t.acc)); } catch (x) {} await tx("readwrite", s => s.put(t)); $("dlg").close(); render();
+  LS.set("lastStrat" + (BT ? "bt" : "jr"), t.strat || ""); if (BT) LS.set("bt:lastd", f.od.value); try { localStorage.setItem("lastAcc", JSON.stringify(t.acc)); } catch (x) {} await tx("readwrite", s => s.put(t)); $("dlg").close(); render();
 };
 function pickLevels(text, dir) {
   const raw = (String(text).match(/\d{4,6}(?:[.,]\d{1,2})?/g) || []).map(x => parseFloat(x.replace(",", "."))).filter(x => x > 1000);
@@ -756,11 +781,26 @@ function reviewHtml(closed) {
 
 function playbookHtml(closed) {
   const P = LS.get("jr:pb", []);
-  const rows = P.map(p => { const l = closed.filter(t => (t.strat || "").toLowerCase() === p.name.toLowerCase()), s = st(l); return rowH([`<b>${esc(p.name)}</b><br><span class="empty">${esc(p.desc || "")}</span><br><span class="empty">Vstup jen když: ${esc(p.rules || "–")}</span>`, s.n, s.wr == null ? dash : nf(s.wr) + "&nbsp;%", cs(s.net), `<button class="ghost sm" data-pbd="${esc(p.name)}">Smazat</button>`]); });
-  return `<div class="grid"><label>Název setupu<input id="pb-n" placeholder="např. Break and retest"></label><label>Popis<input id="pb-d" placeholder="co to je"></label><label>Podmínky vstupu<input id="pb-r" placeholder="např. větší TF souhlasí, retest, potvrzení"></label></div><div class="row"><button type="button" id="pb-add">Přidat do playbooku</button></div>` +
-    (P.length ? tbl(["Setup", "Obchodů", "Úspěšnost", "Výsledek", ""], rows) : "<p class=\"empty\">Playbook je seznam tvých pár ověřených setupů. Doporučuju mít jen 1 až 3. Ve formuláři obchodu pak vybereš setup a statistiky se spočítají zvlášť.</p>") + `<datalist id="pbl">${P.map(p => `<option value="${esc(p.name)}">`).join("")}</datalist>`;
+  const rows = P.map(p => { const l = closed.filter(t => (t.strat || "").toLowerCase() === p.name.toLowerCase()), s = st(l), nc = (p.conds || []).length, ng = (p.groups || []).reduce((a, g) => a + g[1].length, 0);
+    return rowH([`<b>${esc(p.name)}</b><br><span class="empty">${esc(p.desc || "")}</span><br><span class="empty">Podmínky: ${nc}, konfluence: ${ng}</span>`, s.n, s.wr == null ? dash : nf(s.wr) + "&nbsp;%", cs(s.net), `<button class="ghost sm" data-pbe="${esc(p.name)}">Upravit</button> <button class="ghost sm" data-pbd="${esc(p.name)}">Smazat</button>`]); });
+  return `<p class="hint">Tady jednou nastavíš strategii, její podmínky a konfluence. Ve formuláři obchodu pak stačí vybrat strategii a všechny kolonky se objeví a předvyplní samy. Ty odklikneš jen výjimky.</p>
+<div class="grid"><label>Název strategie<input id="pb-n" placeholder="např. ICT 15m RSI Cross + CISD"></label><label>Popis<input id="pb-d" placeholder="co to je"></label></div>
+<label>Podmínky vstupu (každá na nový řádek)<textarea id="pb-c" rows="4" placeholder="Killzone – NY seance&#10;Max 1 % risk&#10;Max. 1 SL tento den"></textarea></label>
+<label>Konfluence (jedna skupina na řádek, tvar: Název skupiny: bod, bod, bod)<textarea id="pb-g" rows="6" placeholder="Základní: ES divergence, wOpen, dOpen&#10;HTF – 1H: OB, FVG, VRVP&#10;LTF – 1/3/5min: FVG, CISD"></textarea></label>
+<div class="grid"><label>Výchozí timeframe<select id="pb-tf"><option value="">–</option><option value="1m">1 minuta</option><option value="2m">2 minuty</option><option value="3m">3 minuty</option><option value="5m">5 minut</option><option value="15m">15 minut</option></select></label>
+<label>Výchozí typ vstupu<select id="pb-ot"><option value="">–</option><option value="market">Market</option><option value="limit">Limit</option><option value="stop">Stop (průraz)</option></select></label>
+<label>Výchozí stop (body)<input id="pb-st" type="number" step="any"></label><label>Výchozí počet kontraktů<input id="pb-sz" type="number" min="1"></label></div>
+<label class="chip" style="margin-top:12px"><input type="checkbox" id="pb-pre" checked>Po výběru strategie předvyplnit všechny podmínky a konfluence jako splněné (Pro)</label>
+<div class="row"><button type="button" id="pb-add">Uložit strategii</button> <button type="button" class="ghost" id="pb-clr">Vyčistit formulář</button></div>` +
+    (P.length ? tbl(["Strategie", "Obchodů", "Úspěšnost", "Výsledek", ""], rows) : "<p class=\"empty\">Zatím tu žádná strategie není. Vyplň formulář výše a ulož.</p>") + `<datalist id="pbl">${P.map(p => `<option value="${esc(p.name)}">`).join("")}</datalist>`;
 }
 
+function pbClear() { ["pb-n", "pb-d", "pb-c", "pb-g", "pb-tf", "pb-ot", "pb-st", "pb-sz"].forEach(i => $(i).value = ""); $("pb-pre").checked = true; $("pb-add").textContent = "Uložit strategii"; }
+function pbEdit(name) { const p = LS.get("jr:pb", []).find(x => x.name === name); if (!p) return;
+  $("pb-n").value = p.name; $("pb-d").value = p.desc || ""; $("pb-c").value = (p.conds && p.conds.length ? p.conds : (p.rules ? p.rules.split(",").map(x => x.trim()) : [])).join("\n");
+  $("pb-g").value = (p.groups || []).map(([g, a]) => g + ": " + a.join(", ")).join("\n"); const d = p.def || {};
+  $("pb-tf").value = d.tfm || ""; $("pb-ot").value = d.otype || ""; $("pb-st").value = d.stop || ""; $("pb-sz").value = d.size || ""; $("pb-pre").checked = p.pre !== false;
+  $("pb-add").textContent = "Uložit změny"; $("pb-n").scrollIntoView({block: "center"}); $("pb-n").focus(); }
 function disc() {
   const closed = ALL.filter(t => pnl(t) !== null).sort((a, b) => when(a).localeCompare(when(b))), s = st(closed);
   const broken = closed.filter(t => t.plan === "ne"), leak = sum(broken.map(pnl)), ans = closed.filter(t => t.plan === "ano" || t.plan === "ne").length;
@@ -783,7 +823,13 @@ document.addEventListener("click", e => {
   const t = e.target, g = a => t.getAttribute && t.getAttribute(a);
   if (t.id === "ms-add") { const s = $("ms-s").value.trim(); if (!s) { $("ms-s").focus(); return; } const L = LS.get("bt:missed", []); L.push({id: Date.now(), d: $("ms-d").value || todayS(), s, r: $("ms-r").value, ok: $("ms-ok").checked}); LS.set("bt:missed", L); disc(); }
   else if (g("data-ms")) { LS.set("bt:missed", LS.get("bt:missed", []).filter(x => String(x.id) !== g("data-ms"))); disc(); }
-  else if (t.id === "pb-add") { const n = $("pb-n").value.trim(); if (!n) { $("pb-n").focus(); return; } const P = LS.get("jr:pb", []).filter(p => p.name.toLowerCase() !== n.toLowerCase()); P.push({name: n, desc: $("pb-d").value.trim(), rules: $("pb-r").value.trim()}); LS.set("jr:pb", P); disc(); }
+  else if (t.id === "pb-add") { const n = $("pb-n").value.trim(); if (!n) { $("pb-n").focus(); return; }
+    const conds = $("pb-c").value.split("\n").map(x => x.trim()).filter(Boolean);
+    const groups = $("pb-g").value.split("\n").map(x => x.trim()).filter(Boolean).map(l => { const k = l.indexOf(":"), g = k < 0 ? "Konfluence" : l.slice(0, k).trim() || "Konfluence", a = (k < 0 ? l : l.slice(k + 1)).split(",").map(x => x.trim()).filter(Boolean); return [g, a]; }).filter(x => x[1].length);
+    const def = {}; if ($("pb-tf").value) def.tfm = $("pb-tf").value; if ($("pb-ot").value) def.otype = $("pb-ot").value; if (parseFloat($("pb-st").value) > 0) def.stop = parseFloat($("pb-st").value); if (parseInt($("pb-sz").value) > 0) def.size = parseInt($("pb-sz").value);
+    const P = LS.get("jr:pb", []).filter(p => p.name.toLowerCase() !== n.toLowerCase()); P.push({name: n, desc: $("pb-d").value.trim(), rules: conds.join(", "), conds, groups, def, pre: $("pb-pre").checked}); LS.set("jr:pb", P); disc(); }
+  else if (t.id === "pb-clr") { pbClear(); }
+  else if (g("data-pbe")) { pbEdit(g("data-pbe")); }
   else if (g("data-pbd")) { if (confirm("Smazat setup z playbooku? Obchody zůstanou.")) { LS.set("jr:pb", LS.get("jr:pb", []).filter(p => p.name !== g("data-pbd"))); disc(); } }
 });
 document.addEventListener("input", e => { const k = e.target.getAttribute && e.target.getAttribute("data-rv"); if (!k) return; const wk = weekKey(todayS()), R = LS.get("bt:rev", {}); R[wk] = R[wk] || {}; R[wk][k] = e.target.value; LS.set("bt:rev", R); });
