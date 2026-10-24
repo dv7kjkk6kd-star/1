@@ -3,7 +3,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Backtest deník</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=47"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><style>
+<link rel="stylesheet" href="style.css?v=48"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><style>
 #f .grid{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}#f .grid>label{min-width:0}#f select,#f input{width:100%;min-width:0;text-overflow:ellipsis}#f input[type=checkbox]{width:auto;flex:none;margin:0}#f .chip{white-space:nowrap;display:inline-flex}
 #f .sec{margin:20px 0 8px;padding-top:12px;border-top:1px solid var(--rule);font-size:16px}#f .sec:first-of-type{border-top:0;margin-top:6px;padding-top:0}
 #f label em{font-style:normal;color:var(--acc);font-weight:600}
@@ -205,7 +205,7 @@ window.TDme=function(){
 <section class="p"><h2>Všechny obchody</h2><div class="bulk" id="bulk">Vybráno: <b id="bn">0</b><select id="bstrat"></select><button type="button" id="bapply">Nastavit strategii</button><button type="button" class="ghost" id="bdel">Smazat vybrané</button></div><div id="list"></div>
 <div class="row"><button class="ghost" id="exp" type="button">Zálohovat do souboru</button><button class="ghost" id="imp" type="button">Obnovit ze zálohy</button><input id="impf" type="file" accept="application/json" hidden></div>
 <div class="row"><button id="tvb" type="button">⬇ Importovat z TradingView (CSV)</button><input id="tvf" type="file" accept=".csv,text/csv" hidden><label class="chip"><input type="checkbox" id="tvm">Přepočítat na MNQ (1 NQ = 10 MNQ)</label></div>
-<p class="empty">V TradingView otevři Strategy Tester → List of trades → ikona stažení → CSV. Soubor můžeš také přetáhnout kamkoliv na stránku. Čas v souboru musí být pražský. Znovu nahraný stejný soubor nevytvoří duplicity.</p>
+<p class="empty">Funguje soubor z Replay Trading i ze Strategy Testeru (List of trades → ikona stažení → CSV). Pozice rozdělená na víc výstupů (TP1 a TP2) se spojí do jednoho obchodu. Soubor můžeš také přetáhnout kamkoliv na stránku. Čas v souboru musí být pražský. Znovu nahraný stejný soubor nevytvoří duplicity.</p>
 <p class="empty">Obchody se ukládají jen v tomto prohlížeči na tomto zařízení. Zálohuj je pravidelně.</p></section></div>
 
 <div id="t-rep" hidden><section class="p"><h2>Filtry</h2><div class="grid" id="flt">
@@ -255,7 +255,8 @@ window.TDme=function(){
 <label style="margin-top:12px">Emoce</label><div class="chips" id="d-emo"></div>
 <label style="margin-top:12px">Poznámky<textarea name="notes" rows="3"></textarea></label>
 <h3 class="sec">3. Screenshoty</h3>
-<p class="empty" style="margin:0 0 8px">Klikni na rámeček a vlož obrázek přes Ctrl+V (nebo ⌘V), přetáhni soubor, nebo vyber soubor.</p>
+<p class="empty" style="margin:0 0 8px">Čtyři screenshoty v pořadí, jak je děláš: vstup 1 min, vstup 5 min, výsledek 1 min, výsledek 5 min. Ctrl+V (nebo ⌘V) vloží obrázek do dalšího prázdného rámečku. Můžeš také přetáhnout nebo vybrat všechny najednou: seřadí se podle času uložení.</p>
+<div class="row"><label class="ghost sm" style="cursor:pointer;padding:9px 14px;border:1px solid var(--line,#2a3350);border-radius:12px">📎 Vybrat více screenshotů najednou<input type="file" id="shotmulti" accept="image/*" multiple hidden></label></div>
 <div class="slots" id="slots"></div>
 <div class="row"><button type="button" class="ghost sm" id="ocr">🔍 Vyčíst ceny ze screenshotu (experiment)</button></div>
 <p class="empty" id="shotinfo"></p>
@@ -411,7 +412,8 @@ document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => {
 $("flt").addEventListener("input", reports); $("f-emo").addEventListener("input", reports);
 $("f-reset").onclick = () => { document.querySelectorAll("#flt input,#flt select").forEach(i => i.value = ""); document.querySelectorAll("#f-emo input").forEach(i => i.checked = false); reports(); };
 
-const SLOTS = [["tf", "Timeframe, na kterém jsem obchod vzal"], ["m1", "1 minuta"], ["m5", "5 minut"], ["m15", "15 minut"]];
+const NEWS = ["m1a", "m5a", "m1b", "m5b"];
+const SLOTS = [["m1a", "Vstup: 1 minuta"], ["m5a", "Vstup: 5 minut"], ["m1b", "Výsledek: 1 minuta"], ["m5b", "Výsledek: 5 minut"], ["tf", "Timeframe, na kterém jsem obchod vzal (starší)"], ["m1", "1 minuta (starší)"], ["m5", "5 minut (starší)"], ["m15", "15 minut (starší)"]];
 const ENTRY = [["Základní", ["ES divergence", "wOpen", "dOpen", "Trend", "Stocks"]], ["Indikátory", ["VWAP", "RSI – cross / div"]], ["HTF – 1H", ["OB", "FVG / iFVG / BPR", "VRVP / SVP"]], ["LTF – 1/3/5min", ["FVG / iFVG / BPR", "CISD"]]];
 const CONDS = ["Killzone – NY seance", "Max 1 % risk", "Max. 1 SL tento den"];
 let slotsD = {}, curSlot = null, slotUrls = [];
@@ -459,16 +461,17 @@ $("strat").addEventListener("change", () => { if ($("strat").value !== "__new__"
   if (n) { const P = LS.get("jr:pb", []); if (!P.some(p => p.name.toLowerCase() === n.toLowerCase())) { P.push({name: n, desc: "", rules: ""}); LS.set("jr:pb", P); try { disc(); } catch (x) {} } fillStrat(n); } else fillStrat(""); });
 function drawSlots() {
   slotUrls.forEach(u => URL.revokeObjectURL(u)); slotUrls = [];
-  $("slots").innerHTML = SLOTS.map(([k, n]) => { const b = slotsD[k]; let u = ""; if (b) { u = URL.createObjectURL(b); slotUrls.push(u); }
+  $("slots").innerHTML = SLOTS.filter(([k]) => NEWS.includes(k) || slotsD[k]).map(([k, n]) => { const b = slotsD[k]; let u = ""; if (b) { u = URL.createObjectURL(b); slotUrls.push(u); }
     return `<div class="slot${curSlot === k ? " on" : ""}" data-slot="${k}" tabindex="0"><b>${n}</b>` + (b ? `<img src="${u}" alt="${n}"><button type="button" class="ghost sm" data-sx="${k}">Smazat</button>` : `<span class="empty">Klikni sem a vlož Ctrl+V</span><input type="file" accept="image/*" data-sf="${k}">`) + "</div>"; }).join("");
   const c = Object.values(slotsD).filter(Boolean).length + shots.length; $("shotinfo").textContent = c ? c + " screenshotů připraveno." : "";
 }
-function putSlot(file, k) { k = k || curSlot || (SLOTS.find(x => !slotsD[x[0]]) || [])[0]; if (!k) { shots.push(file); } else { slotsD[k] = file; curSlot = (SLOTS.find(x => !slotsD[x[0]]) || [])[0] || null; } drawSlots(); }
+function putSlot(file, k) { k = k || curSlot || (NEWS.map(k => [k]).find(x => !slotsD[x[0]]) || [])[0]; if (!k) { shots.push(file); } else { slotsD[k] = file; curSlot = (NEWS.map(k => [k]).find(x => !slotsD[x[0]]) || [])[0] || null; } drawSlots(); }
 $("slots").addEventListener("click", e => { const x = e.target.closest("[data-sx]"); if (x) { delete slotsD[x.dataset.sx]; drawSlots(); return; }
   const s = e.target.closest(".slot"); if (s) { curSlot = s.dataset.slot; document.querySelectorAll("#slots .slot").forEach(o => o.classList.toggle("on", o === s)); } });
 $("slots").addEventListener("change", e => { const k = e.target.dataset.sf; if (k && e.target.files[0]) putSlot(e.target.files[0], k); });
 $("slots").addEventListener("dragover", e => e.preventDefault());
-$("slots").addEventListener("drop", e => { e.preventDefault(); const f = [...e.dataTransfer.files].find(f => f.type.startsWith("image/")), s = e.target.closest(".slot"); if (f) putSlot(f, s ? s.dataset.slot : null); });
+$("slots").addEventListener("drop", e => { e.preventDefault(); const fs = [...e.dataTransfer.files].filter(f => f.type.startsWith("image/")).sort((a, b) => a.lastModified - b.lastModified), s = e.target.closest(".slot"); fs.forEach((f, i) => putSlot(f, i === 0 && s ? s.dataset.slot : null)); });
+$("shotmulti").addEventListener("change", e => { [...e.target.files].sort((a, b) => a.lastModified - b.lastModified).forEach(f => putSlot(f)); e.target.value = ""; });
 document.addEventListener("paste", e => { const f = [...(e.clipboardData?.files || [])].filter(f => f.type.startsWith("image/"));
   if ($("dlg").open && f.length) { e.preventDefault(); f.forEach(x => putSlot(x)); } });
 
@@ -538,7 +541,7 @@ function pickLevels(text, dir) {
   return {found, stop: a[0], entry: a[1], tp1: a[2], tp2: a[3] ?? null};
 }
 $("ocr").onclick = async () => {
-  const b = slotsD.tf || slotsD.m1 || slotsD.m5 || slotsD.m15 || shots[0], info = $("shotinfo");
+  const b = slotsD.m1a || slotsD.m5a || slotsD.m1b || slotsD.m5b || slotsD.tf || slotsD.m1 || slotsD.m5 || slotsD.m15 || shots[0], info = $("shotinfo");
   if (!b) { info.textContent = "Nejdřív vlož screenshot."; return; }
   info.textContent = "Čtu čísla ze screenshotu… při prvním použití se stahuje čtečka, chvíli to trvá.";
   try {
@@ -699,26 +702,42 @@ $("cp").onclick = async () => {
       const rows = parse((await file.text()).replace(/^﻿/, "")), h = rows[0].map(x => x.trim().toLowerCase()), ix = k => h.findIndex(x => x.startsWith(k));
       const I = {n: ix("trade number"), ty: ix("type"), dt: ix("date and time"), sig: ix("signal"), pr: ix("price"), q: ix("size (qty)"), cm: ix("commission")};
       if (Object.values(I).some(v => v < 0)) throw new Error("hlavicka");
-      const by = {}; rows.slice(1).forEach(r => { const k = r[I.n]; (by[k] = by[k] || {})[/^entry/i.test(r[I.ty]) ? "en" : "ex"] = r; });
-      const mnq = $("tvm").checked, dflt = parseFloat(lsGet("defStop35")) || 35, have = new Set(ALL.map(t => t.tv).filter(Boolean)), pb = LS.get("jr:pb", []);
-      let ok = 0, skip = 0;
-      for (const k of Object.keys(by)) { const {en, ex} = by[k]; if (!en || !ex) continue;
-        const dirS = /short/i.test(en[I.ty]) ? -1 : 1, entry = parseFloat(en[I.pr]), exit = parseFloat(ex[I.pr]), qty = parseFloat(en[I.q]) || 1, fee = parseFloat(en[I.cm]) || 0;
-        const od = en[I.dt].trim().replace(" ", "T").slice(0, 16), cd = ex[I.dt].trim().replace(" ", "T").slice(0, 16), key = od + "|" + entry;
-        if (have.has(key)) { skip++; continue; } have.add(key);
-        const sig = en[I.sig].trim(), mm = sig.match(/^[LS]\s+(.*?)(?:\s+(US|LON|ASIA))?$/), strat = mm ? mm[1].trim() : sig, sess = mm && mm[2] ? mm[2] : "";
-        const mv = (exit - entry) * dirS; let stop, outc, target = exit;
-        if (mv === 0) { outc = "be"; stop = entry - dirS * dflt; target = entry + dirS * 2 * dflt; }
-        else if (mv < 0) { outc = "sl"; stop = exit; target = entry + dirS * 2 * Math.abs(mv); }
-        else { outc = "other"; stop = entry - dirS * dflt; }
-        const t = {opened: od, closed: cd, inst: mnq ? "MNQ" : "NQ", dir: dirS < 0 ? "short" : "long", size: mnq ? qty * 10 : qty, pv: null, otype: "", entry, stop, target, target2: null, exit, outc, n1: null, trp: null, tfm: "",
+      const trs = []; { const by = {}; rows.slice(1).forEach(r => { const k = r[I.n]; (by[k] = by[k] || {})[/^entry/i.test(r[I.ty]) ? "en" : "ex"] = r; });
+        for (const k of Object.keys(by)) { const {en, ex} = by[k]; if (!en || !ex) continue;
+          trs.push({dirS: /short/i.test(en[I.ty]) ? -1 : 1, entry: parseFloat(en[I.pr]), exit: parseFloat(ex[I.pr]), qty: parseFloat(en[I.q]) || 1, fee: parseFloat(en[I.cm]) || 0,
+            od: en[I.dt].trim().replace(" ", "T").slice(0, 16), cd: ex[I.dt].trim().replace(" ", "T").slice(0, 16), sigEn: en[I.sig].trim(), sigEx: ex[I.sig].trim()}); } }
+      const grp = new Map(); trs.forEach(x => { const g = x.od + "|" + x.entry + "|" + x.dirS; if (!grp.has(g)) grp.set(g, []); grp.get(g).push(x); });
+      const fm = (file.name.match(/CME_MINI_([A-Z]+?)1(?:[_!.]|$)/) || [])[1] || "", mnqFile = fm === "MNQ", mnqChk = $("tvm").checked, dflt = parseFloat(lsGet("defStop35")) || 35, pb = LS.get("jr:pb", []);
+      let ok = 0, skip = 0, upd = 0;
+      for (const L of grp.values()) {
+        L.sort((a, b) => a.cd.localeCompare(b.cd)); const f0 = L[0], dirS = f0.dirS, entry = f0.entry, od = f0.od, key = od + "|" + entry;
+        const qty = L.reduce((a, x) => a + x.qty, 0), fee = L.reduce((a, x) => a + x.fee, 0), cd = L[L.length - 1].cd, sig = f0.sigEn;
+        const mk = x => (x.exit - entry) * dirS, size = (mnqChk && !mnqFile && fm !== "MNQ") ? qty * 10 : qty;
+        const inst = mnqFile || mnqChk ? "MNQ" : (fm === "NQ" ? "NQ" : (fm || "NQ"));
+        let stop, outc, target, target2 = null, exit, n1 = null, trp = null;
+        if (L.length === 1) { const mv = mk(f0); exit = f0.exit; target = exit;
+          if (mv === 0) { outc = "be"; stop = entry - dirS * dflt; target = entry + dirS * 2 * dflt; }
+          else if (mv < 0) { outc = "sl"; stop = exit; target = entry + dirS * 2 * Math.abs(mv); }
+          else { outc = "other"; stop = entry - dirS * dflt; } }
+        else { const a = L[0], rest = L.slice(1), rq = rest.reduce((s_, x) => s_ + x.qty, 0), rp = rest.reduce((s_, x) => s_ + x.exit * x.qty, 0) / rq, mv1 = mk(a);
+          n1 = a.qty; exit = (a.exit * a.qty + rp * rq) / qty; target = a.exit; stop = entry - dirS * dflt;
+          if (mv1 > 0) { const mvr = (rp - entry) * dirS;
+            if (Math.abs(rp - entry) < 0.01) outc = "tp1be"; else if (mvr > mv1) { outc = "tp1tp2"; target2 = rp; } else { outc = "tp1trail"; trp = rp; } }
+          else { outc = "other"; target = entry + dirS * 2 * dflt; n1 = null; } }
+        const kind = (f0.sigEn.match(/\b(limit|market|stop)\b/i) || [])[1], otype = kind ? kind.toLowerCase() : "", isOrd = /\b(buy|sell)\b/i.test(f0.sigEn) && kind;
+        const mm = isOrd ? null : sig.match(/^[LS]\s+(.*?)(?:\s+(US|LON|ASIA))?$/), strat = isOrd ? "" : (mm ? mm[1].trim() : sig), sess = mm && mm[2] ? mm[2] : "";
+        const ex = L.map(x => x.sigEx).join(" / ");
+        const old = ALL.find(t => t.tv === key);
+        if (old) { if (old.size === size && Math.abs((old.exit ?? 0) - exit) < 0.001 && old.outc === outc) { skip++; continue; }
+          Object.assign(old, {size, exit, outc, n1, trp, target, target2, closed: cd, fee}); await tx("readwrite", s => s.put(old)); upd++; continue; }
+        const t = {opened: od, closed: cd, inst, dir: dirS < 0 ? "short" : "long", size, pv: null, otype, entry, stop, target, target2, exit, outc, n1, trp, tfm: "",
           fee, strat, trend: "", acc: "TradingView", emo: [], plan: "", rate: null, mis: +od.slice(11, 13) === 18 ? ["Vstup mezi 18. a 19. hodinou"] : [], cond: [], conf: {}, slots: {}, shots: [], tv: key,
-          notes: "Import z TradingView. Signál vstupu: " + sig + ". Signál výstupu: " + ex[I.sig] + ". " + (sess ? "Seance: " + sess + ". " : "") + "Stop a cíle nejsou v souboru: " + (outc === "sl" ? "stop je nastavený na cenu výstupu." : "stop je odhadnutý (" + dflt + " bodů).")};
+          notes: "Import z TradingView. Signál vstupu: " + sig + ". Signál výstupu: " + ex + ". " + (sess ? "Seance: " + sess + ". " : "") + (L.length > 1 ? "Pozice měla " + L.length + " výstupy. " : "") + "Stop a cíle nejsou v souboru: " + (outc === "sl" ? "stop je nastavený na cenu výstupu." : "stop je odhadnutý (" + dflt + " bodů), oprav ho podle grafu.")};
         await tx("readwrite", s => s.add(t)); ok++;
         if (strat && !pb.some(p => p.name.toLowerCase() === strat.toLowerCase())) pb.push({name: strat, desc: "Z importu z TradingView", rules: ""}); }
       LS.set("jr:pb", pb); calSet = false; await render();
-      alert("Načteno obchodů: " + ok + (skip ? ". Přeskočeno (už tam byly): " + skip : "") + ".");
-    } catch (x) { alert("Soubor se nepodařilo načíst. Je to CSV ze Strategy Testeru (List of trades)?"); }
+      alert("Načteno obchodů: " + ok + (upd ? ". Aktualizováno (přibyl další výstup): " + upd : "") + (skip ? ". Přeskočeno (už tam byly): " + skip : "") + ".");
+    } catch (x) { console.error("IMPORT", x); alert("Soubor se nepodařilo načíst. Je to CSV z Replay Trading nebo ze Strategy Testeru?"); }
   };
   $("tvf").onchange = e => { if (e.target.files[0]) run(e.target.files[0]); e.target.value = ""; };
   window.addEventListener("dragover", e => { if ([...(e.dataTransfer?.types || [])].includes("Files")) e.preventDefault(); });
