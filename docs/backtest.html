@@ -3,7 +3,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Backtest deník</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=51"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><style>
+<link rel="stylesheet" href="style.css?v=53"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><style>
 #f .grid{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}#f .grid>label{min-width:0}#f select,#f input{width:100%;min-width:0;text-overflow:ellipsis}#f input[type=checkbox]{width:auto;flex:none;margin:0}#f .chip{white-space:nowrap;display:inline-flex}
 #f .sec{margin:20px 0 8px;padding-top:12px;border-top:1px solid var(--rule);font-size:16px}#f .sec:first-of-type{border-top:0;margin-top:6px;padding-top:0}
 #f label em{font-style:normal;color:var(--acc);font-weight:600}
@@ -951,12 +951,19 @@ function renderSkips() {
     h += "<h3>Podle dne v týdnu</h3>" + tbl(["Den", "S obchodem", "Bez obchodu", "Podíl bez obchodu"], wd.map(r => rowH(r)));
   }
   $("sk-stats").innerHTML = h;
-  $("sk-list").innerHTML = SK.length ? [...SK].sort((a, b) => b.date.localeCompare(a.date)).map(r => { const d = new Date(r.date + "T12:00");
-    return `<div class="skc"><b>${esc(WDN[d.getDay()])} ${esc(r.date)}</b> <span class="skr">${esc(r.reason)}</span>${r.note ? `<p>${esc(r.note)}</p>` : ""}<div class="slots">${(r.imgs || []).map((b, i) => { const u = URL.createObjectURL(b); skUrls.push(u); return `<div class="slot"><img src="${u}" alt="${esc(r.date)}: fotka ${i + 1}"></div>`; }).join("")}</div>
-<div class="row"><button type="button" class="ghost sm" data-ske="${r.id}">Upravit</button><button type="button" class="ghost sm" data-skdel="${r.id}">Smazat</button></div></div>`; }).join("") : '<p class="empty">Zatím žádný den bez obchodu. Klikni nahoře na „Den bez obchodu“.</p>';
+  $("sk-list").innerHTML = SK.length ? '<h3>Všechny dny bez obchodu</h3><div class="wrap"><table class="tt"><thead><tr><th>Den</th><th>Důvod</th><th>Poznámka</th><th></th></tr></thead><tbody>' + [...SK].sort((a, b) => b.date.localeCompare(a.date)).map(r => { const d = new Date(r.date + "T12:00"), n = (r.imgs || []).length;
+    return `<tr><td>${esc(r.date)}<br><span class="hint">${esc(WDN[d.getDay()])}</span></td><td><span class="bdg down">${esc(r.reason)}</span></td><td>${r.note ? esc(r.note.length > 70 ? r.note.slice(0, 70) + "…" : r.note) : "–"}</td><td class="act"><div><button type="button" class="ghost sm" data-skv="${r.id}">${n ? "📷 " + n : "Detail"}</button><button type="button" class="ghost sm" data-ske="${r.id}">Upravit</button><button type="button" class="ghost sm" data-skdel="${r.id}">Smazat</button></div></td></tr>`; }).join("") + "</tbody></table></div>" : '<p class="empty">Zatím žádný den bez obchodu. Klikni nahoře na „Den bez obchodu“.</p>';
 }
+function skView(r) { if (!r) return; const d = new Date(r.date + "T12:00"), n = (r.imgs || []).length;
+  $("vbody").innerHTML = `<div class="vh"><div><h2>Den bez obchodu</h2><p class="empty" style="margin:0">${esc(WDN[d.getDay()])} ${esc(r.date)}</p></div></div><div class="row"><span class="bdg down">${esc(r.reason)}</span></div>` +
+    `<h3>Poznámka</h3><p>${r.note ? esc(r.note) : "Bez poznámky."}</p><h3>Screenshoty</h3><div class="slots">` + (r.imgs || []).map((b, i) => { const u = URL.createObjectURL(b); skUrls.push(u); return `<div class="slot"><img src="${u}" alt="${esc(r.date)}: fotka ${i + 1} z ${n}"></div>`; }).join("") + `</div>` +
+    `<div class="row"><button type="button" data-skve="${r.id}">Upravit</button><button type="button" class="ghost" data-skvdel="${r.id}">Smazat</button></div>`;
+  $("view").showModal(); }
 document.addEventListener("click", async e => { const t = e.target, g = a => t.getAttribute && t.getAttribute(a);
-  if (g("data-ske")) { skOpen(SK.find(r => String(r.id) === g("data-ske"))); }
+  if (g("data-skv")) { skView(SK.find(r => String(r.id) === g("data-skv"))); }
+  else if (g("data-skve")) { $("view").close(); skOpen(SK.find(r => String(r.id) === g("data-skve"))); }
+  else if (g("data-skvdel")) { if (confirm("Smazat tento den bez obchodu i s fotkami?")) { await stx("readwrite", s => s.delete(+g("data-skvdel"))); $("view").close(); render(); } }
+  else if (g("data-ske")) { skOpen(SK.find(r => String(r.id) === g("data-ske"))); }
   else if (g("data-skdel")) { if (confirm("Smazat tento den bez obchodu i s fotkami?")) { await stx("readwrite", s => s.delete(+g("data-skdel"))); render(); } } });
 const _render = render; render = async function () { await skLoad(); await _render(); disc(); renderSkips(); if (!BT && window.TDguard) TDguard(); };
 
@@ -964,4 +971,45 @@ async function cleanup39() { if (LS.get("bt:clean39", false)) return;
   const all = await tx("readonly", s => s.getAll()); for (const t of all) if (t.tv) await tx("readwrite", s => s.delete(t.id));
   LS.set("jr:pb", LS.get("jr:pb", []).filter(p => p.desc !== "Z importu z TradingView")); LS.set("bt:clean39", true); }
 open().then(async d => { db = d; try { await cleanup39(); } catch (x) {} render(); });
-</script><script src="tips.js"></script></body></html>
+</script><script src="tips.js"></script><script>
+(function () {
+  const pad = n => String(n).padStart(2, "0"), iso = d => d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+  const MN = ["leden", "únor", "březen", "duben", "květen", "červen", "červenec", "srpen", "září", "říjen", "listopad", "prosinec"];
+  let box = null, cur = null, vy = 0, vm = 0;
+  const prep = el => { if (el.dataset.dp) return; el.dataset.dp = "1"; const v = el.value; el.type = "text"; el.value = v; el.placeholder = "RRRR-MM-DD"; el.setAttribute("inputmode", "numeric"); el.autocomplete = "off"; };
+  const scan = () => document.querySelectorAll('input[type="date"]').forEach(prep);
+  const close = () => { if (box) { box.remove(); box = null; cur = null; } };
+  const draw = () => {
+    const sel = /^\d{4}-\d{2}-\d{2}$/.test(cur.value) ? cur.value : "", td = iso(new Date());
+    const first = new Date(vy, vm, 1), off = (first.getDay() + 6) % 7, start = new Date(vy, vm, 1 - off);
+    let h = '<div class="dph"><button type="button" data-a="py">«</button><button type="button" data-a="pm">‹</button><b>' + MN[vm] + " " + vy + '</b><button type="button" data-a="nm">›</button><button type="button" data-a="ny">»</button></div><div class="dpg">';
+    ["P", "Ú", "S", "Č", "P", "S", "N"].forEach(x => h += '<div class="dpw">' + x + "</div>");
+    for (let i = 0; i < 42; i++) { const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i), k = iso(d);
+      h += '<button type="button" class="dpd' + (d.getMonth() !== vm ? " o" : "") + (k === td ? " t" : "") + (k === sel ? " s" : "") + '" data-d="' + k + '">' + d.getDate() + "</button>"; }
+    h += '</div><div class="dpf"><button type="button" data-a="today">Dnes</button><button type="button" data-a="x">Zavřít</button></div>';
+    box.innerHTML = h;
+  };
+  const open = el => {
+    close(); cur = el; const dlg = el.closest("dialog"), v = /^\d{4}-\d{2}-\d{2}$/.test(el.value) ? new Date(el.value + "T12:00") : new Date();
+    vy = v.getFullYear(); vm = v.getMonth(); box = document.createElement("div"); box.className = "dp"; (dlg || document.body).appendChild(box); draw();
+    const r = el.getBoundingClientRect(), bh = box.offsetHeight, bw = box.offsetWidth;
+    let top = r.bottom + 6; if (top + bh > innerHeight - 8) top = Math.max(8, r.top - bh - 6);
+    box.style.top = top + "px"; box.style.left = Math.max(8, Math.min(r.left, innerWidth - bw - 8)) + "px";
+  };
+  const pick = k => { cur.value = k; cur.dispatchEvent(new Event("input", {bubbles: true})); cur.dispatchEvent(new Event("change", {bubbles: true})); close(); };
+  document.addEventListener("click", e => {
+    const t = e.target; if (!t || !t.closest) return;
+    const inp = t.closest("input[data-dp]"); if (inp) { if (!box || cur !== inp) open(inp); return; }
+    const b = t.closest(".dp"); if (!b) { close(); return; }
+    const x = t.closest("button"); if (!x) return; e.preventDefault();
+    if (x.dataset.d) return pick(x.dataset.d);
+    const a = x.dataset.a;
+    if (a === "pm") { vm--; if (vm < 0) { vm = 11; vy--; } } else if (a === "nm") { vm++; if (vm > 11) { vm = 0; vy++; } } else if (a === "py") vy--; else if (a === "ny") vy++;
+    else if (a === "today") return pick(iso(new Date())); else if (a === "x") return close();
+    draw();
+  });
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && box) { e.stopPropagation(); close(); } if (e.key === "Tab") close(); }, true);
+  new MutationObserver(scan).observe(document.documentElement, {childList: true, subtree: true}); scan();
+})();
+</script>
+</body></html>
