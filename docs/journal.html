@@ -3,7 +3,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Deník obchodů</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=53"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><style>
+<link rel="stylesheet" href="style.css?v=54"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><style>
 #f .grid{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}#f .grid>label{min-width:0}#f select,#f input{width:100%;min-width:0;text-overflow:ellipsis}#f input[type=checkbox]{width:auto;flex:none;margin:0}#f .chip{white-space:nowrap;display:inline-flex}
 #f .sec{margin:20px 0 8px;padding-top:12px;border-top:1px solid var(--rule);font-size:16px}#f .sec:first-of-type{border-top:0;margin-top:6px;padding-top:0}
 #f label em{font-style:normal;color:var(--acc);font-weight:600}
@@ -193,12 +193,13 @@ window.TDme=function(){
 </script><div class="content"><header class="pagehead"><h1>Deník obchodů</h1><p>Tvoje obchody, statistiky a poučení</p></header><main>
 <div class="head"><div class="tabs" role="tablist">
 <button role="tab" data-tab="over" aria-selected="true">Přehled</button><button role="tab" data-tab="trades" aria-selected="false">Obchody</button><button role="tab" data-tab="rep" aria-selected="false">Reporty</button><button role="tab" data-tab="ai" aria-selected="false">Analýza</button><button role="tab" data-tab="disc" aria-selected="false">Disciplína</button></div>
-<button id="add" type="button">+ Přidat obchod</button></div>
+<div class="row" style="margin:0"><button id="skadd" type="button" class="ghost">🚫 Den bez obchodu</button><button id="add" type="button">+ Přidat obchod</button></div></div>
 
 <div id="t-over"><section class="p why"><h2>Proč to všechno dělám</h2><p style="margin:0;font-size:16px">Dělám to pro sebe, a dělají to všichni úspěšní tradeři. A chci být jako oni, tak dělám to, co dělají oni.</p></section>
 <div id="bk"></div><div class="dash" id="kpis"></div>
 <div class="dgrid"><section class="p"><h2>Vývoj zisku</h2><div id="curve"></div></section>
 <section class="p"><h2>Výsledek po dnech</h2><div class="chartbox"><canvas id="c-day"></canvas></div></section></div>
+<section class="p" id="sk-sec"><h2>Dny bez obchodu</h2><p class="hint">Dny, kdy jsi obchod nevzal, protože podmínky nebyly dobré. U každého je fotka grafu.</p><div id="sk-stats"></div><div id="sk-list"></div></section>
 <section class="p"><div class="calhead"><button class="ghost sm" onclick="mv(-1)" aria-label="Předchozí měsíc">‹</button><b id="calt"></b><button class="ghost sm" onclick="mv(1)" aria-label="Další měsíc">›</button><span id="calsum"></span></div><div class="cal" id="cal"></div></section></div>
 
 <div id="t-trades" hidden><section class="p"><h2>Otevřené pozice</h2><div id="open"></div></section>
@@ -258,6 +259,16 @@ window.TDme=function(){
 <div class="row"><button type="button" class="ghost sm" id="ocr">🔍 Vyčíst ceny ze screenshotu (experiment)</button></div>
 <p class="empty" id="shotinfo"></p>
 <div class="row"><button type="submit">Uložit</button><button type="button" class="ghost" id="cancel">Zrušit</button></div></form></dialog>
+<dialog id="skd"><form id="skf"><h2>Den bez obchodu</h2>
+<p class="empty">Obchod jsi nevzal, protože podmínky byly špatné. Fotka grafu je povinná: uvidíš, že price action opravdu byla špatná.</p>
+<div class="grid"><label>Den<input name="date" type="date" required></label><label>Důvod<select name="reason" id="skr"></select></label></div>
+<label>Poznámka (nepovinná)<textarea name="note" rows="2" placeholder="např. celý den úzký rozsah, žádný CISD"></textarea></label>
+<h3 class="sec">Fotky grafu (aspoň jedna, nejvíc 4)</h3>
+<p class="empty" style="margin:0 0 8px">Vlož přes Ctrl+V (⌘V), přetáhni soubor, nebo vyber soubory.</p>
+<div class="slots" id="sk-imgs"></div>
+<div class="row"><label class="ghost sm" style="cursor:pointer;padding:9px 14px;border:1px solid var(--rule,#2a3350);border-radius:12px">📎 Vybrat fotky<input type="file" id="sk-file" accept="image/*" multiple hidden></label></div>
+<p class="empty" id="sk-msg" style="color:#FF9DB0"></p>
+<div class="row"><button type="submit">Uložit</button><button type="button" class="ghost" id="skcancel">Zrušit</button></div></form></dialog>
 <dialog id="view"><div id="vbody"></div><div class="row"><button class="ghost" onclick="this.closest('dialog').close()">Zavřít</button></div></dialog>
 
 <script>
@@ -329,7 +340,7 @@ function dg(el,v,big,sub,word,cls,cap){var a=Math.max(-1,Math.min(1,v))*80;el.in
   const val = d => s.days[`${pre}-${String(d).padStart(2, "0")}`];
   for (let d = 1; d <= nd; d++) { const v = val(d), dow = (off + d - 1) % 7; if (v != null) tot += v;
     if (dow > 4) continue;
-    h += `<div class="day ${v == null ? "" : cl(v)}"><span>${d}</span>${v == null ? "" : "<b>" + usd(v) + "</b>"}</div>`;
+    const sk_ = v == null && SKD.has(`${pre}-${String(d).padStart(2, "0")}`); h += `<div class="day ${v == null ? (sk_ ? "skipd" : "") : cl(v)}"><span>${d}</span>${v == null ? (sk_ ? '<b class="skm" title="Den bez obchodu">🚫</b>' : "") : "<b>" + usd(v) + "</b>"}</div>`;
     if (dow === 4 || d === nd) { if (dow < 4) h += "<i></i>".repeat(4 - dow); let ws = 0, wn = 0;
       for (let k = Math.max(1, d - dow); k <= Math.min(nd, d - dow + 6); k++) { const x = val(k); if (x != null) { ws += x; wn++; } }
       h += `<div class="day wk ${wn ? cl(ws) : ""}"><span>Týden</span>${wn ? "<b>" + usd(ws) + "</b><em>" + wn + (wn === 1 ? " den" : wn < 5 ? " dny" : " dní") + "</em>" : ""}</div>`; } }
@@ -828,20 +839,73 @@ document.addEventListener("input", e => { const k = e.target.getAttribute && e.t
 $("f").elements.strat.addEventListener("input", e => { const p = LS.get("jr:pb", []).find(x => x.name.toLowerCase() === e.target.value.trim().toLowerCase()); $("pbnote").textContent = p ? "Podmínky tohoto setupu: " + (p.rules || "nevyplněno") + ". Splňuješ je všechny?" : ""; });
 $("exp").onclick = async () => {
   const out = []; for (const t of ALL) out.push({...t, shot: undefined, shots: await Promise.all((t.shots || []).map(toUrl)), slots: Object.fromEntries(await Promise.all(Object.entries(t.slots || {}).filter(x => x[1]).map(async ([k, v]) => [k, await toUrl(v)])))});
-  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify({v: 2, trades: out, extra: {missed: LS.get("jr:missed", []), pb: LS.get("jr:pb", []), rev: LS.get("jr:rev", {})}})], {type: "application/json"}));
+  const sk_ = await Promise.all(SK.map(async r => ({...r, id: undefined, imgs: await Promise.all((r.imgs || []).map(toUrl))}))); const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify({v: 2, trades: out, extra: {skips: sk_, missed: LS.get("jr:missed", []), pb: LS.get("jr:pb", []), rev: LS.get("jr:rev", {})}})], {type: "application/json"}));
   a.download = (BT ? "zaloha-backtest-" : "zaloha-denik-") + todayS() + ".json"; a.click(); LS.set("jr:lastbk", Date.now()); bkInfo();
 };
 $("impf").onchange = async e => {
   try { const raw = JSON.parse(await e.target.files[0].text()), ts = Array.isArray(raw) ? raw : raw.trades;
     for (const t of ts) { t.shots = await Promise.all((t.shots || []).map(async u => (await fetch(u)).blob())); t.slots = Object.fromEntries(await Promise.all(Object.entries(t.slots || {}).map(async ([k, u]) => [k, await (await fetch(u)).blob()]))); delete t.id; await tx("readwrite", s => s.add(t)); }
-    if (raw.extra) { const m = LS.get("jr:missed", []), ids = new Set(m.map(x => x.id)); (raw.extra.missed || []).forEach(x => { if (!ids.has(x.id)) m.push(x); }); LS.set("jr:missed", m);
+    if (raw.extra) { await skLoad(); for (const r of (raw.extra.skips || [])) { if (SK.some(x => x.date === r.date && x.created === r.created)) continue; r.imgs = await Promise.all((r.imgs || []).map(async u => (await fetch(u)).blob())); delete r.id; await stx("readwrite", s => s.add(r)); }
+      const m = LS.get("jr:missed", []), ids = new Set(m.map(x => x.id)); (raw.extra.missed || []).forEach(x => { if (!ids.has(x.id)) m.push(x); }); LS.set("jr:missed", m);
       const pb = LS.get("jr:pb", []), nm = new Set(pb.map(p => p.name.toLowerCase())); (raw.extra.pb || []).forEach(p => { if (!nm.has(p.name.toLowerCase())) pb.push(p); }); LS.set("jr:pb", pb);
       LS.set("jr:rev", Object.assign({}, raw.extra.rev || {}, LS.get("jr:rev", {}))); }
     render();
   } catch (x) { alert("Soubor se nepodařilo načíst. Je to záloha z tohoto deníku?"); }
   e.target.value = "";
 };
-const _render = render; render = async function () { await _render(); disc(); if (!BT && window.TDguard) TDguard(); };
+
+/* ===== Dny bez obchodu ===== */
+const SKR = ["Špatná price action", "Žádný setup podle strategie", "Mimo killzone / špatný čas", "Důležitá zpráva / vysoká volatilita", "Úzký rozsah / nízká likvidita", "Jiný důvod"];
+var SKD = new Set(); let sdb = null, SK = [], skImgs = [], skUrls = [], skEdit = null;
+const sopen = () => new Promise(res => { try { const r = indexedDB.open("journal_skips", 1); r.onupgradeneeded = () => r.result.createObjectStore("days", {keyPath: "id", autoIncrement: true}); r.onsuccess = () => res(r.result); r.onerror = () => res(null); } catch (x) { res(null); } });
+const stx = (m, f) => new Promise((res, rej) => { if (!sdb) return res([]); const t = sdb.transaction("days", m), o = f(t.objectStore("days")); t.oncomplete = () => res(o && o.result); t.onerror = () => rej(t.error); });
+async function skLoad() { if (!sdb) sdb = await sopen(); SK = (await stx("readonly", s => s.getAll())) || []; SKD = new Set(SK.map(r => r.date)); }
+$("skr").innerHTML = SKR.map(r => `<option>${r}</option>`).join("");
+function skDraw() { skUrls.forEach(u => URL.revokeObjectURL(u)); skUrls = [];
+  $("sk-imgs").innerHTML = skImgs.map((b, i) => { const u = URL.createObjectURL(b); skUrls.push(u); return `<div class="slot"><b>Fotka ${i + 1}</b><img src="${u}" alt="Fotka ${i + 1}"><button type="button" class="ghost sm" data-skx="${i}">Smazat</button></div>`; }).join("") || '<p class="empty">Zatím žádná fotka. Vlož ji přes Ctrl+V.</p>'; }
+const skAdd = fs => { fs.forEach(f => { if (skImgs.length < 4) skImgs.push(f); }); skDraw(); $("sk-msg").textContent = ""; };
+function skOpen(r) { skEdit = r || null; skImgs = r ? [...(r.imgs || [])] : []; const f = $("skf").elements;
+  f.date.value = r ? r.date : (LS.get("jr:lastd", "") || todayS()); f.reason.value = r ? r.reason : LS.get("jr:lastReason", SKR[0]); f.note.value = r ? (r.note || "") : ""; $("sk-msg").textContent = ""; skDraw(); $("skd").showModal(); }
+$("skadd").onclick = () => skOpen(null); $("skcancel").onclick = () => $("skd").close();
+$("sk-file").onchange = e => { skAdd([...e.target.files]); e.target.value = ""; };
+$("sk-imgs").addEventListener("click", e => { const x = e.target.closest("[data-skx]"); if (x) { skImgs.splice(+x.dataset.skx, 1); skDraw(); } });
+$("sk-imgs").addEventListener("dragover", e => e.preventDefault());
+$("sk-imgs").addEventListener("drop", e => { e.preventDefault(); skAdd([...e.dataTransfer.files].filter(f => f.type.startsWith("image/")).sort((a, b) => a.lastModified - b.lastModified)); });
+document.addEventListener("paste", e => { const f = [...(e.clipboardData?.files || [])].filter(f => f.type.startsWith("image/")); if ($("skd").open && f.length) { e.preventDefault(); skAdd(f); } });
+$("skf").onsubmit = async e => { e.preventDefault(); const f = e.target.elements;
+  if (!skImgs.length) { $("sk-msg").textContent = "Nahraj aspoň jednu fotku grafu. Je to důkaz, že price action opravdu byla špatná."; return; }
+  const hasT = ALL.some(t => day(t) === f.date.value);
+  if (hasT && !confirm("V tento den už máš zapsaný obchod. Přesto uložit den bez obchodu?")) return;
+  const r = {date: f.date.value, reason: f.reason.value, note: f.note.value.trim(), imgs: skImgs, created: skEdit ? skEdit.created : Date.now()}; if (skEdit) r.id = skEdit.id;
+  await stx("readwrite", s => s.put(r)); LS.set("jr:lastReason", r.reason); LS.set("jr:lastd", r.date); $("skd").close(); render(); };
+const WDN = ["Neděle", "Pondělí", "Úterý", "Středa", "Čtvrtek", "Pátek", "Sobota"];
+function renderSkips() {
+  const tdays = new Set(ALL.map(day)), sdays = new Set(SK.map(r => r.date)), all = new Set([...tdays, ...sdays]), nT = [...tdays].filter(d => !sdays.has(d)).length + [...tdays].filter(d => sdays.has(d)).length;
+  const pure = [...sdays].filter(d => !tdays.has(d)).length, tot = all.size, sel = tot ? Math.round(pure / tot * 100) : null;
+  const tile = (h, v, sub) => `<div class="tile"><h3>${h}</h3><div class="big">${v}</div><div class="hint">${sub}</div></div>`;
+  let h = `<div class="dash">${tile("Dny obchodování", tot, "celkem dnů s obchodem nebo bez")}${tile("Dny s obchodem", tdays.size, "aspoň jeden obchod")}${tile("Dny bez obchodu", pure, "jen zapsané, bez obchodu")}${tile("Podíl dnů bez obchodu", sel == null ? "–" : sel + " %", "čím víc, tím vybíravější jsi")}</div>`;
+  if (SK.length) {
+    const rc = {}; SK.forEach(r => rc[r.reason] = (rc[r.reason] || 0) + 1);
+    h += "<h3>Proč jsi obchod nevzal</h3>" + tbl(["Důvod", "Dnů", "Podíl"], Object.entries(rc).sort((a, b) => b[1] - a[1]).map(([k, n]) => rowH([esc(k), n, Math.round(n / SK.length * 100) + "&nbsp;%"])));
+    const wd = [1, 2, 3, 4, 5].map(d => { const t = [...tdays].filter(x => new Date(x + "T12:00").getDay() === d).length, k = [...sdays].filter(x => new Date(x + "T12:00").getDay() === d && !tdays.has(x)).length; return [WDN[d], t, k, t + k ? Math.round(k / (t + k) * 100) + "&nbsp;%" : "–"]; });
+    h += "<h3>Podle dne v týdnu</h3>" + tbl(["Den", "S obchodem", "Bez obchodu", "Podíl bez obchodu"], wd.map(r => rowH(r)));
+  }
+  $("sk-stats").innerHTML = h;
+  $("sk-list").innerHTML = SK.length ? '<h3>Všechny dny bez obchodu</h3><div class="wrap"><table class="tt"><thead><tr><th>Den</th><th>Důvod</th><th>Poznámka</th><th></th></tr></thead><tbody>' + [...SK].sort((a, b) => b.date.localeCompare(a.date)).map(r => { const d = new Date(r.date + "T12:00"), n = (r.imgs || []).length;
+    return `<tr><td>${esc(r.date)}<br><span class="hint">${esc(WDN[d.getDay()])}</span></td><td><span class="bdg down">${esc(r.reason)}</span></td><td>${r.note ? esc(r.note.length > 70 ? r.note.slice(0, 70) + "…" : r.note) : "–"}</td><td class="act"><div><button type="button" class="ghost sm" data-skv="${r.id}">${n ? "📷 " + n : "Detail"}</button><button type="button" class="ghost sm" data-ske="${r.id}">Upravit</button><button type="button" class="ghost sm" data-skdel="${r.id}">Smazat</button></div></td></tr>`; }).join("") + "</tbody></table></div>" : '<p class="empty">Zatím žádný den bez obchodu. Klikni nahoře na „Den bez obchodu“.</p>';
+}
+function skView(r) { if (!r) return; const d = new Date(r.date + "T12:00"), n = (r.imgs || []).length;
+  $("vbody").innerHTML = `<div class="vh"><div><h2>Den bez obchodu</h2><p class="empty" style="margin:0">${esc(WDN[d.getDay()])} ${esc(r.date)}</p></div></div><div class="row"><span class="bdg down">${esc(r.reason)}</span></div>` +
+    `<h3>Poznámka</h3><p>${r.note ? esc(r.note) : "Bez poznámky."}</p><h3>Screenshoty</h3><div class="slots">` + (r.imgs || []).map((b, i) => { const u = URL.createObjectURL(b); skUrls.push(u); return `<div class="slot"><img src="${u}" alt="${esc(r.date)}: fotka ${i + 1} z ${n}"></div>`; }).join("") + `</div>` +
+    `<div class="row"><button type="button" data-skve="${r.id}">Upravit</button><button type="button" class="ghost" data-skvdel="${r.id}">Smazat</button></div>`;
+  $("view").showModal(); }
+document.addEventListener("click", async e => { const t = e.target, g = a => t.getAttribute && t.getAttribute(a);
+  if (g("data-skv")) { skView(SK.find(r => String(r.id) === g("data-skv"))); }
+  else if (g("data-skve")) { $("view").close(); skOpen(SK.find(r => String(r.id) === g("data-skve"))); }
+  else if (g("data-skvdel")) { if (confirm("Smazat tento den bez obchodu i s fotkami?")) { await stx("readwrite", s => s.delete(+g("data-skvdel"))); $("view").close(); render(); } }
+  else if (g("data-ske")) { skOpen(SK.find(r => String(r.id) === g("data-ske"))); }
+  else if (g("data-skdel")) { if (confirm("Smazat tento den bez obchodu i s fotkami?")) { await stx("readwrite", s => s.delete(+g("data-skdel"))); render(); } } });
+const _render = render; render = async function () { await skLoad(); await _render(); disc(); renderSkips(); if (!BT && window.TDguard) TDguard(); };
 
 open().then(d => { db = d; render(); });
 </script><script src="tips.js"></script><script>
