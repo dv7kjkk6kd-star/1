@@ -3,7 +3,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Deník obchodů</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=50"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><style>
+<link rel="stylesheet" href="style.css?v=51"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><style>
 #f .grid{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}#f .grid>label{min-width:0}#f select,#f input{width:100%;min-width:0;text-overflow:ellipsis}#f input[type=checkbox]{width:auto;flex:none;margin:0}#f .chip{white-space:nowrap;display:inline-flex}
 #f .sec{margin:20px 0 8px;padding-top:12px;border-top:1px solid var(--rule);font-size:16px}#f .sec:first-of-type{border-top:0;margin-top:6px;padding-top:0}
 #f label em{font-style:normal;color:var(--acc);font-weight:600}
@@ -253,8 +253,7 @@ window.TDme=function(){
 <label style="margin-top:12px">Emoce</label><div class="chips" id="d-emo"></div>
 <label style="margin-top:12px">Poznámky<textarea name="notes" rows="3"></textarea></label>
 <h3 class="sec">3. Screenshoty</h3>
-<p class="empty" style="margin:0 0 8px">Čtyři screenshoty v pořadí, jak je děláš: vstup 1 min, vstup 5 min, výsledek 1 min, výsledek 5 min. Ctrl+V (nebo ⌘V) vloží obrázek do dalšího prázdného rámečku. Můžeš také přetáhnout nebo vybrat všechny najednou: seřadí se podle času uložení.</p>
-<div class="row"><label class="ghost sm" style="cursor:pointer;padding:9px 14px;border:1px solid var(--line,#2a3350);border-radius:12px">📎 Vybrat více screenshotů najednou<input type="file" id="shotmulti" accept="image/*" multiple hidden></label></div>
+<p class="empty" style="margin:0 0 8px">Klikni na rámeček a vlož obrázek přes Ctrl+V (nebo ⌘V), přetáhni soubor, nebo vyber soubor.</p>
 <div class="slots" id="slots"></div>
 <div class="row"><button type="button" class="ghost sm" id="ocr">🔍 Vyčíst ceny ze screenshotu (experiment)</button></div>
 <p class="empty" id="shotinfo"></p>
@@ -410,8 +409,7 @@ document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => {
 $("flt").addEventListener("input", reports); $("f-emo").addEventListener("input", reports);
 $("f-reset").onclick = () => { document.querySelectorAll("#flt input,#flt select").forEach(i => i.value = ""); document.querySelectorAll("#f-emo input").forEach(i => i.checked = false); reports(); };
 
-const NEWS = ["m1a", "m5a", "m1b", "m5b"];
-const SLOTS = [["m1a", "Vstup: 1 minuta"], ["m5a", "Vstup: 5 minut"], ["m1b", "Výsledek: 1 minuta"], ["m5b", "Výsledek: 5 minut"], ["tf", "Timeframe, na kterém jsem obchod vzal (starší)"], ["m1", "1 minuta (starší)"], ["m5", "5 minut (starší)"], ["m15", "15 minut (starší)"]];
+const SLOTS = [["tf", "Timeframe, na kterém jsem obchod vzal"], ["m1", "1 minuta"], ["m5", "5 minut"], ["m15", "15 minut"]];
 const ENTRY = [["Základní", ["ES divergence", "wOpen", "dOpen", "Trend", "Stocks"]], ["Indikátory", ["VWAP", "RSI – cross / div"]], ["HTF – 1H", ["OB", "FVG / iFVG / BPR", "VRVP / SVP"]], ["LTF – 1/3/5min", ["FVG / iFVG / BPR", "CISD"]]];
 const CONDS = ["Killzone – NY seance", "Max 1 % risk", "Max. 1 SL tento den"];
 let slotsD = {}, curSlot = null, slotUrls = [];
@@ -459,17 +457,16 @@ $("strat").addEventListener("change", () => { if ($("strat").value !== "__new__"
   if (n) { const P = LS.get("jr:pb", []); if (!P.some(p => p.name.toLowerCase() === n.toLowerCase())) { P.push({name: n, desc: "", rules: ""}); LS.set("jr:pb", P); try { disc(); } catch (x) {} } fillStrat(n); } else fillStrat(""); });
 function drawSlots() {
   slotUrls.forEach(u => URL.revokeObjectURL(u)); slotUrls = [];
-  $("slots").innerHTML = SLOTS.filter(([k]) => NEWS.includes(k) || slotsD[k]).map(([k, n]) => { const b = slotsD[k]; let u = ""; if (b) { u = URL.createObjectURL(b); slotUrls.push(u); }
+  $("slots").innerHTML = SLOTS.map(([k, n]) => { const b = slotsD[k]; let u = ""; if (b) { u = URL.createObjectURL(b); slotUrls.push(u); }
     return `<div class="slot${curSlot === k ? " on" : ""}" data-slot="${k}" tabindex="0"><b>${n}</b>` + (b ? `<img src="${u}" alt="${n}"><button type="button" class="ghost sm" data-sx="${k}">Smazat</button>` : `<span class="empty">Klikni sem a vlož Ctrl+V</span><input type="file" accept="image/*" data-sf="${k}">`) + "</div>"; }).join("");
   const c = Object.values(slotsD).filter(Boolean).length + shots.length; $("shotinfo").textContent = c ? c + " screenshotů připraveno." : "";
 }
-function putSlot(file, k) { k = k || curSlot || (NEWS.map(k => [k]).find(x => !slotsD[x[0]]) || [])[0]; if (!k) { shots.push(file); } else { slotsD[k] = file; curSlot = (NEWS.map(k => [k]).find(x => !slotsD[x[0]]) || [])[0] || null; } drawSlots(); }
+function putSlot(file, k) { k = k || curSlot || (SLOTS.find(x => !slotsD[x[0]]) || [])[0]; if (!k) { shots.push(file); } else { slotsD[k] = file; curSlot = (SLOTS.find(x => !slotsD[x[0]]) || [])[0] || null; } drawSlots(); }
 $("slots").addEventListener("click", e => { const x = e.target.closest("[data-sx]"); if (x) { delete slotsD[x.dataset.sx]; drawSlots(); return; }
   const s = e.target.closest(".slot"); if (s) { curSlot = s.dataset.slot; document.querySelectorAll("#slots .slot").forEach(o => o.classList.toggle("on", o === s)); } });
 $("slots").addEventListener("change", e => { const k = e.target.dataset.sf; if (k && e.target.files[0]) putSlot(e.target.files[0], k); });
 $("slots").addEventListener("dragover", e => e.preventDefault());
-$("slots").addEventListener("drop", e => { e.preventDefault(); const fs = [...e.dataTransfer.files].filter(f => f.type.startsWith("image/")).sort((a, b) => a.lastModified - b.lastModified), s = e.target.closest(".slot"); fs.forEach((f, i) => putSlot(f, i === 0 && s ? s.dataset.slot : null)); });
-$("shotmulti").addEventListener("change", e => { [...e.target.files].sort((a, b) => a.lastModified - b.lastModified).forEach(f => putSlot(f)); e.target.value = ""; });
+$("slots").addEventListener("drop", e => { e.preventDefault(); const f = [...e.dataTransfer.files].find(f => f.type.startsWith("image/")), s = e.target.closest(".slot"); if (f) putSlot(f, s ? s.dataset.slot : null); });
 document.addEventListener("paste", e => { const f = [...(e.clipboardData?.files || [])].filter(f => f.type.startsWith("image/"));
   if ($("dlg").open && f.length) { e.preventDefault(); f.forEach(x => putSlot(x)); } });
 
@@ -554,7 +551,7 @@ function pickLevels(text, dir) {
   return {found, stop: a[0], entry: a[1], tp1: a[2], tp2: a[3] ?? null};
 }
 $("ocr").onclick = async () => {
-  const b = slotsD.m1a || slotsD.m5a || slotsD.m1b || slotsD.m5b || slotsD.tf || slotsD.m1 || slotsD.m5 || slotsD.m15 || shots[0], info = $("shotinfo");
+  const b = slotsD.tf || slotsD.m1 || slotsD.m5 || slotsD.m15 || shots[0], info = $("shotinfo");
   if (!b) { info.textContent = "Nejdřív vlož screenshot."; return; }
   info.textContent = "Čtu čísla ze screenshotu… při prvním použití se stahuje čtečka, chvíli to trvá.";
   try {
