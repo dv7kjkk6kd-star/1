@@ -3,7 +3,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Backtest deník</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=48"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><style>
+<link rel="stylesheet" href="style.css?v=49"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><style>
 #f .grid{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}#f .grid>label{min-width:0}#f select,#f input{width:100%;min-width:0;text-overflow:ellipsis}#f input[type=checkbox]{width:auto;flex:none;margin:0}#f .chip{white-space:nowrap;display:inline-flex}
 #f .sec{margin:20px 0 8px;padding-top:12px;border-top:1px solid var(--rule);font-size:16px}#f .sec:first-of-type{border-top:0;margin-top:6px;padding-top:0}
 #f label em{font-style:normal;color:var(--acc);font-weight:600}
@@ -519,6 +519,21 @@ function dlg(t, toOut) {
   if (toOut) { fe.outc.focus(); fe.outc.scrollIntoView({block: "center"}); }
 }
 $("add").onclick = () => dlg(); $("cancel").onclick = () => $("dlg").close();
+(function () {
+  const lb = document.createElement("dialog"); lb.id = "lb"; lb.className = "lb";
+  lb.innerHTML = '<div class="lbn"><b id="lbt"></b><span><button type="button" class="ghost sm" id="lbp">‹ Předchozí</button> <button type="button" class="ghost sm" id="lbn">Další ›</button> <button type="button" class="sm" id="lbx">Zavřít ✕</button></span></div><img id="lbi" alt="">';
+  document.body.appendChild(lb);
+  let list = [], idx = 0;
+  const show = () => { const im = list[idx]; $("lbi").src = im.src; $("lbt").textContent = (im.alt || "Screenshot") + (list.length > 1 ? "  (" + (idx + 1) + " z " + list.length + ")" : ""); };
+  const go = d => { if (list.length < 2) return; idx = (idx + d + list.length) % list.length; show(); };
+  document.addEventListener("click", e => {
+    const im = e.target.closest && e.target.closest("#vbody img, #slots img");
+    if (im) { list = [...im.closest("#vbody, #slots").querySelectorAll("img")]; idx = Math.max(0, list.indexOf(im)); show(); lb.showModal(); return; }
+    if (!lb.open) return; const id = e.target.id;
+    if (id === "lbp") go(-1); else if (id === "lbn") go(1); else if (id === "lbx" || id === "lbi" || e.target === lb) lb.close();
+  });
+  document.addEventListener("keydown", e => { if (!lb.open) return; if (e.key === "ArrowLeft") go(-1); else if (e.key === "ArrowRight") go(1); });
+})();
 $("f").onsubmit = async e => {
   e.preventDefault(); const f = e.target.elements, n = k => f[k].value === "" ? null : parseFloat(f[k].value), oc = f.outc.value, o = outcome();
   if (oc && !o) { alert("Doplň vstup, stop a take profity (u vlastního výstupu i cenu), ať jde spočítat výsledek."); return; }
