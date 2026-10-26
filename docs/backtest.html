@@ -3,7 +3,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Backtest deník</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=58"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><style>
+<link rel="stylesheet" href="style.css?v=59"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><style>
 #f .grid{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}#f .grid>label{min-width:0}#f select,#f input{width:100%;min-width:0;text-overflow:ellipsis}#f input[type=checkbox]{width:auto;flex:none;margin:0}#f .chip{white-space:nowrap;display:inline-flex}
 #f .sec{margin:20px 0 8px;padding-top:12px;border-top:1px solid var(--rule);font-size:16px}#f .sec:first-of-type{border-top:0;margin-top:6px;padding-top:0}
 #f label em{font-style:normal;color:var(--acc);font-weight:600}
@@ -585,7 +585,7 @@ document.addEventListener("click", async e => {
   if (e.target.closest("input,select,label")) return; const b = e.target.closest("[data-a]"); if (!b) return; const t = ALL.find(x => x.id == b.dataset.id), a = b.dataset.a;
   if ($("view").open && (a === "edit" || a === "del")) $("view").close();
   if (a === "edit") dlg(t);
-  else if (a === "del") { if (confirm("Smazat tento obchod?")) { await tx("readwrite", s => s.delete(t.id)); render(); } }
+  else if (a === "del") { if (confirm2("Smazat tento obchod?")) { await tx("readwrite", s => s.delete(t.id)); render(); } }
   else if (a === "close") dlg(t, true);
   else if (a === "view") { const cf = Object.entries(t.conf || {}), pro = cf.filter(x => x[1] === "pro"), con = cf.filter(x => x[1] !== "pro"), p = pnl(t), r = real(t), nfx = x => x == null ? dash : nf(x, 2);
     const chip = (x, c) => `<span class="bdg ${c || "n"}">${esc(x)}</span>`;
@@ -599,7 +599,7 @@ document.addEventListener("click", async e => {
     const add = (b, n) => { const d = document.createElement("div"), h = document.createElement("h3"), i = document.createElement("img"); h.textContent = n; i.src = URL.createObjectURL(b); i.alt = n; d.append(h, i); sh.appendChild(d); };
     SLOTS.forEach(([k, n]) => { if ((t.slots || {})[k]) add(t.slots[k], n); }); (t.shots || (t.shot ? [t.shot] : [])).forEach(b => add(b, "Další screenshot"));
     if (sh.children.length) { const h = document.createElement("h3"); h.textContent = "Screenshoty"; $("vbody").append(h, sh); }
-    const ac = document.createElement("div"); ac.className = "row"; ac.innerHTML = `<button data-a="edit" data-id="${t.id}">Upravit obchod</button><button class="ghost" data-a="del" data-id="${t.id}">Smazat</button>`; $("vbody").appendChild(ac); if (window.__fd) { const bk = document.createElement("button"); bk.type = "button"; bk.className = "ghost"; bk.dataset.dayback = window.__fd; bk.textContent = "‹ Zpět na den"; ac.appendChild(bk); } if (!$("view").open) $("view").showModal(); }
+    const ac = document.createElement("div"); ac.className = "row vact"; ac.innerHTML = `<button type="button" class="ghost" data-vclose>Zavřít</button><button type="button" data-a="edit" data-id="${t.id}">Upravit obchod</button><button type="button" class="ghost vdel" data-a="del" data-id="${t.id}">Smazat</button>`; $("vbody").appendChild(ac); if (window.__fd) { const bk = document.createElement("button"); bk.type = "button"; bk.className = "ghost vback"; bk.dataset.dayback = window.__fd; bk.textContent = "‹ Zpět na den"; ac.appendChild(bk); } if (!$("view").open) $("view").showModal(); }
 });
 
 
@@ -957,14 +957,14 @@ function renderSkips() {
 function skView(r) { if (!r) return; const d = new Date(r.date + "T12:00"), n = (r.imgs || []).length;
   $("vbody").innerHTML = `<div class="vh"><div><h2>Den bez obchodu</h2><p class="empty" style="margin:0">${esc(WDN[d.getDay()])} ${esc(r.date)}</p></div></div><div class="row"><span class="bdg down">${esc(r.reason)}</span></div>` +
     `<h3>Poznámka</h3><p>${r.note ? esc(r.note) : "Bez poznámky."}</p><h3>Screenshoty</h3><div class="slots">` + (r.imgs || []).map((b, i) => { const u = URL.createObjectURL(b); skUrls.push(u); return `<div class="slot"><img src="${u}" alt="${esc(r.date)}: fotka ${i + 1} z ${n}"></div>`; }).join("") + `</div>` +
-    `<div class="row"><button type="button" data-skve="${r.id}">Upravit</button><button type="button" class="ghost" data-skvdel="${r.id}">Smazat</button></div>`;
+    `<div class="row vact"><button type="button" class="ghost" data-vclose>Zavřít</button><button type="button" data-skve="${r.id}">Upravit</button><button type="button" class="ghost vdel" data-skvdel="${r.id}">Smazat</button></div>`;
   if (!$("view").open) $("view").showModal(); }
 document.addEventListener("click", async e => { const t = e.target, g = a => t.getAttribute && t.getAttribute(a);
   if (g("data-skv")) { skView(SK.find(r => String(r.id) === g("data-skv"))); }
   else if (g("data-skve")) { $("view").close(); skOpen(SK.find(r => String(r.id) === g("data-skve"))); }
-  else if (g("data-skvdel")) { if (confirm("Smazat tento den bez obchodu i s fotkami?")) { await stx("readwrite", s => s.delete(+g("data-skvdel"))); $("view").close(); render(); } }
+  else if (g("data-skvdel")) { if (confirm2("Smazat tento den bez obchodu i s fotkami?")) { await stx("readwrite", s => s.delete(+g("data-skvdel"))); $("view").close(); render(); } }
   else if (g("data-ske")) { skOpen(SK.find(r => String(r.id) === g("data-ske"))); }
-  else if (g("data-skdel")) { if (confirm("Smazat tento den bez obchodu i s fotkami?")) { await stx("readwrite", s => s.delete(+g("data-skdel"))); render(); } } });
+  else if (g("data-skdel")) { if (confirm2("Smazat tento den bez obchodu i s fotkami?")) { await stx("readwrite", s => s.delete(+g("data-skdel"))); render(); } } });
 const _render = render; render = async function () { await skLoad(); await _render(); disc(); renderSkips(); if (!BT && window.TDguard) TDguard(); };
 
 async function cleanup39() { if (LS.get("bt:clean39", false)) return;
@@ -1091,5 +1091,9 @@ open().then(async d => { db = d; try { await cleanup39(); } catch (x) {} render(
   }, true);
   document.addEventListener("keydown", e => { if ((e.key === "Enter" || e.key === " ") && e.target.matches && e.target.matches(".dayc[data-day]")) { e.preventDefault(); openDay(e.target.dataset.day); } });
 })();
+</script>
+<script>
+window.confirm2 = t => confirm(t + "\n\nTohle nejde vrátit zpět.") && confirm("Opravdu? Poslední kontrola: smazat to natrvalo?");
+document.addEventListener("click", e => { if (e.target.closest && e.target.closest("[data-vclose]")) { const d = document.getElementById("view"); if (d && d.open) d.close(); } });
 </script>
 </body></html>
