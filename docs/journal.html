@@ -3,7 +3,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Deník obchodů</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=54"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><style>
+<link rel="stylesheet" href="style.css?v=55"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><style>
 #f .grid{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}#f .grid>label{min-width:0}#f select,#f input{width:100%;min-width:0;text-overflow:ellipsis}#f input[type=checkbox]{width:auto;flex:none;margin:0}#f .chip{white-space:nowrap;display:inline-flex}
 #f .sec{margin:20px 0 8px;padding-top:12px;border-top:1px solid var(--rule);font-size:16px}#f .sec:first-of-type{border-top:0;margin-top:6px;padding-top:0}
 #f label em{font-style:normal;color:var(--acc);font-weight:600}
@@ -947,6 +947,23 @@ open().then(d => { db = d; render(); });
   });
   document.addEventListener("keydown", e => { if (e.key === "Escape" && box) { e.stopPropagation(); close(); } if (e.key === "Tab") close(); }, true);
   new MutationObserver(scan).observe(document.documentElement, {childList: true, subtree: true}); scan();
+})();
+</script>
+<script>
+(function () {
+  const N = 5, open = {};
+  const apply = id => {
+    const box = document.getElementById(id); if (!box) return; const tb = box.querySelector("table.tt tbody"); if (!tb || tb.dataset.col) return; tb.dataset.col = "1";
+    const rows = [...tb.querySelectorAll(":scope > tr")]; if (rows.length <= N) return;
+    const btn = document.createElement("button"); btn.type = "button"; btn.className = "moreb";
+    const paint = () => { rows.forEach((r, i) => r.hidden = i >= N && !open[id]); btn.textContent = open[id] ? "▴ Zobrazit jen posledních " + N : "▾ Zobrazit všech " + rows.length + " (dalších " + (rows.length - N) + ")"; };
+    btn.onclick = () => { open[id] = !open[id]; paint(); }; paint();
+    box.querySelector(".wrap").insertAdjacentElement("afterend", btn);
+  };
+  const run = () => { apply("list"); apply("sk-list"); };
+  document.addEventListener("click", e => { if (e.target.closest && e.target.closest("[data-selall]") && !open.list) { open.list = true; const b = document.querySelector("#list .moreb"); if (b) { document.querySelectorAll("#list tbody tr").forEach(r => r.hidden = false); b.textContent = "▴ Zobrazit jen posledních " + N; } } }, true);
+  ["list", "sk-list"].forEach(id => { const el = document.getElementById(id); if (el) new MutationObserver(run).observe(el, {childList: true}); });
+  run();
 })();
 </script>
 </body></html>
