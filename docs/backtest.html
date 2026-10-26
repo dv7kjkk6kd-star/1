@@ -3,7 +3,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Backtest deník</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=55"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><style>
+<link rel="stylesheet" href="style.css?v=57"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><style>
 #f .grid{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}#f .grid>label{min-width:0}#f select,#f input{width:100%;min-width:0;text-overflow:ellipsis}#f input[type=checkbox]{width:auto;flex:none;margin:0}#f .chip{white-space:nowrap;display:inline-flex}
 #f .sec{margin:20px 0 8px;padding-top:12px;border-top:1px solid var(--rule);font-size:16px}#f .sec:first-of-type{border-top:0;margin-top:6px;padding-top:0}
 #f label em{font-style:normal;color:var(--acc);font-weight:600}
@@ -516,7 +516,7 @@ function dlg(t, toOut) {
   shots = t ? [...(t.shots || (t.shot ? [t.shot] : []))] : []; slotsD = t && t.slots ? {...t.slots} : {}; curSlot = null;
   touched = t ? {target: 1, target2: 1} : {}; dist = t ? (Math.abs(t.entry - t.stop) || null) : null; $("sd").value = lsGet("defStop35") || 35;
   $("dt").textContent = t ? "Upravit obchod" : "Nový backtest obchod";
-  const o = t ? when(t) : (BT ? (LS.get("bt:lastd", "") + "T") : localNow()); fe.od.value = o.slice(0, 10); fe.ot.value = o.slice(11, 16); fe.acc.value = lsGet("lastAcc") || "Hlavní";
+  const o = t ? when(t) : (BT ? (LS.get("bt:lastd", "") + "T") : localNow()); fe.od.value = /^\d{4}-/.test(o) ? o.slice(0, 10) : ""; fe.ot.value = o.slice(11, 16); fe.acc.value = lsGet("lastAcc") || "Hlavní";
   fillStrat(t ? t.strat : "");
   if (t) { for (const k of ["id","inst","dir","size","pv","entry","stop","target","target2","plan","rate","notes","trend","acc","otype","tfm"]) fe[k].value = t[k] ?? "";
     if (t.exit != null) { fe.outc.value = t.outc || "other"; fe.n1.value = t.n1 ?? ""; fe.trp.value = t.trp ?? ""; if (fe.outc.value === "other") fe.exit.value = t.exit; }
@@ -976,7 +976,16 @@ open().then(async d => { db = d; try { await cleanup39(); } catch (x) {} render(
   const pad = n => String(n).padStart(2, "0"), iso = d => d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
   const MN = ["leden", "únor", "březen", "duben", "květen", "červen", "červenec", "srpen", "září", "říjen", "listopad", "prosinec"];
   let box = null, cur = null, vy = 0, vm = 0;
-  const prep = el => { if (el.dataset.dp) return; el.dataset.dp = "1"; const v = el.value; el.type = "text"; el.value = v; el.placeholder = "RRRR-MM-DD"; el.setAttribute("inputmode", "numeric"); el.autocomplete = "off"; };
+  const ng = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
+  const cz = x => /^\d{4}-\d{2}-\d{2}$/.test(x || "") ? (+x.slice(8)) + ". " + (+x.slice(5, 7)) + ". " + x.slice(0, 4) : (x || "");
+  const parse = t => { t = String(t || "").trim(); if (!t) return ""; let m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/), d, mo, y;
+    if (m) { y = +m[1]; mo = +m[2]; d = +m[3]; } else { m = t.match(/^(\d{1,2})\s*[.\/-]\s*(\d{1,2})\s*[.\/-]\s*(\d{4})\.?$/); if (!m) return null; d = +m[1]; mo = +m[2]; y = +m[3]; }
+    const dt = new Date(y, mo - 1, d); if (dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d) return null; return iso(dt); };
+  const prep = el => { if (el.dataset.dp) return; el.dataset.dp = "1"; const v = el.value; el.type = "text";
+    Object.defineProperty(el, "value", {configurable: true, get() { const r = parse(ng.get.call(el)); return r == null ? "" : r; }, set(x) { ng.set.call(el, cz(x)); }});
+    el.value = v; el.placeholder = "d. m. rrrr"; el.setAttribute("inputmode", "numeric"); el.autocomplete = "off";
+    el.addEventListener("input", () => { el.setCustomValidity(parse(ng.get.call(el)) == null ? "Napiš datum například 25. 10. 2026" : ""); });
+    if (el.form) el.form.addEventListener("reset", () => setTimeout(() => { const r = parse(ng.get.call(el)); ng.set.call(el, cz(r == null ? "" : r)); }, 0)); };
   const scan = () => document.querySelectorAll('input[type="date"]').forEach(prep);
   const close = () => { if (box) { box.remove(); box = null; cur = null; } };
   const draw = () => {
@@ -1027,6 +1036,37 @@ open().then(async d => { db = d; try { await cleanup39(); } catch (x) {} render(
   document.addEventListener("click", e => { if (e.target.closest && e.target.closest("[data-selall]") && !open.list) { open.list = true; const b = document.querySelector("#list .moreb"); if (b) { document.querySelectorAll("#list tbody tr").forEach(r => r.hidden = false); b.textContent = "▴ Zobrazit jen posledních " + N; } } }, true);
   ["list", "sk-list"].forEach(id => { const el = document.getElementById(id); if (el) new MutationObserver(run).observe(el, {childList: true}); });
   run();
+})();
+</script>
+<script>
+(function () {
+  let menu = null, cur = null;
+  const label = sel => { const o = sel.options[sel.selectedIndex]; return o ? o.textContent : ""; };
+  const sync = sel => { const b = sel._b; if (!b) return; b.firstElementChild.textContent = label(sel) || "Vyber…"; b.disabled = sel.disabled; };
+  const enhance = sel => {
+    if (sel.dataset.big || sel.multiple || !sel.closest("dialog")) return; sel.dataset.big = "1";
+    const w = document.createElement("div"); w.className = "selw"; sel.parentNode.insertBefore(w, sel);
+    sel.style.cssText = "position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;left:0;bottom:0"; sel.tabIndex = -1;
+    const b = document.createElement("button"); b.type = "button"; b.className = "selb"; b.innerHTML = "<span></span><span aria-hidden=\"true\">▾</span>"; w.appendChild(b); w.appendChild(sel); sel._b = b; sync(sel);
+    b.onclick = e => { e.preventDefault(); if (menu && cur === sel) { close(); return; } open(sel); };
+  };
+  const close = () => { if (menu) { menu.remove(); menu = null; cur = null; } };
+  const open = sel => {
+    close(); cur = sel; menu = document.createElement("div"); menu.className = "selm"; menu.setAttribute("role", "listbox");
+    const add = (o, box) => { const x = document.createElement("button"); x.type = "button"; x.textContent = o.textContent; x.disabled = o.disabled; if (o === sel.options[sel.selectedIndex]) x.classList.add("on");
+      x.onclick = () => { sel.value = o.value; sel.selectedIndex = [...sel.options].indexOf(o); sel.dispatchEvent(new Event("input", {bubbles: true})); sel.dispatchEvent(new Event("change", {bubbles: true})); sync(sel); close(); }; box.appendChild(x); };
+    [...sel.children].forEach(c => { if (c.tagName === "OPTGROUP") { const g = document.createElement("div"); g.className = "selg"; g.textContent = c.label; menu.appendChild(g); [...c.children].forEach(o => add(o, menu)); } else add(c, menu); });
+    (sel.closest("dialog") || document.body).appendChild(menu);
+    const r = sel._b.getBoundingClientRect(); menu.style.minWidth = r.width + "px";
+    let top = r.bottom + 6; const h = menu.offsetHeight; if (top + h > innerHeight - 8) top = Math.max(8, r.top - h - 6);
+    menu.style.top = top + "px"; menu.style.left = Math.max(8, Math.min(r.left, innerWidth - menu.offsetWidth - 8)) + "px";
+    const on = menu.querySelector(".on"); if (on) on.scrollIntoView({block: "nearest"});
+  };
+  document.addEventListener("click", e => { if (menu && !e.target.closest(".selm") && !e.target.closest(".selb")) close(); });
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && menu) { e.stopPropagation(); close(); } }, true);
+  const scan = () => document.querySelectorAll("dialog select").forEach(enhance);
+  new MutationObserver(scan).observe(document.documentElement, {childList: true, subtree: true}); scan();
+  setInterval(() => document.querySelectorAll("select[data-big]").forEach(sync), 300);
 })();
 </script>
 </body></html>
