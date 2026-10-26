@@ -3,7 +3,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Backtest deník</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=57"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><style>
+<link rel="stylesheet" href="style.css?v=58"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><style>
 #f .grid{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}#f .grid>label{min-width:0}#f select,#f input{width:100%;min-width:0;text-overflow:ellipsis}#f input[type=checkbox]{width:auto;flex:none;margin:0}#f .chip{white-space:nowrap;display:inline-flex}
 #f .sec{margin:20px 0 8px;padding-top:12px;border-top:1px solid var(--rule);font-size:16px}#f .sec:first-of-type{border-top:0;margin-top:6px;padding-top:0}
 #f label em{font-style:normal;color:var(--acc);font-weight:600}
@@ -343,7 +343,7 @@ function dg(el,v,big,sub,word,cls,cap){var a=Math.max(-1,Math.min(1,v))*80;el.in
   const val = d => s.days[`${pre}-${String(d).padStart(2, "0")}`];
   for (let d = 1; d <= nd; d++) { const v = val(d), dow = (off + d - 1) % 7; if (v != null) tot += v;
     if (dow > 4) continue;
-    const sk_ = v == null && SKD.has(`${pre}-${String(d).padStart(2, "0")}`); h += `<div class="day ${v == null ? (sk_ ? "skipd" : "") : cl(v)}"><span>${d}</span>${v == null ? (sk_ ? '<b class="skm" title="Den bez obchodu">🚫</b>' : "") : "<b>" + usd(v) + "</b>"}</div>`;
+    const sk_ = v == null && SKD.has(`${pre}-${String(d).padStart(2, "0")}`); h += `<div class="day${(v != null || sk_) ? " dayc" : ""} ${v == null ? (sk_ ? "skipd" : "") : cl(v)}"${(v != null || sk_) ? ` data-day="${pre}-${String(d).padStart(2, "0")}" tabindex="0" title="Klikni a otevři obchod"` : ""}><span>${d}</span>${v == null ? (sk_ ? '<b class="skm" title="Den bez obchodu">🚫</b>' : "") : "<b>" + usd(v) + "</b>"}</div>`;
     if (dow === 4 || d === nd) { if (dow < 4) h += "<i></i>".repeat(4 - dow); let ws = 0, wn = 0;
       for (let k = Math.max(1, d - dow); k <= Math.min(nd, d - dow + 6); k++) { const x = val(k); if (x != null) { ws += x; wn++; } }
       h += `<div class="day wk ${wn ? cl(ws) : ""}"><span>Týden</span>${wn ? "<b>" + usd(ws) + "</b><em>" + wn + (wn === 1 ? " den" : wn < 5 ? " dny" : " dní") + "</em>" : ""}</div>`; } }
@@ -599,7 +599,7 @@ document.addEventListener("click", async e => {
     const add = (b, n) => { const d = document.createElement("div"), h = document.createElement("h3"), i = document.createElement("img"); h.textContent = n; i.src = URL.createObjectURL(b); i.alt = n; d.append(h, i); sh.appendChild(d); };
     SLOTS.forEach(([k, n]) => { if ((t.slots || {})[k]) add(t.slots[k], n); }); (t.shots || (t.shot ? [t.shot] : [])).forEach(b => add(b, "Další screenshot"));
     if (sh.children.length) { const h = document.createElement("h3"); h.textContent = "Screenshoty"; $("vbody").append(h, sh); }
-    const ac = document.createElement("div"); ac.className = "row"; ac.innerHTML = `<button data-a="edit" data-id="${t.id}">Upravit obchod</button><button class="ghost" data-a="del" data-id="${t.id}">Smazat</button>`; $("vbody").appendChild(ac); $("view").showModal(); }
+    const ac = document.createElement("div"); ac.className = "row"; ac.innerHTML = `<button data-a="edit" data-id="${t.id}">Upravit obchod</button><button class="ghost" data-a="del" data-id="${t.id}">Smazat</button>`; $("vbody").appendChild(ac); if (window.__fd) { const bk = document.createElement("button"); bk.type = "button"; bk.className = "ghost"; bk.dataset.dayback = window.__fd; bk.textContent = "‹ Zpět na den"; ac.appendChild(bk); } if (!$("view").open) $("view").showModal(); }
 });
 
 
@@ -958,7 +958,7 @@ function skView(r) { if (!r) return; const d = new Date(r.date + "T12:00"), n = 
   $("vbody").innerHTML = `<div class="vh"><div><h2>Den bez obchodu</h2><p class="empty" style="margin:0">${esc(WDN[d.getDay()])} ${esc(r.date)}</p></div></div><div class="row"><span class="bdg down">${esc(r.reason)}</span></div>` +
     `<h3>Poznámka</h3><p>${r.note ? esc(r.note) : "Bez poznámky."}</p><h3>Screenshoty</h3><div class="slots">` + (r.imgs || []).map((b, i) => { const u = URL.createObjectURL(b); skUrls.push(u); return `<div class="slot"><img src="${u}" alt="${esc(r.date)}: fotka ${i + 1} z ${n}"></div>`; }).join("") + `</div>` +
     `<div class="row"><button type="button" data-skve="${r.id}">Upravit</button><button type="button" class="ghost" data-skvdel="${r.id}">Smazat</button></div>`;
-  $("view").showModal(); }
+  if (!$("view").open) $("view").showModal(); }
 document.addEventListener("click", async e => { const t = e.target, g = a => t.getAttribute && t.getAttribute(a);
   if (g("data-skv")) { skView(SK.find(r => String(r.id) === g("data-skv"))); }
   else if (g("data-skve")) { $("view").close(); skOpen(SK.find(r => String(r.id) === g("data-skve"))); }
@@ -1067,6 +1067,29 @@ open().then(async d => { db = d; try { await cleanup39(); } catch (x) {} render(
   const scan = () => document.querySelectorAll("dialog select").forEach(enhance);
   new MutationObserver(scan).observe(document.documentElement, {childList: true, subtree: true}); scan();
   setInterval(() => document.querySelectorAll("select[data-big]").forEach(sync), 300);
+})();
+</script>
+<script>
+(function () {
+  const czd = x => (+x.slice(8)) + ". " + (+x.slice(5, 7)) + ". " + x.slice(0, 4);
+  const openDay = date => {
+    const ts = ALL.filter(t => day(t) === date).sort((a, b) => String(when(a)).localeCompare(String(when(b)))), sk = (typeof SK !== "undefined" ? SK : []).filter(r => r.date === date);
+    const click = (attr, val, extra) => { const b = document.createElement("button"); b.hidden = true; b.setAttribute(attr, attr === "data-a" ? "view" : val); if (attr === "data-a") b.dataset.id = val; if (extra) b.dataset.fromday = date; document.body.appendChild(b); b.click(); b.remove(); };
+    if (ts.length === 1 && !sk.length) { window.__fd = null; return click("data-a", ts[0].id, false); }
+    if (!ts.length && sk.length === 1) { window.__fd = null; return click("data-skv", sk[0].id, false); }
+    if (!ts.length && !sk.length) return;
+    const tot = ts.reduce((a, t) => a + (pnl(t) || 0), 0), d = new Date(date + "T12:00");
+    $("vbody").innerHTML = `<div class="vh"><div><h2>${esc(WDN[d.getDay()])} ${czd(date)}</h2><p class="empty" style="margin:0">${ts.length ? ts.length + " obchodů · celkem " : ""}${ts.length ? `<b class="${cl(tot)}">${usd(tot)}</b>` : ""}${sk.length ? (ts.length ? " · " : "") + "den bez obchodu" : ""}</p></div></div>` +
+      ts.map(t => { const p = pnl(t); return `<div class="dl"><span>${esc(String(when(t)).slice(11, 16))} · <b>${esc(t.inst)} ${t.dir === "short" ? "Short" : "Long"} ×${nf(t.size || 1, 0)}</b>${t.strat ? " · " + esc(t.strat) : ""}</span><span class="${cl(p)}"><b>${p == null ? "–" : usd(p)}</b></span><button type="button" class="ghost sm" data-a="view" data-id="${t.id}" data-fromday="${date}">Detail ›</button></div>`; }).join("") +
+      sk.map(r => `<div class="dl"><span>🚫 Den bez obchodu · ${esc(r.reason)}</span><button type="button" class="ghost sm" data-skv="${r.id}">Detail ›</button></div>`).join("");
+    if (!$("view").open) $("view").showModal();
+  };
+  document.addEventListener("click", e => {
+    const v = e.target.closest && e.target.closest('[data-a="view"]'); if (v) window.__fd = v.dataset.fromday || null;
+    const bk = e.target.closest && e.target.closest("[data-dayback]"); if (bk) { openDay(bk.dataset.dayback); return; }
+    const c = e.target.closest && e.target.closest(".dayc[data-day]"); if (c) openDay(c.dataset.day);
+  }, true);
+  document.addEventListener("keydown", e => { if ((e.key === "Enter" || e.key === " ") && e.target.matches && e.target.matches(".dayc[data-day]")) { e.preventDefault(); openDay(e.target.dataset.day); } });
 })();
 </script>
 </body></html>
