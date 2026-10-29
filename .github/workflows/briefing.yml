@@ -1,7 +1,7 @@
 name: Ranní briefing
 on:
   schedule:
-    - cron: "13,43 12-14 * * 1-5"
+    - cron: "13,43 11-14 * * 1-5"
     - cron: "13,43 17,18 * * 0"
   workflow_dispatch:
 permissions:
@@ -23,7 +23,7 @@ jobs:
           D=$(TZ=Europe/Prague date +%u)
           if [ "$EVENT" = "workflow_dispatch" ]; then R=yes
           elif [ "$D" = "7" ] && [ "$H" -ge 1800 ] && [ "$H" -le 2200 ]; then R=yes
-          elif [ "$H" -ge 1400 ] && [ "$H" -le 1630 ]; then R=yes
+          elif [ "$H" -ge 1330 ] && [ "$H" -le 1630 ]; then R=yes
           else R=no; fi
           echo "run=$R" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-python@v5
