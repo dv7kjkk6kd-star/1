@@ -1,0 +1,46 @@
+Datum a čas aktualizace: 30. 10. 2026 09:25 (pražský čas). Obchoduje se MNQ (Micro Nasdaq futures), 1 bod = 2 $. Seance v New Yorku 9:30–16:00 = u nás obvykle 15:30–22:00.
+
+STRÁNKY WEBU:
+- Dnes: Přehled (Ranní souhrn trhu v kostce)
+- Zprávy a fundament: Zprávy (Všechny titulky a puls trhu); Sentiment (Nálada ve zprávách za posledních 24 hodin); Kalendář (Důležité zprávy z USA na celý týden); Predikce zpráv (Co se stane, když zpráva vyjde lépe nebo hůř); Fundament (Čísla z trhu, hodnocení oblastí a zprávy)
+- Analýza: Pre-market akcí (Největší akcie před otevřením burzy); Bias (Směr dne podle dat a RSI); Týdenní výhled (Co čekat od celého týdne)
+- Statistiky: Přesnost biasu (Jak často měl bias pravdu); Statistiky trhu (Dny v týdnu, gapy, VIX, dluhopisy, dolar a první půlhodina); Rozsahy a seance (Kolik bodů se trh hýbe, nejživější hodiny, noc a první hodina); Souvislosti trhů (Nasdaq proti S&P 500, Russellu, polovodičům, zlatu, ropě a bitcoinu)
+- Příprava: Pre-session rituál (Příprava před 15. hodinou: klid, zprávy a plán); Plán od mentora (Fotka nebo video od mentora, jeho zóny a jak mu vycházejí); Trpělivost (Trénink čekání: den bez obchodu je výhra); Mindset (Klid, meditace a trpělivost před obchodováním); Plán dne (Pravidla trpělivosti, limity a kalkulačka)
+- Obchodování: Deník obchodů (Tvoje obchody, statistiky a rozbor); Backtest deník (Obchody z minulosti, na kterých se učíš); Robot (TradingView) (Tvoje strategie z TradingView: obchody, výsledky a co se robot naučil)
+- Uzavření dne: Uzavření dne (Tři otázky a já dnes versus já včera)
+- Knihy: Knihy o tradingu (Hlavní myšlenky slavných knih o tradingu a psychologii)
+- Učení a nastavení: AI asistent (Zeptej se na cokoliv o webu, dnešních datech i tradingu); Roadmap (Tvoje cesta k disciplinovanému obchodování); Příručka (Slovníček a postup krok za krokem); Nastavení (Účet, riziko a výchozí hodnoty)
+
+DNEŠNÍ BIAS: Bearish, skóre -5.1 z 10 (−10 až +10). Bias se ukládá do 15:00 a pak se už nemění.
+- složka Futures: -2.0 (váha 3.0) – Futures na Nasdaq a S&P 500 jsou v průměru −1,60 %.
+- složka Šířka akcií: -0.6 (váha 2.0) – 8 z 23 největších akcií je v plusu.
+- složka Strach (VIX): -1.6 (váha 1.5) – VIX se změnil o +8,08 %. Růst strachu bývá pro akcie špatný.
+- složka Dolar: +1.1 (váha 0.5) – Dolarový index se změnil o −0,32 %. Silný dolar akciím spíš škodí.
+- složka Výnosy dluhopisů: +0.6 (váha 1.0) – Výnos 10letých dluhopisů se změnil o −1,11 %. Růst výnosů tlačí akcie dolů.
+- složka Trend futures: -2.0 (váha 1.0) – Cena je o +1,30 % pod průměrem posledního dne.
+- složka Zprávy: -0.9 (váha 1.0) – Nálada v titulcích zpráv za 24 hodin: skóre −2.3 z 5.
+- složka Sezónnost: +1.1 (váha 0.5) – V tomto měsíci Nasdaq 100 historicky průměrně +1,61 %.
+Přesnost biasu: 5 z 8 dní (62 %).
+Posledních 5 dní (bias → skutečný pohyb Nasdaqu): 2026-10-23 Mírně bearish → -0.00 %; 2026-10-26 Mírně bullish → +1.09 %; 2026-10-27 Mírně bullish → +1.29 %; 2026-10-28 Neutrální → +0.55 %; 2026-10-29 Mírně bearish → -1.38 %
+
+SENTIMENT ZPRÁV (24 h): skóre -2.3 z 5, bearish.
+- Biggest-ever crypto hack impacts $6.3 billion as Binance works to contain fallout (CNBC)
+- Iran claims four tankers struck mines in Hormuz as strike fears grow after U.S. midterms (CNBC)
+- A pharma giant is moving past one patent cliff — but another is already looming (CNBC)
+- Israel faces weeks of coalition haggling as Netanyahu’s party claims election 'stolen' (CNBC)
+- BOJ holds rates as underlying inflation aligns with 2% target for first time since 2013 (CNBC)
+- DOJ escalates Alaska Senate lawsuit over dueling Sullivan candidacies (CNBC)
+
+KALENDÁŘ ZPRÁV Z USA (nejbližší):
+- Fri 30. 10. 13:30: Employment Cost Index q/q (dopad střední, očekávání 0.8%, minule 0.9%)
+
+STATISTIKY TRHU pro dnešek: 0 výrazných situací spíš nahoru, 0 spíš dolů (po zkoušce naživo).
+Archiv Nasdaqu: 1255 dní, Nasdaq rostl v 54 % dní.
+Běžný denní rozsah (medián 250 dní): 342 bodů, klidný den 248, divoký 468. Posledních 20 dní průměr 370 bodů.
+Nejživější hodiny (pražský čas): 15:00 (165 b.), 16:00 (161 b.), 17:00 (124 b.)
+Seance prorazí noční maximum v 52 % dní, noční minimum v 46 % (48 dní).
+Souvislosti trhů: za 20 dní Nasdaq -3.90 %, S&P 500 +0.39 %.
+
+JAK FUNGUJE ROBOT: strategie uživatele (ICT MNQ v40, modely 5m CISD, continuation, zóna+iFVG) běží v TradingView a posílá obchody přes webhook do Cloudflare. Stránka Robot ukazuje obchody, výsledky a co se robot naučil: hledá situace, ve kterých prodělává, a vynechává je. Učí se i z biasu, sentimentu, fundamentu, kalendáře, statistik, mentora a stavu trhu.
+PLÁN OD MENTORA: uživatel nahrává fotku nebo screenshot od mentora a opisuje zóny (cena od–do, odraz nahoru/dolů). Zóny se vyhodnotí jako fungovala / nefungovala / nedotkla se.
+KNIHY na webu: Trading in the Zone (Mark Douglas): Jeden obchod nic neznamená. Výhoda se ukáže až na sérii obchodů.; Best Loser Wins (Tom Hougaard): Nevyhrává ten, kdo má nejvíc pravdy. Vyhrává ten, kdo nejlépe prohrává.; Reminiscences of a Stock Operator (Edwin Lefèvre (podle života Jesse Livermora)): Na trhu se nic nového neděje. Co se děje dnes, už se dělo, protože lidská povaha se nemění.; Market Wizards (Jack D. Schwager): Neexistuje jedna správná metoda. Existuje jen tvoje metoda, kterou dodržuješ.; One Good Trade (Mike Bellafiore): Neobchoduj peníze. Obchoduj jeden dobrý obchod, a pak další.; Trading for a Living (Alexander Elder): Hlava, metoda, peníze. Bez kteréhokoli z nich nevydržíš.
