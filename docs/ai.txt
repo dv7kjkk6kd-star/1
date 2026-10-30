@@ -1,4 +1,4 @@
-Datum a čas aktualizace: 30. 10. 2026 09:25 (pražský čas). Obchoduje se MNQ (Micro Nasdaq futures), 1 bod = 2 $. Seance v New Yorku 9:30–16:00 = u nás obvykle 15:30–22:00.
+Datum a čas aktualizace: 30. 10. 2026 09:55 (pražský čas). Obchoduje se MNQ (Micro Nasdaq futures), 1 bod = 2 $. Seance v New Yorku 9:30–16:00 = u nás obvykle 15:30–22:00.
 
 STRÁNKY WEBU:
 - Dnes: Přehled (Ranní souhrn trhu v kostce)
@@ -11,25 +11,25 @@ STRÁNKY WEBU:
 - Knihy: Knihy o tradingu (Hlavní myšlenky slavných knih o tradingu a psychologii)
 - Učení a nastavení: AI asistent (Zeptej se na cokoliv o webu, dnešních datech i tradingu); Roadmap (Tvoje cesta k disciplinovanému obchodování); Příručka (Slovníček a postup krok za krokem); Nastavení (Účet, riziko a výchozí hodnoty)
 
-DNEŠNÍ BIAS: Bearish, skóre -5.1 z 10 (−10 až +10). Bias se ukládá do 15:00 a pak se už nemění.
-- složka Futures: -2.0 (váha 3.0) – Futures na Nasdaq a S&P 500 jsou v průměru −1,60 %.
+DNEŠNÍ BIAS: Bearish, skóre -5.0 z 10 (−10 až +10). Bias se ukládá do 15:00 a pak se už nemění.
+- složka Futures: -2.0 (váha 3.0) – Futures na Nasdaq a S&P 500 jsou v průměru −1,53 %.
 - složka Šířka akcií: -0.6 (váha 2.0) – 8 z 23 největších akcií je v plusu.
-- složka Strach (VIX): -1.6 (váha 1.5) – VIX se změnil o +8,08 %. Růst strachu bývá pro akcie špatný.
+- složka Strach (VIX): -1.4 (váha 1.5) – VIX se změnil o +6,98 %. Růst strachu bývá pro akcie špatný.
 - složka Dolar: +1.1 (váha 0.5) – Dolarový index se změnil o −0,32 %. Silný dolar akciím spíš škodí.
 - složka Výnosy dluhopisů: +0.6 (váha 1.0) – Výnos 10letých dluhopisů se změnil o −1,11 %. Růst výnosů tlačí akcie dolů.
-- složka Trend futures: -2.0 (váha 1.0) – Cena je o +1,30 % pod průměrem posledního dne.
-- složka Zprávy: -0.9 (váha 1.0) – Nálada v titulcích zpráv za 24 hodin: skóre −2.3 z 5.
+- složka Trend futures: -2.0 (váha 1.0) – Cena je o +1,23 % pod průměrem posledního dne.
+- složka Zprávy: -1.0 (váha 1.0) – Nálada v titulcích zpráv za 24 hodin: skóre −2.4 z 5.
 - složka Sezónnost: +1.1 (váha 0.5) – V tomto měsíci Nasdaq 100 historicky průměrně +1,61 %.
 Přesnost biasu: 5 z 8 dní (62 %).
 Posledních 5 dní (bias → skutečný pohyb Nasdaqu): 2026-10-23 Mírně bearish → -0.00 %; 2026-10-26 Mírně bullish → +1.09 %; 2026-10-27 Mírně bullish → +1.29 %; 2026-10-28 Neutrální → +0.55 %; 2026-10-29 Mírně bearish → -1.38 %
 
-SENTIMENT ZPRÁV (24 h): skóre -2.3 z 5, bearish.
-- Biggest-ever crypto hack impacts $6.3 billion as Binance works to contain fallout (CNBC)
+SENTIMENT ZPRÁV (24 h): skóre -2.4 z 5, bearish.
+- Amazon falls 7%, Intel plunges 25% in premarket trading, as pressure mounts after earnings (CNBC)
+- Binance's $6.3 billion hack: What we know and what comes next (CNBC)
 - Iran claims four tankers struck mines in Hormuz as strike fears grow after U.S. midterms (CNBC)
+- Biggest-ever crypto hack impacts $6.3 billion as Binance works to contain fallout (CNBC)
 - A pharma giant is moving past one patent cliff — but another is already looming (CNBC)
-- Israel faces weeks of coalition haggling as Netanyahu’s party claims election 'stolen' (CNBC)
-- BOJ holds rates as underlying inflation aligns with 2% target for first time since 2013 (CNBC)
-- DOJ escalates Alaska Senate lawsuit over dueling Sullivan candidacies (CNBC)
+- BP’s third-quarter profit nearly quadruples to $8.5 billion as refining margins surge (CNBC)
 
 KALENDÁŘ ZPRÁV Z USA (nejbližší):
 - Fri 30. 10. 13:30: Employment Cost Index q/q (dopad střední, očekávání 0.8%, minule 0.9%)
