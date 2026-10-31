@@ -45,7 +45,7 @@ const TIPS = {"Bullish": "Čekáš, že cena poroste. Hledáš long (nákup).", 
     const last = +ls("lastFullBackup") || 0, snooze = +ls("bkSnooze") || 0, days = last ? Math.floor((Date.now() - last) / DAY) : null;
     if (days != null && days < 7) return; if (Date.now() < snooze) return; if (!(await hasData())) return;
     const bar = document.createElement("div"); bar.className = "bkbar"; bar.setAttribute("role", "alert");
-    bar.innerHTML = "<span>💾 " + (days == null ? "Ještě jsi nestáhl žádnou zálohu." : "Poslední záloha je stará " + days + " dní.") + " Obchody a fotky jsou jen v tomto prohlížeči.</span><a href=\"nastaveni.html\">Zálohovat teď</a><button type=\"button\">Připomenout zítra</button>";
+    bar.innerHTML = "<span>💾 " + (days == null ? "Ještě jsi nestáhl žádnou zálohu." : "Poslední záloha je stará " + days + " dní.") + " Všechno (deníky, fotky, plány, nastavení) je jen v tomto prohlížeči. Záloha uloží celou aplikaci do jednoho souboru.</span><a href=\"#\" class=\"bknow\">Zálohovat teď</a><button type=\"button\">Připomenout zítra</button>";
     bar.querySelector("button").onclick = () => { try { localStorage.setItem("bkSnooze", String(Date.now() + DAY)); } catch (e) {} bar.remove(); };
     document.body.insertBefore(bar, document.body.firstChild);
   };
