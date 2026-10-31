@@ -1,0 +1,4950 @@
+#!/usr/bin/env python3
+"""Ranní briefing (verze 89) pro obchodování Nasdaqu: pre-market, nálada trhu, kalendář z Forex Factory."""
+import email.utils
+import json
+import os
+import re
+import urllib.request
+import xml.etree.ElementTree as ET
+from urllib.parse import quote
+from datetime import datetime, timedelta, timezone
+from html import escape
+from pathlib import Path
+from zoneinfo import ZoneInfo
+
+import yfinance as yf
+
+ROOT = Path(__file__).parent
+PRAGUE = ZoneInfo("Europe/Prague")
+NB = "\u00a0"
+FF_URLS = ["https://nfs.faireconomy.media/ff_calendar_thisweek.json", "https://nfs.faireconomy.media/ff_calendar_nextweek.json"]
+
+
+def num(x, d=2):
+    return f"{x:,.{d}f}".replace(",", NB).replace(".", ",")
+
+
+def pc(x):
+    return ("+" if x >= 0 else "\u2212") + num(abs(x)) + NB + "%"
+
+
+def tone(x):
+    return "up" if x >= 0 else "down"
+
+
+def quotes(cfg):
+    names = {**cfg["futures"], **cfg["macro"]}
+    data = yf.download(list(names), period="5d", interval="1d", group_by="ticker", progress=False)
+    rows = []
+    for s, name in names.items():
+        try:
+            c = data[s]["Close"].dropna()
+            rows.append({"sym": s, "name": name, "last": float(c.iloc[-1]),
+                         "chg": float((c.iloc[-1] / c.iloc[-2] - 1) * 100)})
+        except Exception as e:
+            print("Bez dat:", s, e)
+    return rows
+
+
+def premarket(cfg):
+    rows, live = [], False
+    for s, name in cfg["stocks"].items():
+        try:
+            info = yf.Ticker(s).info
+            pre = info.get("preMarketPrice")
+            prev = info.get("regularMarketPreviousClose") or info.get("previousClose")
+            if pre and prev:
+                rows.append({"sym": s, "name": name, "last": float(pre), "chg": (pre / prev - 1) * 100})
+                live = True
+            elif info.get("regularMarketPrice") and info.get("regularMarketChangePercent") is not None:
+                rows.append({"sym": s, "name": name, "last": float(info["regularMarketPrice"]),
+                             "chg": float(info["regularMarketChangePercent"])})
+        except Exception as e:
+            print("Bez dat:", s, e)
+    pr = {t: i for i, t in enumerate(cfg.get("priority", []))}
+    return sorted(rows, key=lambda r: (pr.get(r["sym"], 999), -r["chg"])), live
+
+
+def bias(rows):
+    f = [r["chg"] for r in rows if r["sym"] in ("NQ=F", "ES=F")]
+    if not f:
+        return "Bez dat", None
+    a = sum(f) / len(f)
+    for lim, label in ((0.6, "Bullish"), (0.15, "Mírně bullish"), (-0.15, "Neutrální"), (-0.6, "Mírně bearish")):
+        if a >= lim:
+            return label, a
+    return "Bearish", a
+
+
+MESICE = ["lednu", "únoru", "březnu", "dubnu", "květnu", "červnu", "červenci", "srpnu", "září", "říjnu", "listopadu", "prosinci"]
+
+
+def seasonality():
+    """Vlastní jednoduchá sezónnost: jak se Nasdaq 100 choval v jednotlivých měsících."""
+    try:
+        s = yf.download("^NDX", period="15y", interval="1d", progress=False)["Close"].squeeze().dropna()
+        m = s.groupby([s.index.year, s.index.month]).last().pct_change().dropna()
+        now = datetime.now(PRAGUE)
+        per = {i: [] for i in range(1, 13)}
+        for (y, mo), v in m.items():
+            if (y, mo) != (now.year, now.month):
+                per[mo].append(v * 100)
+        x = per[now.month]
+        if len(x) < 5:
+            return None, None
+        text = (f"Sezónnost: v {MESICE[now.month - 1]} Nasdaq 100 za posledních {len(x)} let průměrně "
+                f"{pc(sum(x) / len(x))} a rostl v {num(sum(1 for v in x if v > 0) / len(x) * 100, 0)}{NB}% let.")
+        avgs = [round(sum(per[i]) / len(per[i]), 2) if per[i] else 0 for i in range(1, 13)]
+        return text, {"m": avgs, "cur": now.month - 1}
+    except Exception as e:
+        print("Sezónnost se nepodařilo spočítat:", e)
+        return None, None
+
+
+def scenario(label, share):
+    low = label.lower()
+    if "bullish" in low and share >= 0.6:
+        return "Čekané otevření: pokračování nahoru. Sleduj, jestli Nasdaq po otevření drží nad otevírací cenou."
+    if "bearish" in low and share <= 0.4:
+        return "Čekané otevření: pokračování dolů. Sleduj, jestli Nasdaq po otevření drží pod otevírací cenou."
+    return "Futures a akcie spolu úplně nesouhlasí, takže otevření je nejisté. Počkej na první reakci trhu."
+
+
+WIDGETS = """<div id="tv"></div><script>
+const dark = true;
+[["technical-analysis", {symbol: "CME_MINI:NQ1!", interval: "15m", height: 420, showIntervalTabs: true, displayMode: "single"}, "Technický signál pro NQ (nákup nebo prodej)"],
+ ["stock-heatmap", {exchanges: [], dataSource: "NASDAQ100", grouping: "sector", blockSize: "market_cap_basic", blockColor: "change", hasTopBar: false, isZoomEnabled: true, hasSymbolTooltip: true, height: 480}, "Mapa akcií Nasdaq 100 (zelená roste, červená klesá)"],
+ ["timeline", {feedMode: "market", market: "stock", displayMode: "regular", height: 480}, "Aktuální zprávy"]
+].forEach(([name, cfg, title]) => {
+  const sec = document.createElement("section");
+  sec.innerHTML = "<h2></h2><div class='tradingview-widget-container'></div>";
+  sec.querySelector("h2").textContent = title;
+  const sc = document.createElement("script");
+  sc.src = "https://s3.tradingview.com/external-embedding/embed-widget-" + name + ".js";
+  sc.async = true;
+  sc.text = JSON.stringify({colorTheme: dark ? "dark" : "light", width: "100%", locale: "cs", isTransparent: false, ...cfg});
+  sec.lastChild.appendChild(sc);
+  document.getElementById("tv").appendChild(sec);
+});
+</script><p class="empty">Rámečky výše poskytuje TradingView. Pokud se nenačtou, zkontroluj, jestli je neblokuje doplněk prohlížeče.</p>"""
+
+
+def gauge(avg):
+    ang = max(-1.0, min(1.0, (avg or 0) / 1.5)) * 80
+    return ('<svg class="gauge" viewBox="0 0 200 110" role="img" aria-label="Ukazatel nálady trhu"><defs><linearGradient id="gg">'
+            '<stop offset="0" stop-color="#FF6B8A"/><stop offset=".5" stop-color="#C9D1E8"/><stop offset="1" stop-color="#2EE6A6"/></linearGradient></defs>'
+            '<path d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke="url(#gg)" stroke-width="14" stroke-linecap="round"/>'
+            f'<g transform="rotate({ang:.1f} 100 100)"><line x1="100" y1="100" x2="100" y2="34" stroke="#EEF1FA" stroke-width="3" stroke-linecap="round"/></g>'
+            '<circle cx="100" cy="100" r="6" fill="#EEF1FA"/></svg>')
+
+
+def nq_candles():
+    import pandas as pd
+    try:
+        d = yf.download("NQ=F", period="5d", interval="5m", progress=False)
+        if isinstance(d.columns, pd.MultiIndex):
+            d.columns = d.columns.get_level_values(0)
+        d = d[["Open", "High", "Low", "Close"]].dropna()
+    except Exception as e:
+        print("Svíčky se nepodařilo stáhnout:", e)
+        return None
+    if len(d) < 20:
+        return None
+    last = d.index[-1]
+    plan = (("c24", 24, "5min", "5 minut"), ("c72", 72, "15min", "15 minut"), ("c0", None, "60min", "1 hodina"))
+    out = {}
+    for key, hours, rule, tf in plan:
+        part = d if hours is None else d[d.index > last - pd.Timedelta(hours=hours)]
+        r = part.resample(rule, label="left").agg({"Open": "first", "High": "max", "Low": "min", "Close": "last"}).dropna()
+        out[key] = {"tf": tf, "d": [[int(t.timestamp() * 1000), round(float(v[0]), 2), round(float(v[1]), 2), round(float(v[2]), 2), round(float(v[3]), 2)] for t, v in zip(r.index, r.values)]}
+    return out
+
+
+def nq_series():
+    try:
+        d = yf.download("NQ=F", period="5d", interval="1h", progress=False)["Close"].squeeze().dropna()
+        return {"l": [t.tz_convert("Europe/Prague").strftime("%-d.%-m. %H:%M") for t in d.index],
+                "v": [round(float(x), 2) for x in d]}
+    except Exception as e:
+        print("Graf futures se nepodařilo stáhnout:", e)
+        return None
+
+
+
+
+CSS = """
+:root{--bg:#EEF2F5;--ink:#14202B;--muted:#5B6B79;--rule:#D3DCE3;--up:#0B7A6B;--down:#B3303C;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#0F1A22;--ink:#E6EDF2;--muted:#93A4B2;--rule:#243442;--up:#3CC4AE;--down:#F0707B;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "IBM Plex Sans",system-ui,sans-serif}
+main{max-width:880px;margin:0 auto;padding:32px 20px 64px}
+nav{display:flex;gap:20px;margin-bottom:40px}nav a{color:var(--muted);text-decoration:none;padding:4px 0}
+nav a[aria-current]{color:var(--ink);border-bottom:2px solid var(--ink)}
+.lede{font:400 clamp(30px,5.5vw,48px)/1.15 "Newsreader",Georgia,serif;margin:0 0 12px}
+.sub{color:var(--muted);margin:0 0 48px;max-width:56ch}
+h2{font-size:18px;font-weight:600;margin:0 0 12px}
+section{margin-bottom:44px}
+.wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+th,td{padding:11px 8px;border-bottom:1px solid var(--rule);text-align:left;font-weight:400;white-space:nowrap}
+thead th{color:var(--muted);font-size:14px}tbody th{font-weight:500}
+.n{text-align:right}.chg{font-weight:600}.up{color:var(--up)}.down{color:var(--down)}
+.empty{color:var(--muted)}
+footer{color:var(--muted);font-size:14px;max-width:62ch}footer a,section a{color:inherit}
+a:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+"""
+FONTS = ('<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?'
+         'family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">')
+
+
+def quote_table(title, rows, empty):
+    if not rows:
+        return f'<section><h2>{title}</h2><p class="empty">{empty}</p></section>'
+    body = "".join(
+        f'<tr><th scope="row">{escape(r["name"])}</th><td class="n">{num(r["last"])}</td>'
+        f'<td class="n chg {tone(r["chg"])}">{pc(r["chg"])}</td></tr>' for r in rows)
+    return (f'<section><h2>{title}</h2><div class="wrap"><table><thead><tr><th scope="col">Název</th>'
+            f'<th class="n" scope="col">Cena</th><th class="n" scope="col">Změna</th></tr></thead>'
+            f'<tbody>{body}</tbody></table></div></section>')
+
+
+def cal_section(cal):
+    t = "Dnešní zprávy z USA (Forex Factory)"
+    if cal is None:
+        return f'<section><h2>{t}</h2><p class="empty">Kalendář se dnes nepodařilo stáhnout. Otevři <a href="https://www.forexfactory.com/calendar">Forex Factory</a>.</p></section>'
+    if not cal:
+        return f'<section><h2>{t}</h2><p class="empty">Dnes nejsou žádné důležité zprávy pro USD.</p></section>'
+    body = "".join(
+        f'<tr><td>{e["time"]}</td><th scope="row">{escape(e["title"])}</th><td>{e["impact"]}</td>'
+        f'<td class="n">{escape(e["forecast"])}</td><td class="n">{escape(e["previous"])}</td></tr>' for e in cal)
+    return (f'<section><h2>{t}</h2><div class="wrap"><table><thead><tr><th scope="col">Čas</th><th scope="col">Událost</th>'
+            f'<th scope="col">Dopad</th><th class="n" scope="col">Předpověď</th><th class="n" scope="col">Minule</th>'
+            f'</tr></thead><tbody>{body}</tbody></table></div></section>')
+
+
+def _get(url, headers, body=None):
+    req = urllib.request.Request(url, data=body, headers=headers)
+    with urllib.request.urlopen(req, timeout=40) as r:
+        return json.load(r)
+
+
+NAV = [("index.html", "🏠", "Přehled", "Ranní souhrn trhu v kostce"),
+       ("zpravy.html", "🗞️", "Zprávy", "Všechny titulky a puls trhu"),
+       ("premarket.html", "🌅", "Pre-market akcí", "Největší akcie před otevřením burzy"),
+       ("fundament.html", "📰", "Fundament", "Čísla z trhu, hodnocení oblastí a zprávy"),
+       ("predikce.html", "🔮", "Predikce zpráv", "Co se stane, když zpráva vyjde lépe nebo hůř"),
+       ("kalendar.html", "📅", "Kalendář", "Důležité zprávy z USA na celý týden"),
+       ("sentiment.html", "💬", "Sentiment", "Nálada ve zprávách za posledních 24 hodin"),
+       ("bias.html", "🧭", "Bias", "Směr dne podle dat a RSI"),
+       ("tyden.html", "🗓️", "Týdenní výhled", "Co čekat od celého týdne"),
+       ("presnost.html", "🎯", "Přesnost biasu", "Jak často měl bias pravdu"),
+       ("statistiky.html", "📊", "Statistiky trhu", "Dny v týdnu, gapy, VIX, dluhopisy, dolar a první půlhodina"),
+       ("seance.html", "⏱️", "Rozsahy a seance", "Kolik bodů se trh hýbe, nejživější hodiny, noc a první hodina"),
+       ("mezitrhy.html", "🌐", "Souvislosti trhů", "Nasdaq proti S&P 500, Russellu, polovodičům, zlatu, ropě a bitcoinu"),
+       ("ritual.html", "🔔", "Pre-session rituál", "Příprava před 15. hodinou: klid, zprávy a plán"),
+       ("mentor.html", "🧑‍🏫", "Plán od mentora", "Fotka nebo video od mentora, jeho zóny a jak mu vycházejí"),
+       ("evening.html", "🌙", "Uzavření dne", "Tři otázky a já dnes versus já včera"),
+       ("trpelivost.html", "⏳", "Trpělivost", "Trénink čekání: den bez obchodu je výhra"),
+       ("mindset.html", "🧘", "Mindset", "Klid, meditace a trpělivost před obchodováním"),
+       ("plan.html", "📝", "Plán dne", "Pravidla trpělivosti, limity a kalkulačka"),
+       ("journal.html", "📓", "Deník obchodů", "Tvoje obchody, statistiky a rozbor"),
+       ("robot.html", "🤖", "Robot (TradingView)", "Tvoje strategie z TradingView: obchody, výsledky a co se robot naučil"),
+       ("backtest.html", "🧪", "Backtest deník", "Obchody z minulosti, na kterých se učíš"),
+       ("knihy.html", "📚", "Knihy o tradingu", "Hlavní myšlenky slavných knih o tradingu a psychologii"),
+       ("ai.html", "💬", "AI asistent", "Zeptej se na cokoliv o webu, dnešních datech i tradingu"),
+       ("roadmap.html", "🛣️", "Roadmap", "Tvoje cesta k disciplinovanému obchodování"),
+       ("prirucka.html", "📘", "Příručka", "Slovníček a postup krok za krokem"),
+       ("nastaveni.html", "⚙️", "Nastavení", "Účet, riziko a výchozí hodnoty")]
+
+
+NAVG = [("Dnes", ["index.html"]),
+        ("Zprávy a fundament", ["zpravy.html", "sentiment.html", "kalendar.html", "predikce.html", "fundament.html"]),
+        ("Analýza", ["premarket.html", "bias.html", "tyden.html"]),
+        ("Statistiky", ["presnost.html", "statistiky.html", "seance.html", "mezitrhy.html"]),
+        ("Příprava", ["ritual.html", "mentor.html", "trpelivost.html", "mindset.html", "plan.html"]), ("Obchodování", ["journal.html", "backtest.html", "robot.html"]), ("Uzavření dne", ["evening.html"]), ("Knihy", ["knihy.html"]), ("Učení a nastavení", ["ai.html", "roadmap.html", "prirucka.html", "nastaveni.html"])]
+
+SIDE_JS = """(function(){var el=document.getElementById("mk"),sub=document.getElementById("mks");if(!el)return;
+var H=window.TDhol||{info:function(){return{}},iso:function(t){return t.toISOString().slice(0,10)}};
+var pad=function(n){return String(n).padStart(2,"0")};
+function nyNow(){var o={};new Intl.DateTimeFormat("en-US",{timeZone:"America/New_York",hour12:false,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit"}).formatToParts(new Date()).forEach(function(x){o[x.type]=x.value});return{y:+o.year,m:+o.month,d:+o.day,s:(+o.hour%24)*3600+(+o.minute)*60+(+o.second)}}
+function day(t){var w=t.getUTCDay(),i=H.info(H.iso(t))||{},wk=w>0&&w<6;return{open:wk&&!i.closed,wk:wk,closed:!!i.closed,early:!!i.early,name:i.name}}
+function tick(){var n=nyNow(),date=new Date(Date.UTC(n.y,n.m-1,n.d)),t=day(date),open=34200,close=t.early?46800:57600,left,txt;
+if(t.open&&n.s>=open&&n.s<close){left=close-n.s;txt=t.early?"Zkrácená seance, zavře za":"Burza je otevřená, zavře za"}
+else{var d=(t.open&&n.s<open)?0:1;while(!day(new Date(+date+d*86400000)).open)d++;left=d*86400+open-n.s;txt=(t.wk&&t.closed)?"Dnes je svátek, burza otevře za":"Burza otevře za"}
+el.textContent=pad(Math.floor(left/3600))+":"+pad(Math.floor(left%3600/60))+":"+pad(left%60);sub.textContent=txt}
+tick();setInterval(tick,1000)})();"""
+
+
+HOL_JS = r"""(function(){
+var NAMES={ny:"Nový rok",mlk:"Den Martina Luthera Kinga",pres:"Den prezidentů",gf:"Velký pátek",mem:"Memorial Day",jun:"Juneteenth",ind:"Den nezávislosti",lab:"Labor Day",thx:"Díkuvzdání",xmas:"Vánoce"};
+var DAYS=["neděle","pondělí","úterý","středa","čtvrtek","pátek","sobota"];
+function U(y,m,d){return new Date(Date.UTC(y,m,d))}
+function iso(t){return t.toISOString().slice(0,10)}
+function nth(y,m,wd,n){var off=(wd-U(y,m,1).getUTCDay()+7)%7;return U(y,m,1+off+7*(n-1))}
+function lastd(y,m,wd){var e=U(y,m+1,0),off=(e.getUTCDay()-wd+7)%7;return U(y,m,e.getUTCDate()-off)}
+function easter(y){var a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),mo=Math.floor((h+l-7*m+114)/31),da=((h+l-7*m+114)%31)+1;return U(y,mo-1,da)}
+function obs(y,m,d,key){var t=U(y,m,d),w=t.getUTCDay();if(w===6){if(key==="ny")return null;return new Date(+t-864e5)}if(w===0)return new Date(+t+864e5);return t}
+var MAP={};
+function build(y){
+  var add=function(t,k,closed){if(t)MAP[iso(t)]={closed:closed,early:!closed,name:NAMES[k]||k,key:k}};
+  add(obs(y,0,1,"ny"),"ny",true);add(nth(y,0,1,3),"mlk",true);add(nth(y,1,1,3),"pres",true);
+  add(new Date(+easter(y)-2*864e5),"gf",true);add(lastd(y,4,1),"mem",true);
+  if(y>=2022)add(obs(y,5,19,"jun"),"jun",true);add(obs(y,6,4,"ind"),"ind",true);add(nth(y,8,1,1),"lab",true);
+  var th=nth(y,10,4,4);add(th,"thx",true);
+  add(obs(y,11,25,"xmas"),"xmas",true);
+  var fr=new Date(+th+864e5);MAP[iso(fr)]={closed:false,early:true,name:"Den po Díkuvzdání (zkrácená seance)",key:"thx2"};
+  var j3=U(y,6,3),jw=j3.getUTCDay();if(jw>=1&&jw<=4&&!MAP[iso(j3)])MAP[iso(j3)]={closed:false,early:true,name:"Den před Dnem nezávislosti (zkrácená seance)",key:"ind2"};
+  var d24=U(y,11,24),dw=d24.getUTCDay();if(dw>=1&&dw<=4&&!MAP[iso(d24)])MAP[iso(d24)]={closed:false,early:true,name:"Štědrý den (zkrácená seance)",key:"xmas2"};
+}
+function ensure(y){if(!MAP["y"+y]){build(y);MAP["y"+y]=1}}
+function info(s){ensure(+s.slice(0,4));return MAP[s]||{closed:false,early:false}}
+function isOpenDay(t){var w=t.getUTCDay();return w>0&&w<6&&!info(iso(t)).closed}
+function earlyTime(s){
+  var tz=function(h,z){return new Intl.DateTimeFormat("cs-CZ",{timeZone:z,hour:"2-digit",minute:"2-digit",hour12:false}).format(h)};
+  var p=s.split("-"),c=[17,18];
+  for(var i=0;i<2;i++){var d=new Date(Date.UTC(+p[0],+p[1]-1,+p[2],c[i],0));if(parseInt(tz(d,"America/New_York"),10)===13)return tz(d,"Europe/Prague")}
+  return "19:00"}
+function fmt(s){var p=s.split("-"),t=U(+p[0],+p[1]-1,+p[2]);return DAYS[t.getUTCDay()]+" "+(+p[2])+". "+(+p[1])+"."}
+function localToday(){var d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,10)}
+window.TDhol={info:info,isOpenDay:isOpenDay,iso:iso};
+function ls(k){try{return localStorage.getItem(k)}catch(e){return null}}
+function lset(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+function run(){
+  var tds=localToday(),tp=tds.split("-"),today=U(+tp[0],+tp[1]-1,+tp[2]);
+  var mon=new Date(+today-((today.getUTCDay()+6)%7)*864e5),M=iso(mon),msgs=[];
+  for(var k=0;k<=8;k++){
+    var d=new Date(+today+k*864e5),s=iso(d),i=info(s),w=d.getUTCDay();
+    if(!(i.closed||i.early)||w===0||w===6)continue;
+    var prev=new Date(+d-864e5);while(!isOpenDay(prev))prev=new Date(+prev-864e5);
+    var inWeek=(+d>=+mon&&+d<=+mon+4*864e5),fw=inWeek&&!ls("holw:"+M+":"+s),fb=(+today>=+prev&&+today<+d&&!ls("holb:"+s));
+    if(!fw&&!fb)continue;
+    var when=(s===tds)?"Dnes":fmt(s);
+    var txt=i.closed?"<b>"+when+": burza je zavřená</b> ("+i.name+"). Nebude se obchodovat."
+      :"<b>"+when+": zkrácená seance.</b> "+i.name+". Burza zavírá ve 13:00 New York, tedy v "+earlyTime(s)+" pražského času.";
+    msgs.push({s:s,fw:fw,fb:fb,txt:txt,M:M})
+  }
+  if(!msgs.length)return;
+  var ov=document.createElement("div");ov.className="holov";
+  ov.innerHTML="<div class=\"holpop\" role=\"dialog\" aria-modal=\"true\"><h3>Pozor, svátek na burze</h3>"+msgs.map(function(m){return "<p>"+m.txt+"</p>"}).join("")+"<p class=\"holnote\">V takový den neobchoduj z nutkání. Využij ho na klid a přípravu.</p><button type=\"button\" id=\"holok\">Rozumím</button></div>";
+  document.body.appendChild(ov);
+  msgs.forEach(function(m){if(m.fw)lset("holw:"+m.M+":"+m.s,"1");if(m.fb)lset("holb:"+m.s,"1")});
+  var close=function(){ov.remove()};
+  document.getElementById("holok").onclick=close;ov.addEventListener("click",function(e){if(e.target===ov)close()})
+}
+window.TDholRun=run;
+if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",run);else run();
+})();
+"""
+
+
+DSC = ('<nav class="dscn"><p class="grp">Komunita</p><a id="dsc" href="https://discord.com/app" target="_blank" rel="noopener noreferrer"><span>🎮</span>Discord</a></nav>'
+       '<script>(function(){try{var u=localStorage.getItem("discordUrl");if(u&&/^https:\\/\\/(discord\\.gg|discord\\.com|discordapp\\.com)\\//.test(u))document.getElementById("dsc").href=u}catch(e){}})();</script>')
+
+
+LANG_JS = r"""(function(){
+var L=[["cs","🇨🇿","Čeština","Czech"],["sk","🇸🇰","Slovenčina","Slovak"],["en","🇬🇧","English","English"],["de","🇩🇪","Deutsch","German"],["es","🇪🇸","Español","Spanish"],["it","🇮🇹","Italiano","Italian"],["fr","🇫🇷","Français","French"],["pt","🇵🇹","Português","Portuguese"],["zh-CN","🇨🇳","中文","Chinese (Mandarin)"]];
+var D=document,btn=D.getElementById("langbtn"),menu=D.getElementById("langmenu");if(!btn||!menu)return;
+var cur="cs";try{cur=localStorage.getItem("lang")||"cs"}catch(e){}
+if(!L.some(function(x){return x[0]===cur}))cur="cs";
+function cookie(v){var h=location.hostname,p=v?"/cs/"+v:"";D.cookie="googtrans="+p+";path=/"+(v?"":";expires=Thu, 01 Jan 1970 00:00:00 GMT");D.cookie="googtrans="+p+";path=/;domain="+h+(v?"":";expires=Thu, 01 Jan 1970 00:00:00 GMT")}
+function lab(){var x=L.filter(function(y){return y[0]===cur})[0];btn.innerHTML="<span>🌐</span>"+x[1]+" "+x[2]+" ▾";btn.setAttribute("translate","no")}
+menu.setAttribute("translate","no");
+menu.innerHTML=L.map(function(x){return '<button type="button" data-l="'+x[0]+'"'+(x[0]===cur?' class="on"':'')+'><span>'+x[1]+'</span><span>'+x[2]+' <small>'+(x[2]===x[3]?"":x[3])+'</small></span></button>'}).join("");
+lab();
+D.body.appendChild(menu);
+btn.onclick=function(e){e.stopPropagation();if(menu.hidden){var r=btn.getBoundingClientRect();menu.style.left=Math.max(8,r.left)+"px";menu.style.bottom=Math.max(8,innerHeight-r.top+8)+"px";menu.style.maxHeight=Math.max(200,r.top-24)+"px";menu.hidden=false}else menu.hidden=true};
+D.addEventListener("click",function(e){if(!menu.hidden&&!e.target.closest("#langmenu"))menu.hidden=true});
+D.addEventListener("keydown",function(e){if(e.key==="Escape")menu.hidden=true});
+menu.onclick=function(e){var b=e.target.closest("button[data-l]");if(!b)return;var v=b.dataset.l;if(v===cur){menu.hidden=true;return}
+  try{localStorage.setItem("lang",v)}catch(x){}cookie(v==="cs"?"":v);location.reload()};
+/* data, která se nesmí přeložit: výběry, možnosti a pole */
+function nt(r){(r||D).querySelectorAll("select,option,textarea,input,.nt").forEach(function(e){e.setAttribute("translate","no")})}
+nt();new MutationObserver(function(){nt()}).observe(D.documentElement,{childList:true,subtree:true});
+if(cur!=="cs"){cookie(cur);
+  var g=D.createElement("div");g.id="gte";g.style.cssText="position:absolute;left:-9999px;top:0";D.body.appendChild(g);
+  window.gtInit=function(){try{new google.translate.TranslateElement({pageLanguage:"cs",includedLanguages:"sk,en,de,es,it,fr,pt,zh-CN",autoDisplay:false},"gte")}catch(e){}};
+  var sc=D.createElement("script");sc.src="https://translate.google.com/translate_a/element.js?cb=gtInit";sc.async=true;sc.onerror=function(){};D.head.appendChild(sc);
+  D.documentElement.setAttribute("lang",cur.slice(0,2))}
+})();
+"""
+
+
+def sidebar(active):
+    meta = {h: (i, t) for h, i, t, _ in NAV}
+    out = ""
+    for g, hs in NAVG:
+        out += f'<p class="grp">{g}</p>'
+        for h in hs:
+            i, t = meta[h]
+            cur = ' aria-current="page"' if h == active else ""
+            out += f'<a href="{h}"{cur}><span>{i}</span>{t}</a>'
+    clock = '<div class="clock"><span id="mks">Burza</span><b id="mk">–</b><span>podle času v New Yorku</span></div>'
+    return f'<aside class="side"><div class="brand">Kompas klidu<small>Trénink trpělivosti a ovládnutí sebe sama</small><small class="mot">Všechno ostatní si mě ve správný moment najde. Na nic netlačím, trh nezajímá, co chci. Nebojuju s ním a jen čekám na to, kde jsem silný.</small></div>{clock}<nav>{out}</nav>{DSC}<button type="button" class="themebtn" id="themebtn"></button><button type="button" class="themebtn langbtn" id="langbtn" aria-haspopup="true"></button><div class="langmenu" id="langmenu" hidden></div></aside><script>{HOL_JS}</script><script>{SIDE_JS}{SCROLL_JS}</script><script>{COMMON_JS}</script><script>{LANG_JS}</script>'
+
+
+HINTS = {
+    "Z čeho se skóre skládá (od −2 do +2)": "Každý řádek je jeden ukazatel. Zelená svědčí pro růst, červená pro pokles. Najeď myší pro vysvětlení.",
+    "Nasdaq futures": "Přepínáš mezi liniovým a svíčkovým grafem. Svíčka ukazuje otevření, maximum, minimum a zavření za krátký úsek: u dne po 5 minutách, u 3 dnů po 15 minutách, u 5 dní po hodině. Zelená roste, červená klesá.",
+    "Tvůj ranní postup": "Projdi kroky odshora dolů. Zabere to asi 20 minut a budeš připravený.",
+    "Kolik akcií roste": "Zelená je část akcií v plusu, červená v minusu.",
+    "Změna podle akcie (najeď myší)": "Klikni na sloupec a otevře se graf akcie na TradingView.",
+    "Sezónnost Nasdaq 100: průměr podle měsíců": "Průměrná změna Nasdaq 100 v každém měsíci za posledních 14 let. Zvýrazněný je letošní měsíc.",
+    "Nejbližší důležité zprávy z USA (červené a oranžové)": "Červená znamená velký dopad na trh, oranžová střední. Před takovou zprávou bývá lepší počkat.",
+    "Změna za poslední den (najeď myší)": "U VIXu, dolaru a výnosů je růst pro akcie špatný, a proto je zbarvený obráceně.",
+    "Nálada podle zdroje (najeď myší)": "Každý sloupec je jeden zdroj zpráv. Nad nulou převažují pozitivní titulky, pod nulou negativní.",
+    "Dnešní limity (živě z tvého deníku)": "Čísla se berou z tvého deníku obchodů a obnovují se sama.",
+    "Checklist před obchodováním": "Zaškrtni, co máš hotové. Pokud něco chybí, nejdřív to dodělej.",
+    "Výsledky firem (earnings) u tvých akcií v příštích 3 týdnech": "Kolem výsledků firem bývají velké pohyby, proto je dobré o nich vědět předem.",
+}
+
+
+def add_hints(body):
+    for title, text in HINTS.items():
+        for tag in (f"<h2>{title}</h2>",):
+            if tag in body:
+                body = body.replace(tag, tag + f'<p class="hint">{text}</p>', 1)
+    return body
+
+
+HX = '<script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}window.TDux=function(){try{var u=JSON.parse(localStorage.getItem("ux")||"{}"),c="",F={sys:"-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif",read:"Atkinson Hyperlegible,Verdana,sans-serif",serif:"Newsreader,Georgia,serif",round:"Nunito,Arial Rounded MT Bold,sans-serif",mono:"JetBrains Mono,Menlo,Consolas,monospace"},G={read:"Atkinson+Hyperlegible:wght@400;700",round:"Nunito:wght@400;600;700;800",mono:"JetBrains+Mono:wght@400;600;700"};if(F[u.f]){c+="body,body *{font-family:"+F[u.f]+"!important}";if(G[u.f]&&!document.getElementById("uxf-"+u.f)){var l=document.createElement("link");l.id="uxf-"+u.f;l.rel="stylesheet";l.href="https://fonts.googleapis.com/css2?family="+G[u.f]+"&display=swap";document.head.appendChild(l)}}if(u.z&&u.z!=1)c+="html{zoom:"+u.z+"}";var A={blue:["#38BDF8","#6366F1"],green:["#2EE6A6","#0EA5E9"],orange:["#FFB547","#FF6B8A"],pink:["#F472B6","#8B7CFF"],gold:["#E8C26A","#B9812C"],red:["#FF6B8A","#B91C1C"]};if(A[u.a])c+=":root{--acc:"+A[u.a][0]+"!important}button{background-image:linear-gradient(135deg,"+A[u.a][0]+","+A[u.a][1]+")}h2::before,.side a.on,.side a[aria-current]{border-color:"+A[u.a][0]+"!important}";if(u.bg===0)c+="body::before,body::after{background-image:none!important;opacity:0!important}";if(u.an===0)c+="*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}";if(u.lh)c+="p,li,td,.hint,.facts li{line-height:1.8!important}";if(u.b)c+="body{font-weight:500}b,strong,h1,h2,h3{font-weight:800!important}";var s=document.getElementById("uxs")||document.createElement("style");s.id="uxs";s.textContent=c;document.head.appendChild(s)}catch(e){}};TDux();document.addEventListener("DOMContentLoaded",TDux);</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu">'
+
+
+def shell(active, body, data, extra_js=""):
+    title, subtitle = next((t, s) for h, i, t, s in NAV if h == active)
+    now = datetime.now(PRAGUE).strftime("%-d. %-m. %Y v %H:%M")
+    dj = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
+    return f"""<!doctype html><html lang="cs"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>{title}</title>{FONTS}<link rel="stylesheet" href="style.css?v=89">{HX}
+<script src="tips.js" defer></script><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script></head>
+<body class="bg-{BG.get(active, 'chart')}"><div class="app">{sidebar(active)}<div class="content"><header class="pagehead"><h1>{title}</h1><p>{subtitle}</p></header>
+<main>{add_hints(body)}<footer><p>Vygenerováno {now} (verze 89). Data: Yahoo Finance, Forex Factory a TradingView, mohou mít zpoždění.</p></footer></main></div></div>
+<script>const DATA={dj};</script><script>{CHARTS_JS}{extra_js}</script></body></html>"""
+
+
+CHARTS_JS = """
+const $ = id => document.getElementById(id);
+const LIGHT = document.documentElement.getAttribute("data-theme") === "light"; Chart.defaults.color = LIGHT ? "#3B4668" : "#C9D1E8"; Chart.defaults.borderColor = LIGHT ? "rgba(20,30,70,.12)" : "rgba(255,255,255,.07)"; Chart.defaults.font.family = '"IBM Plex Sans",system-ui,sans-serif';
+const grad = x => { const g = x.chart.ctx.createLinearGradient(0, 0, 0, x.chart.height); g.addColorStop(0, "rgba(139,124,255,.35)"); g.addColorStop(1, "rgba(139,124,255,0)"); return g; };
+const stagger = {delay: c => c.dataIndex * 45};
+Chart.register({id: "cross", afterDraw(c) { if (c.config.type === "line" && c.tooltip && c.tooltip._active && c.tooltip._active.length) { const x = c.tooltip._active[0].element.x, a = c.chartArea, g = c.ctx; g.save(); g.beginPath(); g.moveTo(x, a.top); g.lineTo(x, a.bottom); g.lineWidth = 1; g.strokeStyle = "rgba(255,255,255,.28)"; g.setLineDash([4, 4]); g.stroke(); g.restore(); } }});
+if (window.Chart && DATA.nq && $("c-nq")) {
+  const full = DATA.nq;
+  const nq = new Chart($("c-nq"), {type: "line", data: {labels: full.l.slice(-24), datasets: [{data: full.v.slice(-24), borderColor: "#8B7CFF", borderWidth: 2.5, tension: .3, fill: true,
+    pointRadius: 0, pointHoverRadius: 7, pointHoverBackgroundColor: "#fff", backgroundColor: grad,
+    segment: {borderColor: c => c.p1.parsed.y >= c.p0.parsed.y ? "#2EE6A6" : "#FF6B8A"}}]},
+    options: {maintainAspectRatio: false, interaction: {mode: "index", intersect: false}, plugins: {legend: {display: false}, tooltip: {callbacks: {afterLabel: c => { const d = c.chart.data.datasets[0].data, ch = (c.parsed.y / d[0] - 1) * 100; return "Od začátku grafu: " + (ch >= 0 ? "+" : "") + ch.toFixed(2) + " %"; }}}},
+      scales: {x: {ticks: {maxTicksLimit: 6}, grid: {display: false}}, y: {ticks: {callback: v => v.toLocaleString("cs-CZ")}}}}});
+  document.querySelectorAll("[data-r]").forEach(b => b.onclick = () => { const n = +b.dataset.r;
+    nq.data.labels = n ? full.l.slice(-n) : full.l; nq.data.datasets[0].data = n ? full.v.slice(-n) : full.v; nq.update();
+    document.querySelectorAll("[data-r]").forEach(x => x.classList.toggle("pill-off", x !== b)); });
+}
+(function () {
+  const cv = $("c-nqc"), line = $("c-nq"), ty = $("nqtype"); if (!cv || !line || !ty) return;
+  const SETS = DATA.nqc || null;
+  let rng = "24", mode = (function () { try { return localStorage.getItem("nqmode"); } catch (e) { return null; } })() === "candle" ? "candle" : "line", hov = -1, arr = [];
+  const LIGHT = () => document.documentElement.getAttribute("data-theme") === "light";
+  const fmtT = t => new Intl.DateTimeFormat("cs-CZ", {timeZone: "Europe/Prague", day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit"}).format(new Date(t));
+  const fmtN = v => v.toLocaleString("cs-CZ", {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  const PL = 58, PR = 10, PT = 10, PB = 26;
+  function pick() { const s = SETS && SETS["c" + rng]; arr = s ? s.d : []; $("nqtf").textContent = s ? "Jedna svíčka = " + s.tf + ". Zelená roste, červená klesá. Najeď myší a uvidíš otevření, maximum, minimum a zavření." : "Svíčkový graf se nepodařilo stáhnout. Zkus to při dalším obnovení."; }
+  function draw() {
+    if (mode !== "candle") return;
+    const box = cv.parentElement, W = box.clientWidth, H = box.clientHeight, r = window.devicePixelRatio || 1;
+    cv.width = W * r; cv.height = H * r; cv.style.width = W + "px"; cv.style.height = H + "px";
+    const g = cv.getContext("2d"); g.setTransform(r, 0, 0, r, 0, 0); g.clearRect(0, 0, W, H);
+    const L = LIGHT(), txt = L ? "#3B4668" : "#C9D1E8", grid = L ? "rgba(20,30,70,.12)" : "rgba(255,255,255,.07)", up = L ? "#0A8F63" : "#2EE6A6", dn = L ? "#D02A52" : "#FF6B8A";
+    g.font = "12px system-ui, sans-serif"; g.lineWidth = 1;
+    if (!arr.length) { g.fillStyle = txt; g.fillText("Žádná data", 20, 30); return; }
+    const pw = W - PL - PR, ph = H - PT - PB;
+    let lo = Math.min(...arr.map(x => x[3])), hi = Math.max(...arr.map(x => x[2])); const m = (hi - lo) * 0.05 || 1; lo -= m; hi += m;
+    const y = v => PT + (hi - v) / (hi - lo) * ph, step = pw / arr.length, bw = Math.max(2, Math.min(18, step * 0.78));
+    g.strokeStyle = grid; g.fillStyle = txt; g.textAlign = "right";
+    for (let i = 0; i <= 5; i++) { const v = lo + (hi - lo) * i / 5, yy = y(v); g.beginPath(); g.moveTo(PL, yy); g.lineTo(W - PR, yy); g.stroke(); g.fillText(Math.round(v).toLocaleString("cs-CZ"), PL - 6, yy + 4); }
+    g.textAlign = "center"; const nt = W < 500 ? 3 : 6;
+    for (let i = 0; i < nt; i++) { const k = Math.min(arr.length - 1, Math.round((arr.length - 1) * i / (nt - 1))); g.fillText(fmtT(arr[k][0]), Math.min(W - 40, Math.max(PL + 30, PL + step * (k + 0.5))), H - 8); }
+    arr.forEach((c, i) => { const x = PL + step * (i + 0.5), col = c[4] >= c[1] ? up : dn;
+      g.strokeStyle = col; g.fillStyle = col; g.beginPath(); g.moveTo(x, y(c[2])); g.lineTo(x, y(c[3])); g.stroke();
+      g.fillRect(x - bw / 2, y(Math.max(c[1], c[4])), bw, Math.max(1, Math.abs(y(c[1]) - y(c[4])))); });
+    if (hov >= 0 && hov < arr.length) { const c = arr[hov], x = PL + step * (hov + 0.5);
+      g.strokeStyle = L ? "rgba(20,30,70,.4)" : "rgba(255,255,255,.35)"; g.setLineDash([4, 4]); g.beginPath(); g.moveTo(x, PT); g.lineTo(x, PT + ph); g.stroke(); g.setLineDash([]);
+      const ch = (c[4] / c[1] - 1) * 100, lines = [fmtT(c[0]), "Otevření " + fmtN(c[1]), "Max " + fmtN(c[2]), "Min " + fmtN(c[3]), "Zavření " + fmtN(c[4]) + " (" + (ch >= 0 ? "+" : "") + ch.toFixed(2).replace(".", ",") + " %)"];
+      const bwid = 210, bh = lines.length * 18 + 12, bx = x + 14 + bwid > W ? x - bwid - 14 : x + 14, by = PT + 8;
+      g.fillStyle = L ? "#fff" : "#0C1124"; g.strokeStyle = "#8B7CFF"; g.beginPath(); g.rect(bx, by, bwid, bh); g.fill(); g.stroke();
+      g.textAlign = "left"; lines.forEach((t, i) => { g.fillStyle = i === 4 ? (c[4] >= c[1] ? up : dn) : (L ? "#161B33" : "#EEF1FA"); g.fillText(t, bx + 10, by + 20 + i * 18); }); }
+  }
+  const at = cx => { const rc = cv.getBoundingClientRect(), step = (rc.width - PL - PR) / (arr.length || 1), i = Math.floor((cx - rc.left - PL) / step); hov = i >= 0 && i < arr.length ? i : -1; draw(); };
+  cv.addEventListener("mousemove", e => at(e.clientX)); cv.addEventListener("mouseleave", () => { hov = -1; draw(); });
+  cv.addEventListener("touchstart", e => at(e.touches[0].clientX), {passive: true}); cv.addEventListener("touchmove", e => at(e.touches[0].clientX), {passive: true});
+  const apply = () => { const c = mode === "candle"; cv.parentElement.style.height = c ? (window.innerWidth < 600 ? "340px" : "430px") : ""; cv.style.display = c ? "block" : "none"; line.style.display = c ? "none" : ""; $("nqtf").style.display = c ? "" : "none";
+    const ch = window.Chart && Chart.getChart ? Chart.getChart(line) : null; if (ch && !c) ch.resize();
+    ty.querySelectorAll("button").forEach(b => b.classList.toggle("pill-off", b.dataset.ty !== mode)); if (c) { pick(); draw(); } };
+  ty.querySelectorAll("button").forEach(b => b.onclick = () => { mode = b.dataset.ty; try { localStorage.setItem("nqmode", mode); } catch (e) {} apply(); });
+  document.querySelectorAll("[data-r]").forEach(b => b.addEventListener("click", () => { rng = b.dataset.r; if (mode === "candle") { pick(); draw(); } }));
+  window.addEventListener("resize", draw); apply();
+})();
+if (window.Chart && DATA.sea && $("c-sea")) new Chart($("c-sea"), {type: "bar",
+  data: {labels: ["Led","Úno","Bře","Dub","Kvě","Čvn","Čvc","Srp","Zář","Říj","Lis","Pro"], datasets: [{data: DATA.sea.m,
+    backgroundColor: DATA.sea.m.map((v, i) => (v >= 0 ? "#2EE6A6" : "#FF6B8A") + (i === DATA.sea.cur ? "" : "99")),
+    borderColor: DATA.sea.m.map((v, i) => i === DATA.sea.cur ? "#FFFFFF" : "transparent"), borderWidth: 2, borderRadius: 8, hoverBackgroundColor: "#8B7CFF"}]},
+  options: {maintainAspectRatio: false, animation: stagger, plugins: {legend: {display: false}, tooltip: {callbacks: {label: c => "Průměr " + (c.parsed.y >= 0 ? "+" : "") + c.parsed.y.toFixed(2) + " %"}}},
+    scales: {y: {ticks: {callback: v => v + " %"}}, x: {grid: {display: false}}}}});
+if (window.Chart && DATA.pre && DATA.pre.length && $("c-pre")) new Chart($("c-pre"), {type: "bar",
+  data: {labels: DATA.pre.map(r => r.s), datasets: [{data: DATA.pre.map(r => r.c), backgroundColor: DATA.pre.map(r => r.c >= 0 ? "#2EE6A6" : "#FF6B8A"), borderRadius: 6, hoverBackgroundColor: "#8B7CFF"}]},
+  options: {onClick: (e, els) => { if (els.length) window.open("https://www.tradingview.com/chart/?symbol=" + DATA.pre[els[0].index].s, "_blank"); }, onHover: (e, els) => { e.native.target.style.cursor = els.length ? "pointer" : "default"; }, indexAxis: "y", maintainAspectRatio: false, animation: stagger, plugins: {legend: {display: false},
+    tooltip: {callbacks: {title: i => DATA.pre[i[0].dataIndex].n, label: c => (c.parsed.x >= 0 ? "+" : "") + c.parsed.x.toFixed(2) + " %"}}},
+    scales: {x: {ticks: {callback: v => v + " %"}}, y: {grid: {display: false}}}}});
+if (window.Chart && DATA.pre && DATA.pre.length && $("c-br")) { const up = DATA.pre.filter(r => r.c >= 0).length;
+  new Chart($("c-br"), {type: "doughnut", data: {labels: ["Rostou", "Klesají"], datasets: [{data: [up, DATA.pre.length - up], backgroundColor: ["#2EE6A6", "#FF6B8A"], borderWidth: 0, hoverOffset: 14}]},
+    options: {maintainAspectRatio: false, cutout: "68%", plugins: {legend: {position: "bottom"}}}}); }
+if (window.Chart && DATA.sent && $("c-s")) new Chart($("c-s"), {type: "bar",
+  data: {labels: DATA.sent.groups.map(g => g.name), datasets: [{data: DATA.sent.groups.map(g => g.score), borderRadius: 8, hoverBackgroundColor: "#8B7CFF",
+    backgroundColor: DATA.sent.groups.map(g => g.score > 0 ? "#2EE6A6" : g.score < 0 ? "#FF6B8A" : "#C9D1E8")}]},
+  options: {maintainAspectRatio: false, animation: stagger, plugins: {legend: {display: false}, tooltip: {callbacks: {
+    label: c => "Skóre " + c.parsed.y, afterLabel: c => DATA.sent.groups[c.dataIndex].bull + " pozitivních, " + DATA.sent.groups[c.dataIndex].bear + " negativních z " + DATA.sent.groups[c.dataIndex].n}}},
+    scales: {y: {min: -5, max: 5}, x: {grid: {display: false}, ticks: {maxRotation: 40}}}}});
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+if (window.Chart && DATA.mac && DATA.mac.length && $("c-mac")) new Chart($("c-mac"), {type: "bar",
+  data: {labels: DATA.mac.map(r => r.n), datasets: [{data: DATA.mac.map(r => r.c), borderRadius: 8, hoverBackgroundColor: "#8B7CFF",
+    backgroundColor: DATA.mac.map(r => (r.inv ? r.c <= 0 : r.c >= 0) ? "#2EE6A6" : "#FF6B8A")}]},
+  options: {indexAxis: "y", maintainAspectRatio: false, animation: stagger, plugins: {legend: {display: false},
+    tooltip: {callbacks: {label: c => (c.parsed.x >= 0 ? "+" : "") + c.parsed.x.toFixed(2) + " %" + (DATA.mac[c.dataIndex].inv ? " (růst je pro akcie špatný)" : "")}}},
+    scales: {x: {ticks: {callback: v => v + " %"}}, y: {grid: {display: false}}}}});
+if ($("cal-t") && DATA.cal) {
+  let imp = "", day = "", wk = ""; const dsel = $("cal-day"), wsel = $("cal-wk");
+  const fillDays = () => { const days = [...new Set(DATA.cal.filter(e => wk === "" || String(e.w) === wk).map(e => e.day))];
+    dsel.innerHTML = '<option value="">Všechny dny</option>' + days.map(d => `<option value="${d}">${DATA.cal.find(e => e.day === d).dn}</option>`).join(""); day = ""; };
+  fillDays(); wsel.onchange = () => { wk = wsel.value; fillDays(); draw(); };
+  const draw = () => { const rows = DATA.cal.filter(e => (!imp || e.impact === imp) && (!day || e.day === day) && (wk === "" || String(e.w) === wk));
+    $("cal-t").innerHTML = rows.length ? (DATA.cal.some(e => e.w === 1) ? "" : "<p class='hint'>Příští týden zatím Forex Factory nezveřejnil. Doplní se samo, hned jak ho zveřejní.</p>") + "<div class='wrap'><table><thead><tr><th>Den</th><th>Čas</th><th>Událost</th><th>Dopad</th><th class='n'>Předpověď</th><th class='n'>Minule</th></tr></thead><tbody>" +
+      rows.map(e => `<tr${e.ts < Date.now() ? ' style="opacity:.45"' : ""}><td>${e.dn}</td><td>${e.time}</td><th scope="row">${esc(e.title)}</th><td><span class="badge ${e.impact === "vysoký" ? "down" : "warn"}">${e.impact}</span></td><td class="n">${esc(e.forecast)}</td><td class="n">${esc(e.previous)}</td></tr>`).join("") + "</tbody></table></div>"
+      : '<p class="empty">Žádné zprávy podle filtru.</p>'; };
+  document.querySelectorAll("[data-i]").forEach(b => b.onclick = () => { imp = b.dataset.i; document.querySelectorAll("[data-i]").forEach(x => x.classList.toggle("pill-off", x !== b)); draw(); });
+  dsel.onchange = () => { day = dsel.value; draw(); };
+  const tick = () => { const n = DATA.cal.find(e => e.ts > Date.now() && e.impact === "vysoký") || DATA.cal.find(e => e.ts > Date.now());
+    if (!n) { $("cd").textContent = "–"; $("cdt").textContent = "Tento týden už žádná další zpráva."; return; }
+    let s = Math.floor((n.ts - Date.now()) / 1000); const d = Math.floor(s / 86400); s %= 86400;
+    $("cd").textContent = (d ? d + " d " : "") + [Math.floor(s / 3600), Math.floor(s % 3600 / 60), s % 60].map(x => String(x).padStart(2, "0")).join(":");
+    $("cdt").textContent = "Do zprávy: " + n.dn + " " + n.time + ", " + n.title; };
+  tick(); setInterval(tick, 1000); draw();
+}
+"""
+
+
+def tile(r):
+    mine = " mine" if r["sym"] in CONFIG.get("priority", []) else ""
+    a = min(0.18 + abs(r["chg"]) / 5 * 0.55, 0.75)
+    rgb = "46,230,166" if r["chg"] >= 0 else "255,107,138"
+    return (f'<a class="tile{mine}" target="_blank" rel="noopener" href="https://www.tradingview.com/chart/?symbol={escape(r["sym"])}" style="background:rgba({rgb},{a:.2f})"><b>{escape(r["sym"])}</b>'
+            f'<span>{escape(r["name"])}</span><em>{pc(r["chg"])}</em></a>')
+
+
+def badge(b):
+    b = str(b or "neutral").lower()
+    cls = "up" if b == "bullish" else "down" if b == "bearish" else "flat"
+    text = "Bullish" if b == "bullish" else "Bearish" if b == "bearish" else "Neutrální"
+    return f'<span class="badge {cls}">{text}</span>'
+
+
+def sgn(v):
+    try:
+        return f"{float(v):+.1f}".replace("-", "\u2212")
+    except (TypeError, ValueError):
+        return "0"
+
+
+DNY = ["Po", "Út", "St", "Čt", "Pá", "So", "Ne"]
+_FF = []
+
+
+def ff_items():
+    if not _FF:
+        items, ok = [], False
+        for url in FF_URLS:
+            try:
+                req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+                with urllib.request.urlopen(req, timeout=20) as r:
+                    items += json.load(r)
+                ok = True
+            except Exception as e:
+                print("Kalendář se nepodařilo stáhnout:", url, e)
+        _FF.append(items if ok else None)
+    return _FF[0]
+
+
+def _events(week):
+    items = ff_items()
+    if items is None:
+        return None
+    today = datetime.now(PRAGUE).date()
+    base = today
+    mon0 = base - timedelta(days=base.weekday())
+    out = []
+    for e in items:
+        if e.get("country") != "USD" or e.get("impact") not in ("High", "Medium"):
+            continue
+        t = datetime.fromisoformat(e["date"]).astimezone(PRAGUE)
+        if not week and t.date() != today:
+            continue
+        out.append({"time": t.strftime("%H:%M"), "title": e.get("title", ""), "impact": "vysoký" if e["impact"] == "High" else "střední",
+                    "forecast": e.get("forecast") or "–", "previous": e.get("previous") or "–", "actual": e.get("actual") or None, "ts": int(t.timestamp() * 1000),
+                    "day": t.strftime("%Y-%m-%d"), "dn": DNY[t.weekday()] + t.strftime(" %-d. %-m."),
+                    "w": ((t.date() - timedelta(days=t.weekday())) - mon0).days // 7})
+    return sorted(out, key=lambda x: x["ts"])
+
+
+def calendar():
+    return _events(False)
+
+
+def week_events():
+    return _events(True)
+
+
+BULL = ["rally", "rallies", "surge", "surges", "soar", "soars", "jump", "jumps", "climb", "climbs", "gain", "gains", "rise", "rises", "rebound",
+        "rebounds", "record high", "beat", "beats", "upgrade", "upgraded", "optimism", "optimistic", "rate cut", "rate cuts", "strong", "boost",
+        "boosts", "bullish", "recovery", "breakthrough", "approval", "tops", "higher"]
+BEAR = ["plunge", "plunges", "tumble", "tumbles", "slump", "slumps", "fall", "falls", "drop", "drops", "sink", "sinks", "selloff", "sell-off", "crash",
+        "slide", "slides", "fear", "fears", "worry", "worries", "recession", "miss", "misses", "downgrade", "downgraded", "rate hike", "rate hikes",
+        "inflation", "tariff", "tariffs", "war", "bearish", "warning", "warns", "concern", "concerns", "layoffs", "lawsuit", "probe", "default",
+        "crisis", "slowdown", "weak", "lower"]
+
+
+def head_score(t):
+    low = t.lower()
+    b = sum(1 for w in BULL if re.search(r"\b" + re.escape(w) + r"\b", low))
+    r = sum(1 for w in BEAR if re.search(r"\b" + re.escape(w) + r"\b", low))
+    return max(-1, min(1, b - r))
+
+
+def feed_items(url):
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(req, timeout=20) as r:
+        root = ET.fromstring(r.read())
+    out = []
+    items = list(root.iter("item")) or [e for e in root.iter() if e.tag.endswith("}entry")]
+    for it in items:
+        kid = lambda k: next((x for x in it if x.tag.split("}")[-1] == k), None)
+        d = None
+        for k in ("pubDate", "updated", "published", "date"):
+            if kid(k) is not None and kid(k).text:
+                d = kid(k).text.strip()
+                break
+        dt = None
+        if d:
+            try:
+                dt = email.utils.parsedate_to_datetime(d)
+            except Exception:
+                try:
+                    dt = datetime.fromisoformat(d.replace("Z", "+00:00"))
+                except Exception:
+                    dt = None
+        if dt is not None and dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        ln = kid("link")
+        link = ((ln.text or ln.get("href") or "") if ln is not None else "").strip()
+        t = kid("title")
+        out.append((((t.text if t is not None else "") or "").strip(), link, dt))
+    return out
+
+
+def news_sentiment(cfg):
+    """Zdarma: stáhne titulky z veřejných RSS kanálů a spočítá, kolik je pozitivních a negativních slov."""
+    since = (datetime.now(PRAGUE) - timedelta(days=1)).replace(hour=15, minute=0, second=0, microsecond=0)
+    srcs = dict(cfg["feeds"])
+    for name, q in {**cfg.get("topics", {}), **cfg["people"]}.items():
+        srcs[name if name.startswith("Téma") else name + " (zprávy o něm)"] = "https://news.google.com/rss/search?q=" + quote(q + " when:1d") + "&hl=en-US&gl=US&ceid=US:en"
+    groups, bulls, bears, seen, allsc, allitems = [], [], [], set(), [], []
+    for name, url in srcs.items():
+        try:
+            items = feed_items(url)
+        except Exception as e:
+            print("Zdroj zpráv nejde:", name, e)
+            continue
+        items = [(t, l, d) for t, l, d in items if t and (d is None or d >= since)][:30]
+        if not items:
+            continue
+        sc = []
+        for t, l, d in items:
+            s = head_score(t)
+            sc.append(s)
+            if t not in seen:
+                seen.add(t)
+                allsc.append(s)
+                allitems.append({"t": t, "l": l if l.startswith("http") else "#", "src": name, "s": s})
+                row = {"t": t, "l": l if l.startswith("http") else "#", "src": name}
+                if s > 0:
+                    bulls.append(row)
+                elif s < 0:
+                    bears.append(row)
+        groups.append({"name": name, "n": len(items), "bull": sum(1 for s in sc if s > 0), "bear": sum(1 for s in sc if s < 0),
+                       "score": round(max(-5, min(5, sum(sc) / len(sc) * 10)), 1)})
+    if not allsc:
+        return {"status": "error"}
+    ov = max(-5, min(5, sum(allsc) / len(allsc) * 10))
+    return {"status": "ok", "n": len(allsc), "groups": groups, "bulls": bulls[:8], "bears": bears[:8], "all": allitems[:400],
+            "overall": {"score": round(ov, 1), "bias": "bullish" if ov > 0.8 else "bearish" if ov < -0.8 else "neutral"}}
+
+
+def bias_engine(q, pre, nq, sent, sea_data, stat=None, learn=None):
+    comp, g = [], {r["sym"]: r["chg"] for r in q}
+
+    def add(name, score, weight, text):
+        comp.append({"n": name, "s": round(max(-2, min(2, score)), 1), "w": weight, "t": text})
+    f = [g[k] for k in ("NQ=F", "ES=F") if k in g]
+    if f:
+        a = sum(f) / len(f)
+        add("Futures", a / 0.4, 3, f"Futures na Nasdaq a S&P 500 jsou v průměru {pc(a)}.")
+    if pre:
+        n_up = sum(1 for r in pre if r["chg"] >= 0)
+        add("Šířka akcií", (n_up / len(pre) - 0.5) * 4, 2, f"{n_up} z {len(pre)} největších akcií je v plusu.")
+    if "^VIX" in g:
+        add("Strach (VIX)", -g["^VIX"] / 5, 1.5, f"VIX se změnil o {pc(g['^VIX'])}. Růst strachu bývá pro akcie špatný.")
+    if "DX-Y.NYB" in g:
+        add("Dolar", -g["DX-Y.NYB"] / 0.3, 0.5, f"Dolarový index se změnil o {pc(g['DX-Y.NYB'])}. Silný dolar akciím spíš škodí.")
+    if "^TNX" in g:
+        add("Výnosy dluhopisů", -g["^TNX"] / 2, 1, f"Výnos 10letých dluhopisů se změnil o {pc(g['^TNX'])}. Růst výnosů tlačí akcie dolů.")
+    if nq and len(nq["v"]) >= 12:
+        v = nq["v"][-24:]
+        d = (v[-1] / (sum(v) / len(v)) - 1) * 100
+        add("Trend futures", d / 0.5, 1, f"Cena je o {pc(abs(d))} {'nad' if d >= 0 else 'pod'} průměrem posledního dne.")
+    if sent and sent.get("status") == "ok":
+        sc = sent["overall"]["score"]
+        add("Zprávy", sc / 2.5, 1, f"Nálada v titulcích zpráv za 24 hodin: skóre {sgn(sc)} z 5.")
+    if sea_data:
+        a = sea_data["m"][sea_data["cur"]]
+        add("Sezónnost", a / 1.5, 0.5, f"V tomto měsíci Nasdaq 100 historicky průměrně {pc(a)}.")
+    if stat and (stat[0] or stat[1]):
+        add("Statistika", stat[0] - stat[1], 1, f"Statistiky trhu pro dnešek: {stat[0]} výrazných situací spíš nahoru, {stat[1]} spíš dolů.")
+    for c in comp:
+        c["w0"] = c["w"]
+        c["w"] = round(c["w"] * (learn or {}).get(c["n"], {}).get("mult", 1.0), 2)
+    if not comp:
+        return "Bez dat", 0.0, comp
+    tot = sum(c["s"] * c["w"] for c in comp) / sum(2 * c["w"] for c in comp) * 10
+    return blabel(tot), tot, comp
+
+
+def comp_html(comp):
+    rows = ""
+    for c in comp:
+        cls = "up" if c["s"] >= 0 else "down"
+        rows += (f'<div class="bar wide" title="{escape(c["t"])}"><span>{escape(c["n"])}</span><div class="track {cls}">'
+                 f'<i style="width:{abs(c["s"]) / 2 * 100:.0f}%"></i></div><b class="{cls}">{sgn(c["s"])} <em>{escape(c["t"])}</em></b></div>')
+    return f'<section><h2>Z čeho se skóre skládá (od −2 do +2)</h2>{rows}</section>' if rows else ""
+
+
+def sentiment_body(s, cfg):
+    links = " ".join(f'<a href="https://x.com/{escape(h)}">@{escape(h)}</a>' for h in cfg["x_accounts"])
+    foot = (f'<section><h2>Účty na X</h2><p>{links}</p><p class="empty">Příspěvky z X se zdarma číst nedají, proto jsou tady jen odkazy. '
+            'Nálada výše vychází z veřejných zpravodajských kanálů a z titulků o vybraných lidech. '
+            'Je to jednoduché počítání pozitivních a negativních slov, ne umělá inteligence, takže ber ho jako hrubý ukazatel.</p></section>')
+    if s.get("status") != "ok":
+        return '<section><div class="note">Zprávy se dnes nepodařilo stáhnout. Zkus robota spustit znovu za chvíli.</div></section>' + foot
+    o = s["overall"]
+    sc = float(o["score"])
+    word = {"bullish": "Bullish", "bearish": "Bearish"}.get(o["bias"], "Neutrální")
+    cls = "up" if o["bias"] == "bullish" else "down" if o["bias"] == "bearish" else ""
+
+    def lst(rows):
+        return "".join(f'<li><a href="{escape(r["l"])}">{escape(r["t"])}</a> <span class="empty">({escape(r["src"])})</span></li>' for r in rows) or "<li>Nic.</li>"
+    return (f'<section class="hero"><div><p class="lede {cls}">{word}</p><ul class="facts"><li>Skóre {sgn(sc)} z 5 (od −5 do +5).</li>'
+            f'<li>Zpracováno {s["n"]} titulků od včerejších 15:00.</li></ul></div>{gauge_box(sc * 0.3, sc, 5, "skóre zpráv")}</section>'
+            '<section><h2>Nálada podle zdroje (najeď myší)</h2><div class="chartbox"><canvas id="c-s"></canvas></div></section>'
+            f'<section><div class="xcards"><div><h2>Nejpozitivnější titulky</h2><ul class="facts">{lst(s["bulls"])}</ul></div>'
+            f'<div><h2>Nejnegativnější titulky</h2><ul class="facts">{lst(s["bears"])}</ul></div></div></section>' + foot)
+
+
+KEYS = ["FOMC", "CPI", "Non-Farm", "NFP", "PCE", "GDP", "Interest Rate", "Funds Rate", "Powell", "Retail Sales", "ISM", "Unemployment Rate", "JOLTS", "PPI"]
+
+
+def dny(n):
+    return "den" if n == 1 else "dny" if 2 <= n <= 4 else "dní"
+
+
+def fmt_in(ms):
+    s = max(0, int((ms - datetime.now(PRAGUE).timestamp() * 1000) / 1000))
+    d, h = s // 86400, s % 86400 // 3600
+    return f"{d} d {h} h" if d else f"{h} h {s % 3600 // 60} min"
+
+
+def event_row(e):
+    cls = "down" if e["impact"] == "vysoký" else "warn"
+    return (f'<tr><td>{e["dn"]}</td><td>{e["time"]}</td><th scope="row">{escape(e["title"])}</th>'
+            f'<td><span class="badge {cls}">{e["impact"]}</span></td><td class="n">{escape(e["forecast"])}</td><td class="n">{escape(e["previous"])}</td></tr>')
+
+
+def events_table(rows):
+    return ('<div class="wrap"><table><thead><tr><th>Den</th><th>Čas</th><th>Událost</th><th>Dopad</th><th class="n">Předpověď</th><th class="n">Minule</th></tr></thead>'
+            f'<tbody>{"".join(event_row(e) for e in rows)}</tbody></table></div>')
+
+
+def day_risk(week):
+    today = datetime.now(PRAGUE).strftime("%Y-%m-%d")
+    td = [e for e in (week or []) if e["day"] == today]
+    hi = [e for e in td if e["impact"] == "vysoký"]
+    if hi:
+        return "Vysoké riziko", "down", td, hi
+    if td:
+        return "Zvýšená pozornost", "warn", td, hi
+    return "Klidný den", "up", td, hi
+
+
+def _d(x):
+    return x.date() if hasattr(x, "date") and callable(x.date) else x
+
+
+def earnings(cfg):
+    out, today = [], datetime.now(PRAGUE).date()
+    for s in cfg.get("priority", []):
+        try:
+            c = yf.Ticker(s).calendar
+            ed = c.get("Earnings Date") if isinstance(c, dict) else list(c.loc["Earnings Date"])
+            ed = ed if isinstance(ed, (list, tuple)) else [ed]
+            ds = sorted(d for d in map(_d, ed) if d >= today)
+            if ds and (ds[0] - today).days <= 21:
+                d = ds[0]
+                out.append({"sym": s, "name": cfg["stocks"].get(s, s), "days": (d - today).days, "dn": DNY[d.weekday()] + f" {d.day}. {d.month}."})
+        except Exception as e:
+            print("Výsledky firmy nejdou:", s, e)
+    return sorted(out, key=lambda e: e["days"])
+
+
+def etile(e):
+    n = e["days"]
+    when = "dnes" if n == 0 else f"za {n} {dny(n)}"
+    return (f'<div class="tile ev{" soon" if n <= 7 else ""}"><b>{escape(e["sym"])}</b><span>{escape(e["name"])}</span>'
+            f'<em>{e["dn"]}</em><span>{when}</span></div>')
+
+
+def hl(rows):
+    return "".join(f'<li><a href="{escape(r["l"])}">{escape(r["t"])}</a> <span class="empty">({escape(r["src"])})</span></li>' for r in rows) or "<li>Nic.</li>"
+
+
+def fundament_body(q, week, sent, cfg):
+    now_ms = datetime.now(PRAGUE).timestamp() * 1000
+    word, cls, td, hi = day_risk(week)
+    up_ev = [e for e in (week or []) if e["ts"] > now_ms]
+    g = {r["sym"]: r for r in q}
+    facts = []
+    if week is None:
+        facts.append("Kalendář se nepodařilo stáhnout. Otevři Forex Factory.")
+    else:
+        facts.append(f"Dnes: {len(td)} důležitých zpráv z USA, z toho {len(hi)} s vysokým dopadem." if td
+                     else "Dnes nejsou žádné důležité zprávy z USA (červené ani oranžové).")
+        if up_ev:
+            n = up_ev[0]
+            facts.append(f"Nejbližší: {n['dn']} {n['time']}, {n['title']} (za {fmt_in(n['ts'])}).")
+        fed = next((e for e in up_ev if re.search(r"FOMC|Funds Rate|Powell", e["title"])), None)
+        if fed:
+            facts.append(f"Fed: {fed['title']} je {fed['dn']} {fed['time']} (za {fmt_in(fed['ts'])}).")
+    if "^TNX" in g and "DX-Y.NYB" in g:
+        facts.append(f"Výnos 10letých dluhopisů je {num(g['^TNX']['last'])} % ({pc(g['^TNX']['chg'])}), dolarový index {pc(g['DX-Y.NYB']['chg'])}.")
+    if sent.get("status") == "ok":
+        facts.append(f"Nálada ve zprávách za 24 hodin: skóre {sgn(sent['overall']['score'])} z 5.")
+    earn = earnings(cfg)
+    wk = [e for e in earn if e["days"] <= 7]
+    nxt = up_ev[0] if up_ev else None
+    kp = ('<div class="kpis">'
+          f'<div class="k"><b class="{cls}">{len(td)}</b><span>důležitých zpráv dnes ({len(hi)} s vysokým dopadem)</span></div>'
+          f'<div class="k"><b>{fmt_in(nxt["ts"]) if nxt else "–"}</b><span>{escape(nxt["title"]) if nxt else "do další zprávy"}</span></div>'
+          f'<div class="k"><b>{len(wk)}</b><span>tvých akcií má výsledky do 7 dní</span></div></div>')
+    body = (f'<section class="hero"><div><p class="lede {cls}">{word}</p><ul class="facts">{"".join(f"<li>{escape(f)}</li>" for f in facts)}</ul></div></section>' + kp
+            + cat_html(categories(q, week, sent)))
+    if up_ev:
+        body += ('<section><h2>Nejbližší důležité zprávy z USA (červené a oranžové)</h2>' + events_table(up_ev[:10]) +
+                 '<p class="empty">Čas je pražský. Celý týden najdeš v záložce Kalendář, skutečné hodnoty po vydání zprávy na '
+                 '<a href="https://www.forexfactory.com/calendar">Forex Factory</a>.</p></section>')
+    body += ('<section><h2>Výsledky firem (earnings) u tvých akcií v příštích 3 týdnech</h2>' +
+             (f'<div class="tiles">{"".join(etile(e) for e in earn)}</div><p class="empty">Oranžově jsou výsledky do 7 dní. Kolem výsledků bývají velké pohyby, proto je dobré o nich vědět předem.</p>'
+              if earn else '<p class="empty">Žádné výsledky v příštích 3 týdnech, nebo se data nepodařilo stáhnout.</p>') + '</section>')
+    if q:
+        body += '<section><h2>Změna za poslední den (najeď myší)</h2><div class="chartbox" style="height:240px"><canvas id="c-mac"></canvas></div></section>'
+    body += quote_table("Futures a makro (tabulka)", q, "Data se nepodařilo stáhnout.")
+    if sent.get("status") == "ok":
+        body += (f'<section><div class="xcards"><div><h2>Pozitivní titulky</h2><ul class="facts">{hl(sent["bulls"][:5])}</ul></div>'
+                 f'<div><h2>Negativní titulky</h2><ul class="facts">{hl(sent["bears"][:5])}</ul></div></div></section>')
+    return body + vysvetlivky() + WIDGETS
+
+
+# ===== NOVÉ V VERZI 9: historie, RSI, scénáře zpráv, týdenní výhled, nové stránky =====
+def rsi(s, n=14):
+    d = s.diff()
+    up = d.clip(lower=0).ewm(alpha=1 / n, adjust=False).mean()
+    dn = (-d.clip(upper=0)).ewm(alpha=1 / n, adjust=False).mean()
+    r = 100 - 100 / (1 + up / dn)
+    return float(r.dropna().iloc[-1])
+
+
+def intraday_rsi():
+    """RSI (síla pohybu) na grafech M5, M15 a H1 pro Nasdaq futures. Zdarma z Yahoo."""
+    try:
+        d = yf.download("NQ=F", period="5d", interval="5m", progress=False)["Close"].squeeze().dropna()
+        out = {"M5": rsi(d), "M15": rsi(d.resample("15min").last().dropna()), "H1": rsi(d.resample("60min").last().dropna())}
+        return {k: round(v, 1) for k, v in out.items()}
+    except Exception as e:
+        print("RSI se nepodařilo spočítat:", e)
+        return None
+
+
+def rsi_word(v):
+    return ("Bullish", "up") if v >= 55 else ("Bearish", "down") if v <= 45 else ("Neutrální", "")
+
+
+def events_path():
+    return ROOT / "docs" / "events.json"
+
+
+def update_events(week):
+    """Archiv zpráv: pro každou už vydanou zprávu uloží skutečnou hodnotu (když ji zdroj má) a pohyb NQ 5, 15 a 30 minut po vydání. Nemaže se."""
+    p = events_path()
+    arch = []
+    if p.exists():
+        try:
+            arch = json.loads(p.read_text(encoding="utf-8"))
+            if not isinstance(arch, list):
+                raise ValueError("není seznam")
+        except Exception as e:
+            print("events.json nejde přečíst, nic nepřepisuju:", e)
+            return []
+    n0 = len(arch)
+    by = {x["k"]: x for x in arch}
+    now = datetime.now(PRAGUE).timestamp() * 1000
+    for e in (week or []):
+        if e["ts"] > now:
+            continue
+        k = e["day"] + "|" + e["title"]
+        x = by.setdefault(k, {"k": k, "ts": e["ts"], "d": e["day"], "t": e["title"], "f": e["forecast"], "p": e["previous"], "a": None})
+        if x.get("a") is None and e.get("actual"):
+            x["a"] = e["actual"]
+    need = [x for x in by.values() if x.get("r30") is None and x["ts"] + 31 * 60000 < now]
+    if need:
+        try:
+            df = yf.download("NQ=F", period="30d", interval="5m", progress=False)
+            o, c = df["Open"].squeeze().dropna(), df["Close"].squeeze().dropna()
+            o.index, c.index = o.index.tz_convert("Europe/Prague"), c.index.tz_convert("Europe/Prague")
+            for x in need:
+                t0 = datetime.fromtimestamp(x["ts"] / 1000, PRAGUE)
+                if t0 not in o.index:
+                    continue
+                base = float(o[t0])
+                got = {}
+                for mins in (5, 15, 30):
+                    tt = t0 + timedelta(minutes=mins - 5)
+                    if tt in c.index:
+                        got["r%d" % mins] = round((float(c[tt]) / base - 1) * 100, 3)
+                if len(got) == 3:
+                    x.update(got)
+        except Exception as ex:
+            print("Reakce na zprávy nejdou spočítat:", ex)
+    out = sorted(by.values(), key=lambda x: x["ts"])[-3000:]
+    if len(out) >= min(n0, 3000):
+        p.write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
+    return out
+
+
+def surprise(x):
+    """nad / pod / shoda: skutečná hodnota proti předpovědi. None, když chybí jedna z nich."""
+    f, a_ = numval(x.get("f")) if x.get("f") not in (None, "–", "") else None, numval(x.get("a")) if x.get("a") not in (None, "–", "") else None
+    if f is None or a_ is None:
+        return None
+    return "nad" if a_ > f + 1e-9 else "pod" if a_ < f - 1e-9 else "shoda"
+
+
+def ev_stats(arch):
+    st = {}
+    for x in arch:
+        if x.get("r15") is None:
+            continue
+        a = st.setdefault(x["t"], {"n": 0, "up": 0, "s": 0.0, "abs": 0.0, "sp": {}})
+        a["n"] += 1; a["up"] += 1 if x["r15"] > 0 else 0; a["s"] += x["r15"]; a["abs"] += abs(x["r15"])
+        sp = surprise(x)
+        if sp:
+            q = a["sp"].setdefault(sp, {"n": 0, "up": 0, "s": 0.0}); q["n"] += 1; q["up"] += 1 if x["r15"] > 0 else 0; q["s"] += x["r15"]
+    return st
+
+
+def events_html(arch):
+    st = ev_stats(arch)
+    na = sum(1 for x in arch if x.get("a") not in (None, "", "–"))
+    if not st:
+        return ('<section><h2>Jak Nasdaq reagoval na zprávy</h2><p class="hint">Archiv zpráv zatím drží %d zpráv. Pohyb Nasdaqu 5, 15 a 30 minut po vydání se doplňuje při dalších běhech robota a nemaže se.</p></section>' % len(arch))
+    rows = "".join("<tr><td>%s</td><td>%d</td><td>%d %%</td><td>%s %%</td><td>%s</td></tr>" % (escape(t), a["n"], round(100 * a["up"] / a["n"]), ("%+.2f" % (a["s"] / a["n"])), ("málo dat" if a["n"] < 10 else "použitelné"))
+                   for t, a in sorted(st.items(), key=lambda kv: -kv[1]["n"]))
+    out = ('<section><h2>Jak Nasdaq reagoval na zprávy (z archivu)</h2><p class="hint">Z každé už vydané zprávy se uložil pohyb Nasdaqu 15 minut po vydání. Nemaže se. '
+           'Dokud je u zprávy méně než 10 případů, je číslo jen orientační.</p>'
+           '<div style="overflow-x:auto"><table><thead><tr><th>Zpráva</th><th>Případů</th><th>Šel nahoru</th><th>Ø pohyb za 15 min</th><th>Spolehlivost</th></tr></thead><tbody>' + rows + '</tbody></table></div></section>')
+    # nad / pod předpovědí
+    srows = ""
+    for t, a in sorted(st.items(), key=lambda kv: -sum(v["n"] for v in kv[1]["sp"].values())):
+        if not a["sp"]:
+            continue
+        cell = lambda k: ("%d× · %d %% nahoru · Ø %+.2f %%" % (a["sp"][k]["n"], round(100 * a["sp"][k]["up"] / a["sp"][k]["n"]), a["sp"][k]["s"] / a["sp"][k]["n"])) if k in a["sp"] else "–"
+        srows += "<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" % (escape(t), cell("nad"), cell("shoda"), cell("pod"))
+    if srows:
+        out += ('<section><h2>Nad nebo pod předpovědí: jak reagoval Nasdaq</h2><p class="hint">Když skutečná hodnota vyšla výš než předpověď, stejně, nebo níž. U každé možnosti vidíš, kolikrát se to stalo, '
+                'jak často šel Nasdaq po 15 minutách nahoru a jaký byl průměrný pohyb. „Výš“ není vždy „dobře“ (vyšší nezaměstnanost je špatná), proto píšu jen nad a pod, ne lepší a horší.</p>'
+                '<div style="overflow-x:auto"><table><thead><tr><th>Zpráva</th><th>Vyšla nad předpovědí</th><th>Stejně</th><th>Vyšla pod předpovědí</th></tr></thead><tbody>' + srows + '</tbody></table></div></section>')
+    else:
+        out += ('<section><h2>Nad nebo pod předpovědí</h2><p class="hint">Zatím nemám skutečné hodnoty zpráv (v archivu jich je %d), proto tu srovnání není. Jakmile je zdroj kalendáře začne dávat, '
+                'robot je doplní i zpětně a tabulka se ukáže sama. Do té doby sleduje jen směr reakce trhu.</p></section>' % na)
+    # poslední zprávy
+    last = [x for x in arch if x.get("r15") is not None][-12:][::-1]
+    if last:
+        lab = {"nad": "nad předpovědí", "pod": "pod předpovědí", "shoda": "stejně"}
+        pm = lambda v: "–" if v is None else "%+.2f %%" % v
+        lr = "".join("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" % (
+            escape(x.get("d", "")), escape(x["t"]), escape(str(x.get("f") or "–")), escape(str(x.get("a") or "–")), lab.get(surprise(x), "–"), pm(x.get("r5")), pm(x.get("r15"))) for x in last)
+        out += ('<section><h2>Posledních 12 zpráv</h2><div style="overflow-x:auto"><table><thead><tr><th>Den</th><th>Zpráva</th><th>Předpověď</th><th>Skutečnost</th><th>Výsledek</th><th>NQ za 5 min</th><th>NQ za 15 min</th></tr></thead><tbody>' + lr + '</tbody></table></div></section>')
+    return out
+
+
+
+# ===== STATISTIKY TRHU: archivy dat a stránky Statistiky trhu, Rozsahy a seance, Souvislosti trhů =====
+# Každý archiv funguje jako archiv biasu: nový den se přidá, a když je archiv plný, nejstarší den se smaže.
+# Ukládají se jen dny, které už skončily, takže se čísla po uložení nemění.
+NYZ = "America/New_York"
+DNY = ["Pondělí", "Úterý", "Středa", "Čtvrtek", "Pátek", "Sobota", "Neděle"]
+MES = ["Leden", "Únor", "Březen", "Duben", "Květen", "Červen", "Červenec", "Srpen", "Září", "Říjen", "Listopad", "Prosinec"]
+LIMIT = {"market": 2500, "mezitrhy": 2500, "seance": 1500, "hodiny": 750}
+MZ = [("nq", "NQ=F", "Nasdaq 100 (NQ)"), ("es", "ES=F", "S&P 500 (ES)"), ("ym", "YM=F", "Dow Jones (YM)"), ("rty", "RTY=F", "Russell 2000, malé firmy (RTY)"),
+      ("sox", "^SOX", "Polovodiče (SOX)"), ("gc", "GC=F", "Zlato"), ("cl", "CL=F", "Ropa"), ("btc", "BTC-USD", "Bitcoin")]
+
+
+def market_path():
+    return ROOT / "docs" / "market.json"
+
+
+def _col(df, name):
+    x = df[name]
+    return x.squeeze() if hasattr(x, "squeeze") else x
+
+
+def _load_list(p, reset_ok=False):
+    """Načte archiv. Vrací (seznam, True), nebo (None, False), když je soubor poškozený (pak se nesmí přepsat).
+    reset_ok: starý formát (není seznam) se smí začít znovu."""
+    if not p.exists():
+        return [], True
+    try:
+        a = json.loads(p.read_text(encoding="utf-8"))
+    except Exception as e:
+        print(p.name, "nejde přečíst, nic nepřepisuju:", e)
+        return None, False
+    if isinstance(a, list):
+        return a, True
+    if reset_ok:
+        return [], True
+    print(p.name, "má neznámý formát, nic nepřepisuju.")
+    return None, False
+
+
+def _save(p, out, n0, cap):
+    """Uloží archiv, jen když se nezmenšil (ochrana proti chybě při stahování)."""
+    if out and len(out) >= min(n0, cap):
+        p.write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+
+
+def _done(d, hh=16, mm=15):
+    """Skončil už obchodní den d v New Yorku? (Nedokončené dny se neukládají.)"""
+    now = datetime.now(ZoneInfo(NYZ))
+    t = now.strftime("%Y-%m-%d")
+    return d < t or (d == t and (now.hour, now.minute) >= (hh, mm))
+
+
+def nq5m():
+    """Pětiminutová data Nasdaq futures (NQ) za posledních až 60 dní, čas v New Yorku."""
+    for per in ("60d", "30d"):
+        try:
+            df = yf.download("NQ=F", period=per, interval="5m", progress=False)
+            if df is None or len(df) == 0:
+                continue
+            s = {k: _col(df, k) for k in ("Open", "High", "Low", "Close")}
+            idx = s["Close"].index
+            idx = idx.tz_convert(NYZ) if idx.tz is not None else idx.tz_localize("UTC").tz_convert(NYZ)
+            for k in s:
+                s[k].index = idx
+            ok = ~(s["Open"].isna() | s["High"].isna() | s["Low"].isna() | s["Close"].isna())
+            s = {k: v[ok] for k, v in s.items()}
+            if len(s["Close"]) > 100:
+                return s
+        except Exception as e:
+            print("Pětiminutová data NQ nejdou stáhnout:", e)
+    return None
+
+
+def update_market(n5=None):
+    """Denní archiv Nasdaq 100 (otevření, maximum, minimum, zavření), VIX, výnos 10letých dluhopisů, dolarový index a pohyb první půlhodiny.
+    Při prvním běhu se stáhne 5 let zpětně, potom se jen doplňuje."""
+    p = market_path()
+    arch, ok = _load_list(p)
+    if not ok:
+        return []
+    n0 = len(arch)
+    by = {x["d"]: x for x in arch if isinstance(x, dict) and "d" in x}
+    per = "5y" if n0 < 100 else "1mo"
+    try:
+        df = yf.download("^NDX", period=per, interval="1d", progress=False)
+        o, h, l, c = (_col(df, k).dropna() for k in ("Open", "High", "Low", "Close"))
+        for i in c.index:
+            try:
+                d = i.strftime("%Y-%m-%d")
+                if not _done(d) or i.weekday() > 4:
+                    continue
+                by.setdefault(d, {"d": d}).update({"o": round(float(o[i]), 2), "h": round(float(h[i]), 2), "l": round(float(l[i]), 2), "c": round(float(c[i]), 2)})
+            except Exception:
+                continue
+    except Exception as e:
+        print("Denní data Nasdaqu nejdou stáhnout:", e)
+    for key, sym in (("v", "^VIX"), ("y", "^TNX"), ("dx", "DX-Y.NYB")):
+        try:
+            s_ = _col(yf.download(sym, period=per, interval="1d", progress=False), "Close").dropna()
+            for i, v in s_.items():
+                d = i.strftime("%Y-%m-%d")
+                if d in by and _done(d):
+                    by[d][key] = round(float(v), 3)
+        except Exception as e:
+            print("Data", sym, "nejdou stáhnout:", e)
+    if n5:
+        try:
+            key = n5["Close"].index.strftime("%Y-%m-%d %H:%M")
+            op, cl = dict(zip(key, n5["Open"].values)), dict(zip(key, n5["Close"].values))
+            for d in sorted(set(k[:10] for k in key)):
+                a, b, c1, c2 = op.get(d + " 09:30"), cl.get(d + " 09:55"), op.get(d + " 10:00"), cl.get(d + " 15:55")
+                if d in by and None not in (a, b, c1, c2):
+                    by[d]["f30"] = round((float(b) / float(a) - 1) * 100, 3)
+                    by[d]["rest"] = round((float(c2) / float(c1) - 1) * 100, 3)
+        except Exception as e:
+            print("První půlhodina se nepodařila spočítat:", e)
+    out = sorted((x for x in by.values() if "c" in x and "o" in x), key=lambda x: x["d"])[-LIMIT["market"]:]
+    _save(p, out, n0, LIMIT["market"])
+    return out
+
+
+def update_sessions(n5):
+    """Archiv seancí z dat NQ futures: noční maximum a minimum (18:00 až 9:30 v New Yorku), první hodina (9:30 až 10:30),
+    maximum, minimum a kdy během dne vznikly. Dny, které ještě neskončily, se neukládají."""
+    p = ROOT / "docs" / "seance.json"
+    arch, ok = _load_list(p)
+    if not ok:
+        return []
+    n0 = len(arch)
+    by = {x["d"]: x for x in arch if isinstance(x, dict) and "d" in x}
+    if n5:
+        try:
+            idx = n5["Close"].index
+            day = idx.strftime("%Y-%m-%d")
+            hm = idx.strftime("%H:%M")
+            O, H, L, C = (n5[k].values for k in ("Open", "High", "Low", "Close"))
+            dates = sorted(set(day))
+            pos = {}
+            for i, d in enumerate(day):
+                pos.setdefault(d, []).append(i)
+            for k in range(1, len(dates)):
+                d, pv = dates[k], dates[k - 1]
+                if datetime.strptime(d, "%Y-%m-%d").weekday() > 4:
+                    continue
+                rth = [i for i in pos[d] if "09:30" <= hm[i] < "16:00"]
+                if len(rth) < 70 or hm[rth[0]] != "09:30" or hm[rth[-1]] != "15:55":
+                    continue
+                on = [i for i in pos[pv] if hm[i] >= "18:00"] + [i for i in pos[d] if hm[i] < "09:30"]
+                if len(on) < 150:
+                    continue
+                ib = [i for i in rth if hm[i] < "10:30"]
+                hi = max(rth, key=lambda i: H[i])
+                lo = min(rth, key=lambda i: L[i])
+                mins = lambda i: (int(hm[i][:2]) * 60 + int(hm[i][3:])) - 570
+                by[d] = {"d": d, "o": round(float(O[rth[0]]), 2), "h": round(float(H[hi]), 2), "l": round(float(L[lo]), 2), "c": round(float(C[rth[-1]]), 2),
+                         "onh": round(float(max(H[i] for i in on)), 2), "onl": round(float(min(L[i] for i in on)), 2),
+                         "ibh": round(float(max(H[i] for i in ib)), 2), "ibl": round(float(min(L[i] for i in ib)), 2), "ht": mins(hi), "lt": mins(lo)}
+        except Exception as e:
+            print("Seance se nepodařilo spočítat:", e)
+    out = sorted(by.values(), key=lambda x: x["d"])[-LIMIT["seance"]:]
+    _save(p, out, n0, LIMIT["seance"])
+    return out
+
+
+def today_night(n5):
+    """Dnešní noc na NQ futures (od 18:00 včera do 9:30 v New Yorku), i když ještě běží."""
+    if not n5:
+        return None
+    try:
+        now = datetime.now(ZoneInfo(NYZ))
+        d = now.strftime("%Y-%m-%d")
+        if now.weekday() > 4:
+            return None
+        idx = n5["Close"].index
+        day, hm = idx.strftime("%Y-%m-%d"), idx.strftime("%H:%M")
+        prev = max((x for x in set(day) if x < d), default=None)
+        sel = [i for i in range(len(idx)) if (day[i] == prev and hm[i] >= "18:00") or (day[i] == d and hm[i] < "09:30")]
+        if len(sel) < 24:
+            return None
+        H, L, C = n5["High"].values, n5["Low"].values, n5["Close"].values
+        last = idx[sel[-1]].tz_convert("Europe/Prague")
+        return {"h": float(max(H[i] for i in sel)), "l": float(min(L[i] for i in sel)), "c": float(C[sel[-1]]), "do": last.strftime("%H:%M"),
+                "hotovo": hm[sel[-1]] == "09:25"}
+    except Exception as e:
+        print("Dnešní noc se nepodařila spočítat:", e)
+        return None
+
+
+def update_hours():
+    """Archiv hodinových pohybů NQ futures podle pražského času. Jeden záznam = jeden den, v něm pohyb (maximum minus minimum) každé hodiny."""
+    p = ROOT / "docs" / "hodiny.json"
+    arch, ok = _load_list(p, reset_ok=True)
+    if not ok:
+        return []
+    n0 = len(arch)
+    by = {x["d"]: x for x in arch if isinstance(x, dict) and "d" in x}
+    df = None
+    for per in (("730d", "1y") if n0 < 100 else ("1mo",)):
+        try:
+            df = yf.download("NQ=F", period=per, interval="1h", progress=False)
+            if df is not None and len(df) > 50:
+                break
+        except Exception as e:
+            print("Hodinová data NQ (" + per + ") nejdou stáhnout:", e)
+            df = None
+    if df is not None and len(df) > 50:
+        try:
+            r = (_col(df, "High") - _col(df, "Low")).dropna()
+            idx = r.index.tz_convert("Europe/Prague") if r.index.tz is not None else r.index.tz_localize("UTC").tz_convert("Europe/Prague")
+            today = datetime.now(PRAGUE).strftime("%Y-%m-%d")
+            new = {}
+            for t, v in zip(idx, r.values):
+                d = t.strftime("%Y-%m-%d")
+                if t.weekday() > 4 or d >= today:
+                    continue
+                new.setdefault(d, {})[t.strftime("%H:%M")] = round(float(v), 1)
+            for d, hrs in new.items():
+                if len(hrs) >= 12:
+                    by[d] = {"d": d, "r": hrs}
+        except Exception as e:
+            print("Hodinová data se nepodařilo zpracovat:", e)
+    out = sorted(by.values(), key=lambda x: x["d"])[-LIMIT["hodiny"]:]
+    _save(p, out, n0, LIMIT["hodiny"])
+    return out
+
+
+def hour_stats(arch):
+    if not arch or len(arch) < 20:
+        return None
+    g, g60 = {}, {}
+    for j, x in enumerate(arch):
+        for k, v in x["r"].items():
+            g.setdefault(k, []).append(v)
+            if j >= len(arch) - 60:
+                g60.setdefault(k, []).append(v)
+    res = {k: {"a": sum(v) / len(v), "n": len(v), "r": sum(g60.get(k, [0])) / max(1, len(g60.get(k, [])))} for k, v in g.items() if len(v) >= 10}
+    return {"od": arch[0]["d"], "do": arch[-1]["d"], "dni": len(arch), "h": res} if len(res) >= 10 else None
+
+
+def update_mezitrhy():
+    """Denní archiv zavíracích cen dalších trhů (S&P 500, Dow Jones, Russell, polovodiče, zlato, ropa, bitcoin) k porovnání s Nasdaqem."""
+    p = ROOT / "docs" / "mezitrhy.json"
+    arch, ok = _load_list(p)
+    if not ok:
+        return []
+    n0 = len(arch)
+    by = {x["d"]: x for x in arch if isinstance(x, dict) and "d" in x}
+    per = "5y" if n0 < 100 else "1mo"
+    for key, sym, _nm in MZ:
+        try:
+            df = yf.download(sym, period=per, interval="1d", progress=False)
+            c = _col(df, "Close").dropna()
+            h = _col(df, "High").dropna() if key in ("nq", "es") else None
+            l = _col(df, "Low").dropna() if key in ("nq", "es") else None
+            for i, v in c.items():
+                d = i.strftime("%Y-%m-%d")
+                if i.weekday() > 4 or not _done(d, 17, 15):
+                    continue
+                if key == "nq":
+                    by.setdefault(d, {"d": d})
+                if d not in by:
+                    continue
+                by[d][key] = round(float(v), 2)
+                if h is not None and i in h.index and i in l.index:
+                    by[d][key + "h"], by[d][key + "l"] = round(float(h[i]), 2), round(float(l[i]), 2)
+        except Exception as e:
+            print("Data", sym, "nejdou stáhnout:", e)
+    out = sorted((x for x in by.values() if "nq" in x), key=lambda x: x["d"])[-LIMIT["mezitrhy"]:]
+    _save(p, out, n0, LIMIT["mezitrhy"])
+    return out
+
+
+# ---------- pomocné funkce pro stránky ----------
+def _closed(mk, hh=16, mm=15):
+    """Bez dnešního dne, dokud v New Yorku neskončilo obchodování."""
+    return [x for x in (mk or []) if _done(x["d"], hh, mm)]
+
+
+def _q(v, p):
+    v = sorted(v)
+    return v[min(len(v) - 1, int(p * (len(v) - 1) + 0.5))] if v else 0
+
+
+def _t(head, rows):
+    return ('<div style="overflow-x:auto"><table class="wrap1"><thead><tr>' + "".join(f"<th>{h}</th>" for h in head) + "</tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>")
+
+
+def _rel(n):
+    return '<span class="badge down">málo dat</span>' if n < 30 else ('<span class="badge warn">orientačně</span>' if n < 100 else '<span class="badge up">použitelné</span>')
+
+
+def _dcz(d):
+    return f"{int(d[8:10])}.{NB}{int(d[5:7])}.{NB}{d[:4]}"
+
+
+def _b(x):
+    return f"{x:,.0f}".replace(",", NB) + NB + "b."
+
+
+def _usd(x, mult=2):
+    return f"{x * mult:,.0f}".replace(",", NB) + NB + "$"
+
+
+def _corr(a, b):
+    n = len(a)
+    if n < 10:
+        return None
+    ma, mb = sum(a) / n, sum(b) / n
+    va, vb = sum((x - ma) ** 2 for x in a), sum((y - mb) ** 2 for y in b)
+    if va <= 0 or vb <= 0:
+        return None
+    return sum((x - ma) * (y - mb) for x, y in zip(a, b)) / (va * vb) ** 0.5
+
+
+def _G(k, f):
+    return lambda x: x.get(k) is not None and bool(f(x[k]))
+
+
+def _feat(mk, i, mzd):
+    """Co bylo známo PŘED dnem i (jen z dní 0 až i−1): předchozí den, série, trend, VIX, dluhopisy, dolar, ostatní trhy."""
+    a = mk[i - 1]
+    z = mk[i - 2] if i >= 2 else {}
+    f = {"prev": (a["c"] / z["c"] - 1) * 100 if z.get("c") else None, "vp": a.get("v"),
+         "dy": a["y"] - z["y"] if a.get("y") and z.get("y") else None,
+         "ddx": (a["dx"] / z["dx"] - 1) * 100 if a.get("dx") and z.get("dx") else None}
+    st = 0
+    for j in range(i - 1, 0, -1):
+        r = mk[j]["c"] - mk[j - 1]["c"]
+        if r == 0 or (st > 0 and r < 0) or (st < 0 and r > 0):
+            break
+        st += 1 if r > 0 else -1
+        if abs(st) >= 10:
+            break
+    f["streak"] = st if i >= 2 else None
+    for n_ in (20, 200):
+        f["a%d" % n_] = (a["c"] > sum(x["c"] for x in mk[i - n_:i]) / n_) if i >= n_ else None
+    ma, mz_ = mzd.get(a["d"]), mzd.get(z.get("d", ""))
+    if ma and mz_:
+        ch = {k: (ma[k] / mz_[k] - 1) * 100 for k, _s, _n in MZ if ma.get(k) and mz_.get(k)}
+        if "nq" in ch and "es" in ch:
+            f["nqes"] = ch["nq"] - ch["es"]
+            f["div"] = ch["nq"] * ch["es"] < 0 and abs(ch["nq"]) > 0.1 and abs(ch["es"]) > 0.1
+        if "nq" in ch:
+            for k in ("sox", "rty"):
+                if k in ch:
+                    f[k + "rel"] = ch[k] - ch["nq"]
+        for k in ("btc", "gc", "cl"):
+            if k in ch:
+                f[k] = ch[k]
+    return f
+
+
+def market_stats(mk, mz=None):
+    """Pro každý den: co bylo známo předem (_feat) a co se ten den stalo (pohyb, rozpětí, gap)."""
+    mzd = {x["d"]: x for x in (mz or [])}
+    out = []
+    for i in range(1, len(mk)):
+        a, b = mk[i - 1], mk[i]
+        pc_ = a.get("c")
+        if not pc_ or "o" not in b:
+            continue
+        x = _feat(mk, i, mzd)
+        x.update({"d": b["d"], "dow": datetime.strptime(b["d"], "%Y-%m-%d").weekday(), "mo": int(b["d"][5:7]), "ret": (b["c"] / pc_ - 1) * 100,
+                  "rng": (b["h"] - b["l"]) / pc_ * 100, "gap": (b["o"] / pc_ - 1) * 100, "intra": (b["c"] / b["o"] - 1) * 100,
+                  "fill_up": b["l"] <= pc_, "fill_dn": b["h"] >= pc_, "f30": b.get("f30"), "rest": b.get("rest")})
+        out.append(x)
+    return out
+
+
+def today_feat(mk, mz):
+    """Co platí pro nejbližší obchodní den (dnes, o víkendu pondělí)."""
+    now = datetime.now(PRAGUE)
+    wd = now.weekday()
+    nd = now + timedelta(days=(7 - wd) if wd > 4 else 0)
+    f = _feat(mk + [{"d": "9999-99-99", "c": mk[-1]["c"]}], len(mk), {x["d"]: x for x in (mz or [])}) if len(mk) >= 2 else {}
+    f.update({"dow": nd.weekday(), "mo": nd.month})
+    return f, nd
+
+
+def conditions(lo_v, hi_v):
+    """Všechny sledované situace: (skupina, název, podmínka). Podmínka se dívá jen na to, co bylo známo před otevřením."""
+    c = [("den", DNY[d], (lambda d: lambda x: x["dow"] == d)(d)) for d in range(5)]
+    c += [("měsíc", MES[m - 1], (lambda m: lambda x: x["mo"] == m)(m)) for m in range(1, 13)]
+    c += [("předchozí", "Po růstovém dni", _G("prev", lambda v: v > 0)), ("předchozí", "Po poklesovém dni", _G("prev", lambda v: v < 0)),
+          ("předchozí", "Po silném růstu (víc než +1,5 %)", _G("prev", lambda v: v > 1.5)), ("předchozí", "Po silném poklesu (víc než −1,5 %)", _G("prev", lambda v: v < -1.5)),
+          ("série", "Nasdaq rostl 3 a víc dní po sobě", _G("streak", lambda v: v >= 3)), ("série", "Nasdaq klesal 3 a víc dní po sobě", _G("streak", lambda v: v <= -3)),
+          ("trend", "Nasdaq je nad průměrem 20 dní", _G("a20", lambda v: v)), ("trend", "Nasdaq je pod průměrem 20 dní", _G("a20", lambda v: not v)),
+          ("trend", "Nasdaq je nad průměrem 200 dní (dlouhodobý růst)", _G("a200", lambda v: v)), ("trend", "Nasdaq je pod průměrem 200 dní (dlouhodobý pokles)", _G("a200", lambda v: not v))]
+    if lo_v is not None:
+        c += [("VIX", "VIX nízký (pod %s)" % num(lo_v), _G("vp", lambda v: v < lo_v)), ("VIX", "VIX střední", _G("vp", lambda v: lo_v <= v <= hi_v)),
+              ("VIX", "VIX vysoký (nad %s)" % num(hi_v), _G("vp", lambda v: v > hi_v))]
+    c += [("dluhopisy", "Výnos dluhopisů včera vzrostl (o víc než 0,03)", _G("dy", lambda v: v > 0.03)), ("dluhopisy", "Výnos dluhopisů včera klesl (o víc než 0,03)", _G("dy", lambda v: v < -0.03)),
+          ("dluhopisy", "Dolar včera posílil (o víc než 0,3 %)", _G("ddx", lambda v: v > 0.3)), ("dluhopisy", "Dolar včera oslabil (o víc než 0,3 %)", _G("ddx", lambda v: v < -0.3)),
+          ("mezitrhy", "Nasdaq byl včera silnější než S&P 500 (o víc než 0,3 %)", _G("nqes", lambda v: v > 0.3)),
+          ("mezitrhy", "S&P 500 byl včera silnější než Nasdaq (o víc než 0,3 %)", _G("nqes", lambda v: v < -0.3)),
+          ("mezitrhy", "Nasdaq a S&P 500 šly včera opačným směrem", _G("div", lambda v: v)),
+          ("mezitrhy", "Polovodiče byly včera silnější než Nasdaq (o víc než 0,5 %)", _G("soxrel", lambda v: v > 0.5)),
+          ("mezitrhy", "Polovodiče byly včera slabší než Nasdaq (o víc než 0,5 %)", _G("soxrel", lambda v: v < -0.5)),
+          ("mezitrhy", "Malé firmy (Russell) byly včera silnější než Nasdaq (o víc než 0,5 %)", _G("rtyrel", lambda v: v > 0.5)),
+          ("mezitrhy", "Malé firmy (Russell) byly včera slabší než Nasdaq (o víc než 0,5 %)", _G("rtyrel", lambda v: v < -0.5)),
+          ("mezitrhy", "Bitcoin včera vzrostl o víc než 3 %", _G("btc", lambda v: v > 3)), ("mezitrhy", "Bitcoin včera klesl o víc než 3 %", _G("btc", lambda v: v < -3)),
+          ("mezitrhy", "Zlato včera vzrostlo o víc než 1 %", _G("gc", lambda v: v > 1)), ("mezitrhy", "Zlato včera kleslo o víc než 1 %", _G("gc", lambda v: v < -1)),
+          ("mezitrhy", "Ropa včera vzrostla o víc než 2 %", _G("cl", lambda v: v > 2)), ("mezitrhy", "Ropa včera klesla o víc než 2 %", _G("cl", lambda v: v < -2))]
+    return c
+
+
+def _ev(st, fn, base):
+    """Vyhodnotí situaci: počet dní, jak často Nasdaq rostl, průměrný pohyb a rozpětí, a jak moc se to liší od běžného dne (z-skóre)."""
+    g = [x for x in st if fn(x)]
+    n = len(g)
+    if not n:
+        return None
+    up = sum(1 for x in g if x["ret"] > 0) / n
+    z = (up - base) / max(1e-9, (base * (1 - base) / n) ** 0.5)
+    return {"n": n, "up": 100 * up, "avg": sum(x["ret"] for x in g) / n, "rng": sum(x["rng"] for x in g) / n, "z": z}
+
+
+def _sila(a):
+    if a["n"] < 30:
+        return '<span class="badge flat">málo dat</span>'
+    if abs(a["z"]) >= 3:
+        return f'<span class="badge {"up" if a["z"] > 0 else "down"}">{"↑" if a["z"] > 0 else "↓"} silná</span>'
+    if abs(a["z"]) >= 2:
+        return f'<span class="badge warn">{"↑" if a["z"] > 0 else "↓"} střední</span>'
+    return '<span class="badge flat">žádná</span>'
+
+
+def _row(nm, a, now=False, rng=True):
+    cls = "up" if a["avg"] >= 0 else "down"
+    tag = ' <span class="badge now">dnes</span>' if now else ""
+    trc = ' class="now"' if now else ""
+    return (f'<tr{trc}><td>{nm}{tag}</td><td>{a["n"]}</td><td>{a["up"]:.0f}{NB}%</td><td class="{cls}">{pc(a["avg"])}</td>'
+            + (f'<td>{num(a["rng"])}{NB}%</td>' if rng else "") + f'<td>{_sila(a)}</td></tr>')
+
+
+def _vix_cut(st):
+    vs = sorted(x["vp"] for x in st if x.get("vp"))
+    return (vs[len(vs) // 3], vs[2 * len(vs) // 3]) if len(vs) > 30 else (None, None)
+
+
+def _ctable(st, conds, tf, base, groups, head0="Situace", rng=True):
+    rows = []
+    for g, nm, fn in conds:
+        if g in groups:
+            a = _ev(st, fn, base)
+            if a:
+                rows.append(_row(nm, a, fn(tf), rng))
+    return _t([head0, "Dní", "Nasdaq nahoru", "Ø pohyb"] + (["Ø rozpětí dne"] if rng else []) + ["Výhoda"], rows) if rows else ""
+
+
+SILA_HINT = ('„Výhoda“ říká, jak moc se situace liší od běžného dne: <b>silná</b> znamená, že rozdíl je tak velký, že je skoro jistě skutečný, '
+             '<b>střední</b> že je spíš skutečný, <b>žádná</b> že je to jako běžný den (rozdíl může být náhoda).')
+
+
+def market_body(mk, hist, mz=None):
+    mk = _closed(mk or [])
+    if len(mk) < 30:
+        return ('<section class="hero"><div><p class="empty" style="margin:0 0 8px">Statistiky trhu</p><p class="lede">Data se sbírají</p><ul class="facts">'
+                '<li>Robot si ukládá denní data Nasdaqu, VIX, dluhopisů a dolaru. Při prvním běhu stáhne i 5 let zpětně, '
+                'takže statistika se tu objeví hned po dalším spuštění robota.</li></ul></div></section>')
+    mz = _closed(mz or [], 17, 15)
+    st = market_stats(mk, mz)
+    base = sum(1 for x in st if x["ret"] > 0) / len(st)
+    lo_v, hi_v = _vix_cut(st)
+    conds = conditions(lo_v, hi_v)
+    tf, nd = today_feat(mk, mz)
+    wd = tf["dow"]
+    kdy = "dnešek" if nd.date() == datetime.now(PRAGUE).date() else "pondělí"
+    ev = [(g, nm, fn, _ev(st, fn, base)) for g, nm, fn in conds]
+    ev = [e for e in ev if e[3]]
+    plati = [e for e in ev if e[2](tf)]
+    vyhoda = sorted([e for e in ev if e[3]["n"] >= 60 and abs(e[3]["z"]) >= 2], key=lambda e: -abs(e[3]["z"]))
+    # horní karta
+    ag = _ev(st, lambda x: x["dow"] == wd, base)
+    wf = walk_forward(st, conds)
+    vs_, nup, ndn = learned_vote(plati, wf)
+    word = ("Statistika spíš nahoru" if vs_ > 0.5 else "Statistika spíš dolů" if vs_ < -0.5 else "Bez jasné výhody")
+    facts = [f"Pro {kdy} platí {len(plati)} sledovaných situací. Výraznou výhodu, které robot po zkoušce naživo věří, má {nup + ndn} z nich: {nup} spíš nahoru, {ndn} spíš dolů. "
+             f"Verdikt bere v úvahu, jak se každá situace v minulosti trefovala naživo."]
+    facts.append(f"Běžný den: Nasdaq šel nahoru v {100 * base:.0f}{NB}% dní. {DNY[wd]}: v {ag['up']:.0f}{NB}% dní, průměrný pohyb {pc(ag['avg'])}." if ag else
+                 f"Běžný den: Nasdaq šel nahoru v {100 * base:.0f}{NB}% dní.")
+    if mk[-1].get("v") and lo_v is not None:
+        v = mk[-1]["v"]
+        facts.append(f"VIX (index strachu) je {num(v)}, to je oproti historii {'nízký' if v < lo_v else 'vysoký' if v > hi_v else 'střední'} strach.")
+    facts.append(f"Archiv: {len(mk)} obchodních dní ({_dcz(mk[0]['d'])} až {_dcz(mk[-1]['d'])}). Je to minulost, ne předpověď. Sama o sobě není důvod obchodovat.")
+    o = (f'<section class="hero"><div><p class="empty" style="margin:0 0 8px">Statistika Nasdaqu pro {kdy} ({DNY[wd].lower()})</p>'
+         f'<p class="lede {"up" if vs_ > 0.5 else "down" if vs_ < -0.5 else ""}">{word}</p><ul class="facts">' + "".join(f"<li>{f}</li>" for f in facts) + "</ul></div></section>")
+    # co platí dnes
+    rows = [_row(nm, a) for g, nm, fn, a in sorted(plati, key=lambda e: -abs(e[3]["z"]) if e[3]["n"] >= 30 else 0)]
+    o += (f'<section><h2>🎯 Co platí pro {kdy}</h2><p class="hint">Situace, které jsou pro {kdy} známé už před otevřením, seřazené od nejvýraznější. '
+          f'Pro srovnání: běžný den šel Nasdaq nahoru v {100 * base:.0f}{NB}% dní. {SILA_HINT}</p>'
+          + _t(["Situace", "Dní", "Nasdaq nahoru", "Ø pohyb", "Ø rozpětí dne", "Výhoda"], rows) + "</section>")
+    o += wf_section(wf, conds, ("den", "měsíc", "předchozí", "série", "trend", "VIX", "dluhopisy", "mezitrhy"))
+    # kde je výhoda
+    if vyhoda:
+        rows = [_row(nm, a, fn(tf)) for g, nm, fn, a in vyhoda[:12]]
+        o += ('<section><h2>📈 Kde je statistická výhoda</h2><p class="hint">Ze všech sledovaných situací jen ty, které se od běžného dne liší aspoň středně a mají '
+              'aspoň 60 dní. Když jich sleduješ hodně, pár „výhod“ se objeví i náhodou, proto věř hlavně těm silným a ověř si je v Backtest deníku.</p>'
+              + _t(["Situace", "Dní", "Nasdaq nahoru", "Ø pohyb", "Ø rozpětí dne", "Výhoda"], rows) + "</section>")
+    else:
+        o += ('<section><h2>📈 Kde je statistická výhoda</h2><p class="empty">Zatím žádná situace se od běžného dne výrazně neliší. To je normální: '
+              'trh většinou žádnou jednoduchou výhodu nedává.</p></section>')
+    o += f'<section><h2>Podle dne v týdnu</h2>{_ctable(st, conds, tf, base, ("den",), "Den")}</section>'
+    o += f'<section><h2>Co se stane po růstovém a po poklesovém dni</h2>{_ctable(st, conds, tf, base, ("předchozí", "série"))}</section>'
+    o += ('<section><h2>Trend</h2><p class="hint">Průměr 20 dní ukazuje krátkodobý směr, průměr 200 dní dlouhodobý. Nad průměrem = cena je výš než průměr posledních dní.</p>'
+          + _ctable(st, conds, tf, base, ("trend",)) + "</section>")
+    # gap
+    rows = []
+    for nm, f, fillk in (("Gap nahoru (nad +0,1 %)", lambda x: x["gap"] > 0.1, "fill_up"), ("Bez gapu", lambda x: -0.1 <= x["gap"] <= 0.1, None),
+                         ("Gap dolů (pod −0,1 %)", lambda x: x["gap"] < -0.1, "fill_dn")):
+        g = [x for x in st if f(x)]
+        if g:
+            up = 100 * sum(1 for x in g if x["intra"] > 0) / len(g)
+            fill = "–" if fillk is None else f'{100 * sum(1 for x in g if x[fillk]) / len(g):.0f}{NB}%'
+            av = sum(x["intra"] for x in g) / len(g)
+            rows.append(f'<tr><td>{nm}</td><td>{len(g)}</td><td>{up:.0f}{NB}%</td><td>{fill}</td><td class="{"up" if av >= 0 else "down"}">{pc(av)}</td><td>{_rel(len(g))}</td></tr>')
+    o += ('<section><h2>Gap při otevření</h2><p class="hint">Gap je rozdíl mezi včerejším zavřením a dnešním otevřením, uvidíš ho v 15:30. „Vyplněný“ znamená, že se cena '
+          'během dne vrátila na včerejší zavření. Pohyb se tady počítá od otevření do zavření dne.</p>'
+          + _t(["Situace", "Dní", "Od otevření nahoru", "Gap vyplněn", "Ø pohyb od otevření", "Spolehlivost"], rows) + "</section>")
+    if lo_v is not None:
+        o += ('<section><h2>Podle strachu na trhu (VIX předchozí den)</h2><p class="hint">Při vyšším VIX bývají větší pohyby oběma směry, ne nutně růst. '
+              'Sleduj hlavně sloupec rozpětí.</p>' + _ctable(st, conds, tf, base, ("VIX",)) + "</section>")
+    t_ = _ctable(st, conds, tf, base, ("dluhopisy",), rng=False)
+    if t_:
+        o += ('<section><h2>Dluhopisy a dolar předchozí den</h2><p class="hint">Rostoucí výnosy 10letých amerických dluhopisů a silný dolar obvykle technologickým akciím '
+              'nepomáhají. Výnos je v procentních bodech, dolar je dolarový index.</p>' + t_ + "</section>")
+    ff = [x for x in st if x["f30"] is not None and x["rest"] is not None]
+    if ff:
+        rows = []
+        for nm, f in (("První půlhodina rostla", lambda x: x["f30"] > 0), ("První půlhodina klesala", lambda x: x["f30"] < 0)):
+            g = [x for x in ff if f(x)]
+            if g:
+                av = sum(x["rest"] for x in g) / len(g)
+                rows.append(f'<tr><td>{nm}</td><td>{len(g)}</td><td>{100 * sum(1 for x in g if x["rest"] > 0) / len(g):.0f}{NB}%</td>'
+                            f'<td class="{"up" if av >= 0 else "down"}">{pc(av)}</td><td>{_rel(len(g))}</td></tr>')
+        o += ('<section><h2>První půlhodina po otevření a zbytek dne</h2><p class="hint">Od 9:30 do 10:00 newyorského času (u nás obvykle 15:30 až 16:00). '
+              'Zbytek dne je od 10:00 do 16:00. Tahle data jdou zdarma získat jen za poslední týdny, archiv se proto plní postupně každým dnem.</p>'
+              + _t(["Situace", "Dní", "Zbytek dne nahoru", "Ø pohyb zbytku", "Spolehlivost"], rows) + "</section>")
+    o += f'<section><h2>Podle měsíce</h2>{_ctable(st, conds, tf, base, ("měsíc",), "Měsíc")}</section>'
+    done = [x for x in (hist or []) if hit(x) is not None]
+    if done:
+        rows = []
+        for d in range(5):
+            g = [x for x in done if datetime.strptime(x["date"], "%Y-%m-%d").weekday() == d]
+            if g:
+                rows.append(f'<tr><td>{DNY[d]}</td><td>{len(g)}</td><td>{100 * sum(hit(x) for x in g) / len(g):.0f}{NB}%</td><td>{_rel(len(g))}</td></tr>')
+        o += ('<section><h2>Přesnost biasu podle dne v týdnu</h2><p class="hint">Ve které dny měl ranní bias nejčastěji pravdu. Dní je zatím málo, ber to opatrně.</p>'
+              + _t(["Den", "Dní", "Trefa", "Spolehlivost"], rows) + "</section>")
+    o += ('<section><p class="empty">Zdroj dat: Yahoo Finance (index Nasdaq 100, VIX, výnos 10letých dluhopisů, dolarový index, futures). '
+          f'Archiv se ukládá jako u biasu: každý uzavřený den se přidá, a když je plno ({LIMIT["market"]} dní), nejstarší se smaže. '
+          'Statistika se pak přepočítá z celého archivu.</p></section>')
+    return o
+
+
+def seance_body(mk, ses, hrs, ton=None):
+    mk = _closed(mk or [])
+    o = ""
+    rr = [x["h"] - x["l"] for x in mk if x.get("h") and x.get("l")]
+    if len(rr) >= 30:
+        y = rr[-250:]
+        med, r20 = _q(y, 0.5), sum(rr[-20:]) / len(rr[-20:])
+        avg_y = sum(y) / len(y)
+        dif = (r20 / avg_y - 1) * 100
+        tempo = "rychlejší než obvykle" if dif > 15 else "klidnější než obvykle" if dif < -15 else "zhruba normální"
+        up_ = [x["h"] - x["o"] for x in mk[-250:] if x.get("o")]
+        dn_ = [x["o"] - x["l"] for x in mk[-250:] if x.get("o")]
+        o += (f'<section class="hero"><div><p class="empty" style="margin:0 0 8px">Běžný pohyb Nasdaqu za jednu seanci (15:30 až 22:00 u nás)</p>'
+              f'<p class="lede">{_b(med)}</p><ul class="facts">'
+              f'<li>To je {_usd(med)} na 1 kontrakt MNQ (1 bod = 2 $). Číslo je medián za posledních {len(y)} dní: polovina dní byla klidnější, polovina divočejší.</li>'
+              f'<li>Posledních 20 dní je průměr {_b(r20)}, to je o {abs(dif):.0f}{NB}% {"víc" if dif >= 0 else "míň"} než průměr za rok. Trh je teď {tempo}.</li>'
+              f'<li>Od otevření se cena dostane v polovině dní aspoň {_b(_q(up_, 0.5))} nahoru a aspoň {_b(_q(dn_, 0.5))} dolů (než den skončí).</li>'
+              '</ul></div></section>')
+        rl = range_learn(mk)
+        if rl:
+            o += (f'<section><h2>🧠 Naučený odhad rozsahu pro dnešek</h2><div class="stat"><div><b>{_b(rl["pred"])}</b><span>odhad dnešního rozsahu, {_usd(rl["pred"])} na 1 MNQ</span></div>'
+                  f'<div><b>{_b(rl["lo"])} – {_b(rl["hi"])}</b><span>v polovině dní byl skutečný rozsah v tomhle pásmu</span></div>'
+                  f'<div><b>{_b(rl["mae"])}</b><span>průměrná chyba odhadu (bez učení {_b(rl["mae0"])})</span></div></div>'
+                  f'<p class="hint">Robot zkoušel den po dni na posledních {rl["n"]} dnech, jak nejlépe odhadnout rozsah: kolik věřit posledním 20 dnům a kolik celému roku. '
+                  f'Nejmenší chybu dávalo {rl["a"] * 100:.0f}{NB}% posledních 20 dní a {100 - rl["a"] * 100:.0f}{NB}% roku. Každý nový den se to přepočítá, '
+                  'takže když se trh změní, odhad se přizpůsobí.</p></section>')
+    else:
+        o += ('<section class="hero"><div><p class="empty" style="margin:0 0 8px">Rozsahy a seance</p><p class="lede">Data se sbírají</p><ul class="facts">'
+              '<li>Robot si stahuje denní a hodinová data Nasdaqu. Statistika se tu objeví po dalším spuštění robota.</li></ul></div></section>')
+    ss = [x for x in (ses or []) if all(k in x for k in ("onh", "onl", "ibh", "ibl", "ht", "lt"))]
+    n = len(ss)
+    P = lambda c: f"{100 * sum(1 for x in ss if c(x)) / n:.0f}{NB}%"
+    if ton:
+        rng_ = ton["h"] - ton["l"]
+        avg_on = sum(x["onh"] - x["onl"] for x in ss) / n if n else None
+        cmp_ = "" if not avg_on else (f" Průměrná noc má {_b(avg_on)}, dnešní je tedy " + ("větší než obvykle." if rng_ > avg_on * 1.15 else "menší než obvykle." if rng_ < avg_on * 0.85 else "běžná."))
+        o += (f'<section><h2>🌙 Dnešní noc na MNQ</h2><div class="stat"><div><b>{num(ton["h"])}</b><span>noční maximum</span></div>'
+              f'<div><b>{num(ton["l"])}</b><span>noční minimum</span></div><div><b>{_b(rng_)}</b><span>noční rozpětí</span></div></div>'
+              f'<p class="hint">{"Noc je kompletní (do 15:30 našeho času)." if ton["hotovo"] else "Noc ještě běží, data jsou do " + ton["do"] + " našeho času."}{cmp_}'
+              + (f" Ze statistiky: denní obchodování prorazí noční maximum v {P(lambda x: x['h'] > x['onh'])} dní a noční minimum v {P(lambda x: x['l'] < x['onl'])} dní." if n >= 10 else "")
+              + " Ceny jsou z futures NQ, MNQ má stejné.</p></section>")
+    if len(rr) >= 30:
+        cards = [("Klidný den", 0.25), ("Běžný den", 0.5), ("Divoký den", 0.75), ("Velmi divoký den", 0.9)]
+        o += ('<section><h2>Rozsah dne v bodech</h2><p class="hint">Rozsah je rozdíl mezi maximem a minimem seance. Klidný den znamená, že 3 dny ze 4 byly divočejší. '
+              'Velmi divoký den znamená, že jen 1 den z 10 byl ještě divočejší. Počítáno z posledních %d dní.</p><div class="stat">' % len(y)
+              + "".join(f'<div><b>{_b(_q(y, p))}</b><span>{nm}, {_usd(_q(y, p))} na 1 MNQ</span></div>' for nm, p in cards) + "</div>")
+        rows = []
+        for nm, k in (("Posledních 20 dní", 20), ("Posledních 60 dní", 60), ("Poslední rok (250 dní)", 250), ("Celý archiv", len(rr))):
+            v = rr[-k:]
+            if len(v) >= min(k, 20):
+                rows.append(f'<tr><td>{nm}</td><td>{len(v)}</td><td>{_b(sum(v) / len(v))}</td><td>{_b(_q(v, 0.5))}</td><td>{_b(min(v))}</td><td>{_b(max(v))}</td></tr>')
+        o += _t(["Období", "Dní", "Průměr", "Medián", "Nejmenší", "Největší"], rows) + "</section>"
+        rows = []
+        for nm, v in (("Nahoru k maximu dne", up_), ("Dolů k minimu dne", dn_), ("Otevření → zavření (oba směry)", [abs(x["c"] - x["o"]) for x in mk[-250:] if x.get("o")])):
+            if v:
+                rows.append(f'<tr><td>{nm}</td><td>{_b(sum(v) / len(v))}</td><td>{_b(_q(v, 0.25))}</td><td>{_b(_q(v, 0.5))}</td><td>{_b(_q(v, 0.75))}</td></tr>')
+        o += ('<section><h2>Jak daleko jde cena od otevření</h2><p class="hint">Vše se měří od ceny při otevření, za poslední rok. Čtvrtina dní je pod hodnotou ve sloupci 25 %, '
+              'tři čtvrtiny pod hodnotou 75 %. Hodí se pro představu, jak velký cíl nebo stop je na Nasdaqu běžný.</p>'
+              + _t(["Pohyb", "Průměr", "25 %", "Medián", "75 %"], rows) + "</section>")
+    hh = (hrs or {}).get("h") or {}
+    if hh:
+        mx = max(v["a"] for v in hh.values()) or 1
+        top = sorted(hh, key=lambda k: -hh[k]["a"])[:3]
+        bars = ""
+        for k in sorted(hh):
+            v = hh[k]
+            h2 = (int(k[:2]) + 1) % 24
+            bars += (f'<div class="bar hr"><span>{int(k[:2])}:{k[3:]}–{h2}:{k[3:]}</span><div class="track {"up" if k in top else ""}" style="{"" if k in top else "color:var(--muted)"}">'
+                     f'<i style="width:{v["a"] / mx * 100:.0f}%"></i></div><b>{_b(v["a"])} <em>teď {_b(v["r"])}</em></b></div>')
+        o += ('<section><h2>Které hodiny se hýbou nejvíc (pražský čas)</h2><p class="hint">Průměrný pohyb Nasdaq futures během jedné hodiny (maximum minus minimum), '
+              'pracovní dny %s až %s (%d dní). Zeleně jsou 3 nejživější hodiny. „Teď“ je průměr za posledních 60 dní. V týdnech, kdy Evropa a Amerika nemají '
+              'stejný letní čas, se americké hodiny posunou o hodinu dřív.</p>' % (_dcz(hrs["od"]), _dcz(hrs["do"]), hrs.get("dni", 0)) + bars + "</section>")
+    if n:
+        on_r = sum(x["onh"] - x["onl"] for x in ss) / n
+        ib_r = sum(x["ibh"] - x["ibl"] for x in ss) / n
+        rows = [f"<tr><td>Seance prorazila noční maximum</td><td>{P(lambda x: x['h'] > x['onh'])}</td></tr>",
+                f"<tr><td>Seance prorazila noční minimum</td><td>{P(lambda x: x['l'] < x['onl'])}</td></tr>",
+                f"<tr><td>Prorazila obojí</td><td>{P(lambda x: x['h'] > x['onh'] and x['l'] < x['onl'])}</td></tr>",
+                f"<tr><td>Neprorazila ani jedno</td><td>{P(lambda x: x['h'] <= x['onh'] and x['l'] >= x['onl'])}</td></tr>"]
+        o += ('<section><h2>Noc a seance</h2><p class="hint">Noc je obchodování futures od 0:00 do 15:30 našeho času (18:00 až 9:30 v New Yorku). '
+              'Průměrné noční rozpětí je %s, počet dní v archivu %d %s</p>' % (_b(on_r), n, _rel(n)) + _t(["Co se stalo", "Jak často"], rows) + "</section>")
+        rows = [f"<tr><td>Cena později prorazila maximum první hodiny</td><td>{P(lambda x: x['h'] > x['ibh'])}</td></tr>",
+                f"<tr><td>Cena později prorazila minimum první hodiny</td><td>{P(lambda x: x['l'] < x['ibl'])}</td></tr>",
+                f"<tr><td>Prorazila obojí</td><td>{P(lambda x: x['h'] > x['ibh'] and x['l'] < x['ibl'])}</td></tr>",
+                f"<tr><td>Celý den zůstal v rozpětí první hodiny</td><td>{P(lambda x: x['h'] <= x['ibh'] and x['l'] >= x['ibl'])}</td></tr>",
+                f"<tr><td>Den zavřel nad maximem první hodiny</td><td>{P(lambda x: x['c'] > x['ibh'])}</td></tr>",
+                f"<tr><td>Den zavřel pod minimem první hodiny</td><td>{P(lambda x: x['c'] < x['ibl'])}</td></tr>"]
+        o += ('<section><h2>První hodina (15:30 až 16:30 u nás)</h2><p class="hint">Rozpětí první hodiny po otevření je v průměru %s, '
+              'to je asi %d %% celého dne. Počet dní v archivu %d %s</p>' % (_b(ib_r), round(100 * ib_r / max(1e-9, sum(x["h"] - x["l"] for x in ss) / n)), n, _rel(n))
+              + _t(["Co se stalo", "Jak často"], rows) + "</section>")
+        B = [("První půlhodina", "15:30–16:00", 0, 30), ("Druhá půlhodina", "16:00–16:30", 30, 60), ("Druhá hodina", "16:30–17:30", 60, 120),
+             ("3. a 4. hodina", "17:30–19:30", 120, 240), ("5. a 6. hodina", "19:30–21:30", 240, 360), ("Poslední půlhodina", "21:30–22:00", 360, 391)]
+        rows = []
+        for nm, tm, a, b in B:
+            ph = sum(1 for x in ss if a <= x["ht"] < b) / n * 100
+            pl = sum(1 for x in ss if a <= x["lt"] < b) / n * 100
+            rows.append(f"<tr><td>{nm}</td><td>{tm}</td><td>{ph:.0f}{NB}%</td><td>{pl:.0f}{NB}%</td></tr>")
+        o += ('<section><h2>Kdy vzniká maximum a minimum dne</h2><p class="hint">V jaké části seance měla cena svůj nejvyšší a nejnižší bod. Časy jsou pražské v běžném týdnu. '
+              'Počet dní v archivu %d %s</p>' % (n, _rel(n)) + _t(["Část seance", "Náš čas", "Maximum dne", "Minimum dne"], rows) + "</section>")
+    else:
+        o += ('<section><h2>Noc, první hodina a kdy vzniká maximum dne</h2><p class="empty">Tyhle statistiky potřebují pětiminutová data, která robot ukládá každý den. '
+              'Objeví se po dalším spuštění robota a s každým dnem budou přesnější.</p></section>')
+    o += ('<section><p class="empty">Zdroj dat: Yahoo Finance. Rozsahy dne jsou z indexu Nasdaq 100 (body jsou skoro stejné jako u MNQ), hodiny, noc a první hodina '
+          f'z Nasdaq futures. Archivy se ukládají jako u biasu: uzavřený den se přidá a při zaplnění se nejstarší smaže (seance {LIMIT["seance"]} dní, hodiny {LIMIT["hodiny"]} dní). '
+          'Je to minulost, ne předpověď.</p></section>')
+    return o
+
+
+def mezitrhy_body(mk, mz):
+    mz = _closed(mz or [], 17, 15)
+    mk = _closed(mk or [])
+    if len(mz) < 30:
+        return ('<section class="hero"><div><p class="empty" style="margin:0 0 8px">Souvislosti trhů</p><p class="lede">Data se sbírají</p><ul class="facts">'
+                '<li>Robot si ukládá denní data S&amp;P 500, Dow Jonesu, Russellu, polovodičů, zlata, ropy a bitcoinu. Při prvním běhu stáhne 5 let zpětně, '
+                'takže porovnání se tu objeví po dalším spuštění robota.</li></ul></div></section>')
+    mkd = {x["d"]: x for x in mk}
+    rows_ = [dict(x, **{k: mkd[x["d"]][k2] for k, k2 in (("vix", "v"), ("ten", "y"), ("dxy", "dx")) if x["d"] in mkd and mkd[x["d"]].get(k2)}) for x in mz]
+    names = [(k, nm) for k, _s, nm in MZ] + [("vix", "VIX, index strachu"), ("ten", "Výnos 10letých dluhopisů"), ("dxy", "Dolarový index")]
+
+    def chg(k, i, back=1):
+        a, b = rows_[i].get(k), rows_[i - back].get(k) if i - back >= 0 else None
+        if a is None or b is None or not b:
+            return None
+        return a - b if k == "ten" else (a / b - 1) * 100
+
+    def series(k, last):
+        out = []
+        for i in range(max(1, len(rows_) - last), len(rows_)):
+            a, b = chg("nq", i), chg(k, i)
+            if a is not None and b is not None:
+                out.append((a, b))
+        return out
+
+    def corr(k, last):
+        s = series(k, last)
+        return _corr([a for a, _ in s], [b for _, b in s]) if len(s) >= 10 else None
+
+    def fc(v, k):
+        if v is None:
+            return "–"
+        if k == "ten":
+            return f'<span class="{"up" if v >= 0 else "down"}">{"+" if v >= 0 else "−"}{num(abs(v))}</span>'
+        return f'<span class="{"up" if v >= 0 else "down"}">{pc(v)}</span>'
+
+    def fr(v):
+        return "–" if v is None else ("−" if v < 0 else "") + num(abs(v))
+    L = len(rows_) - 1
+    nq20, es20 = chg("nq", L, 20), chg("es", L, 20)
+    s60 = series("es", 60)
+    beta = None
+    if len(s60) >= 20:
+        me = sum(b for _, b in s60) / len(s60)
+        mn = sum(a for a, _ in s60) / len(s60)
+        ve = sum((b - me) ** 2 for _, b in s60)
+        beta = sum((a - mn) * (b - me) for a, b in s60) / ve if ve else None
+    d20 = None if nq20 is None or es20 is None else nq20 - es20
+    word, cls = ("Nasdaq vede", "up") if d20 is not None and d20 > 1 else ("S&amp;P vede", "down") if d20 is not None and d20 < -1 else ("Vyrovnané", "")
+    facts = []
+    if d20 is not None:
+        facts.append(f"Za posledních 20 dní: Nasdaq {pc(nq20)}, S&amp;P 500 {pc(es20)}. "
+                     + ("Technologie táhnou trh, to bývá pro Nasdaq dobré prostředí." if d20 > 1 else
+                        "Peníze jdou spíš mimo technologie, Nasdaq zaostává." if d20 < -1 else "Oba indexy jdou podobně."))
+    if beta is not None:
+        facts.append(f"Když se S&amp;P 500 pohne o 1 %, Nasdaq se v průměru pohne o {num(beta)} % (posledních 60 dní).")
+    y1n, y1e = chg("nq", L), chg("es", L)
+    if y1n is not None and y1e is not None:
+        facts.append(f"Poslední uzavřený den ({_dcz(rows_[L]['d'])}): Nasdaq {pc(y1n)}, S&amp;P 500 {pc(y1e)}.")
+    o = (f'<section class="hero"><div><p class="empty" style="margin:0 0 8px">Nasdaq proti S&amp;P 500 za posledních 20 dní</p><p class="lede {cls}">{word}</p>'
+         '<ul class="facts">' + "".join(f"<li>{f}</li>" for f in facts) + "</ul></div></section>")
+    # výkon trhů
+    rows = []
+    for k, nm in names:
+        last = next((r[k] for r in reversed(rows_) if r.get(k) is not None), None)
+        if last is None:
+            continue
+        c60 = corr(k, 60) if k != "nq" else None
+        rows.append(f'<tr><td>{nm}</td><td>{num(last)}</td><td>{fc(chg(k, L), k)}</td><td>{fc(chg(k, L, 5), k)}</td><td>{fc(chg(k, L, 20), k)}</td>'
+                    f'<td>{fc(chg(k, L, 60), k)}</td><td>{"–" if k == "nq" else fr(c60)}</td></tr>')
+    o += ('<section><h2>Výkon trhů</h2><p class="hint">Změna za poslední uzavřený den, 5, 20 a 60 obchodních dní. U výnosu dluhopisů je změna v procentních bodech. '
+          'Souvislost s Nasdaqem: 1 = jdou úplně spolu, 0 = nesouvisí, −1 = jdou proti sobě (posledních 60 dní).</p>'
+          + _t(["Trh", "Poslední cena", "1 den", "5 dní", "20 dní", "60 dní", "Souvislost s Nasdaqem"], rows) + "</section>")
+    # MNQ nebo MES
+    rq = [x["nqh"] - x["nql"] for x in rows_[-60:] if x.get("nqh") and x.get("nql")]
+    re_ = [x["esh"] - x["esl"] for x in rows_[-60:] if x.get("esh") and x.get("esl")]
+    if len(rq) >= 20 and len(re_) >= 20:
+        mq, me2 = _q(rq, 0.5), _q(re_, 0.5)
+        pq, pe = rows_[L].get("nq") or 0, rows_[L].get("es") or 0
+        rows = [f'<tr><td>MNQ (mikro Nasdaq)</td><td>2 $</td><td>{_b(mq)}</td><td>{_usd(mq, 2)}</td><td>{_usd(pq / 100, 2)}</td></tr>',
+                f'<tr><td>MES (mikro S&amp;P 500)</td><td>5 $</td><td>{_b(me2)}</td><td>{_usd(me2, 5)}</td><td>{_usd(pe / 100, 5)}</td></tr>']
+        o += ('<section><h2>MNQ nebo MES v dolarech</h2><p class="hint">Kolik peněz udělá běžný den na jednom mikro kontraktu. Rozsah je medián za posledních 60 dní '
+              'a počítá celý den včetně noci. MNQ se v dolarech hýbe víc, takže stejná chyba stojí víc peněz.</p>'
+              + _t(["Kontrakt", "1 bod", "Běžný denní rozsah", "To je na 1 kontrakt", "Pohyb o 1 %"], rows) + "</section>")
+    # co se děje den potom
+    st = market_stats(mk, mz)
+    if len(st) >= 30:
+        base = sum(1 for x in st if x["ret"] > 0) / len(st)
+        lo_v, hi_v = _vix_cut(st)
+        tf, nd = today_feat(mk, mz)
+        cm_ = conditions(lo_v, hi_v)
+        t_ = _ctable(st, cm_, tf, base, ("mezitrhy",))
+        wfm = walk_forward(st, cm_, ("mezitrhy",))
+        plm = [(g, nm, fn, a) for g, nm, fn in cm_ if g == "mezitrhy" and fn(tf) for a in [_ev(st, fn, base)] if a]
+        vm, mu, md = learned_vote(plm, wfm)
+        o = o.replace("</ul></div></section>", "<li>Signál z ostatních trhů pro nejbližší den: <b>" + ("spíš nahoru" if vm > 0.5 else "spíš dolů" if vm < -0.5 else "bez jasné výhody")
+                      + f"</b> ({mu} výrazných situací nahoru, {md} dolů, váženo podle toho, jak se trefovaly naživo).</li></ul></div></section>", 1)
+        if t_:
+            o += ('<section><h2>Co dělal Nasdaq den potom</h2><p class="hint">Co se stalo s Nasdaqem (index Nasdaq 100, od zavření do zavření) den poté, co se na ostatních trzích '
+                  f'stalo tohle. Běžný den šel nahoru v {100 * base:.0f}{NB}% dní. Štítek „dnes“ znamená, že situace platí pro nejbližší obchodní den. {SILA_HINT}</p>' + t_ + "</section>")
+    if len(st) >= 30:
+        o += wf_section(wfm, cm_, ("mezitrhy",), "🧠 Co se naučilo z ostatních trhů")
+    # souvislost v čase
+    rows = []
+    for k, nm in names:
+        if k == "nq":
+            continue
+        c = [corr(k, n_) for n_ in (20, 60, 250)]
+        if any(v is not None for v in c):
+            rows.append(f"<tr><td>{nm}</td>" + "".join(f"<td>{fr(v)}</td>" for v in c) + "</tr>")
+    if rows:
+        o += ('<section><h2>Jak moc jdou trhy s Nasdaqem</h2><p class="hint">Když se souvislost za 20 dní hodně liší od té za rok, trhy se teď chovají jinak než obvykle. '
+              'Například když VIX přestane jít proti Nasdaqu, něco je neobvyklé.</p>' + _t(["Trh", "20 dní", "60 dní", "Rok (250 dní)"], rows) + "</section>")
+    # kdo vedl v posledních dnech
+    rows = []
+    for i in range(L, max(0, L - 10), -1):
+        a, b, s_ = chg("nq", i), chg("es", i), chg("sox", i)
+        if a is None or b is None:
+            continue
+        rows.append(f'<tr><td>{_dcz(rows_[i]["d"])}</td><td>{fc(a, "nq")}</td><td>{fc(b, "es")}</td><td>{fc(s_, "sox")}</td>'
+                    f'<td>{"Nasdaq" if a - b > 0.15 else "S&amp;P 500" if a - b < -0.15 else "nikdo"}</td></tr>')
+    if rows:
+        o += ('<section><h2>Kdo vedl v posledních dnech</h2>' + _t(["Den", "Nasdaq", "S&amp;P 500", "Polovodiče", "Silnější"], rows) + "</section>")
+    o += ('<section><p class="empty">Zdroj dat: Yahoo Finance (futures NQ, ES, YM, RTY, zlato a ropa, index polovodičů SOX, bitcoin, VIX, výnos dluhopisů, dolarový index). '
+          f'Archiv se ukládá jako u biasu: uzavřený den se přidá a při zaplnění ({LIMIT["mezitrhy"]} dní) se nejstarší smaže. Je to minulost, ne předpověď.</p></section>')
+    return o
+
+
+
+
+# ===== ROBOT: obchody tvé strategie z TradingView (přes webhook a Cloudflare Worker) =====
+ROBOT_URL = ""  # sem můžeš vložit adresu svého Workeru, např. "https://kompas-robot.tvojejmeno.workers.dev" (jde to nastavit i přímo na stránce Robot)
+
+
+def robot_feats(mk, mz=None, ses=None, ton=None):
+    """Pro každý obchodní den: co bylo o trhu známo před otevřením (předchozí den, gap, VIX, trend, rozsah včerejška,
+    ostatní trhy, noc před otevřením). Robot se z toho učí, kdy se mu daří."""
+    mk = _closed(mk or [])
+    mzd = {x["d"]: x for x in (mz or [])}
+    sd = {x["d"]: x["onh"] - x["onl"] for x in (ses or []) if x.get("onh") and x.get("onl")}
+    sdk = sorted(sd)
+    out = {}
+    if len(mk) < 30:
+        return out
+    vs = sorted(x["v"] for x in mk[-1000:] if x.get("v"))
+    lo, hi = (vs[len(vs) // 3], vs[2 * len(vs) // 3]) if len(vs) > 30 else (None, None)
+
+    def feat(i, gap):
+        a, z = mk[i - 1], mk[i - 2]
+        f = {"p": "růst" if a["c"] > z["c"] else "pokles"}
+        v = a.get("v")
+        if v and lo is not None:
+            f["v"] = "nízký" if v < lo else "vysoký" if v > hi else "střední"
+        if i >= 20:
+            f["t"] = "nad" if a["c"] > sum(x["c"] for x in mk[i - 20:i]) / 20 else "pod"
+        if gap is not None:
+            f["g"] = "nahoru" if gap > 0.1 else "dolů" if gap < -0.1 else "bez gapu"
+        if i >= 21 and a.get("h") and a.get("l"):
+            rr = [x["h"] - x["l"] for x in mk[i - 21:i - 1] if x.get("h") and x.get("l")]
+            if rr:
+                q = (a["h"] - a["l"]) / (sum(rr) / len(rr))
+                f["r"] = "divoký" if q > 1.25 else "klidný" if q < 0.75 else "běžný"
+        ma, mzz = mzd.get(a["d"]), mzd.get(z["d"])
+        if ma and mzz and ma.get("nq") and mzz.get("nq") and ma.get("es") and mzz.get("es"):
+            dd = (ma["nq"] / mzz["nq"] - 1) * 100 - (ma["es"] / mzz["es"] - 1) * 100
+            f["m"] = "Nasdaq vedl nad S&P 500" if dd > 0.3 else "S&P 500 vedl nad Nasdaqem" if dd < -0.3 else "Nasdaq a S&P 500 vyrovnaně"
+        return f
+
+    def night(d, rng):
+        prev = [sd[k] for k in sdk if k < d][-20:]
+        if rng is None or len(prev) < 10:
+            return None
+        q = rng / (sum(prev) / len(prev))
+        return "větší" if q > 1.25 else "menší" if q < 0.8 else "běžná"
+    for i in range(max(2, len(mk) - 700), len(mk)):
+        try:
+            out[mk[i]["d"]] = feat(i, (mk[i]["o"] / mk[i - 1]["c"] - 1) * 100)
+            n_ = night(mk[i]["d"], sd.get(mk[i]["d"]))
+            if n_:
+                out[mk[i]["d"]]["n"] = n_
+        except Exception:
+            continue
+    nd = datetime.now(PRAGUE).date()
+    while nd.weekday() > 4 or nd.isoformat() in out:
+        nd += timedelta(days=1)
+    out[nd.isoformat()] = feat(len(mk), None)
+    if ton and ton.get("hotovo") and nd == datetime.now(ZoneInfo(NYZ)).date():
+        n_ = night(nd.isoformat(), ton["h"] - ton["l"])
+        if n_:
+            out[nd.isoformat()]["n"] = n_
+    return out
+
+
+def robot_body(mk=None, mz=None, ses=None, ton=None):
+    try:
+        mkf = json.dumps(robot_feats(mk, mz, ses, ton), ensure_ascii=False, separators=(",", ":"))
+    except Exception as e:
+        print("Robot – vlastnosti trhu:", e)
+        mkf = "{}"
+    return ('<script>window.MKF=' + mkf + ';</script>'
+            '<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>'
+            '<section class="hero" id="rb-hero"><div><p class="empty" style="margin:0 0 8px">Tvoje strategie z TradingView, papírové obchody</p>'
+            '<p class="lede" id="rb-word">Načítám…</p><ul class="facts" id="rb-facts"><li>Načítám obchody…</li></ul></div></section>'
+            '<section id="rb-daysec" hidden><h2>Graf dne s obchody</h2><div class="row"><label style="max-width:260px">Den<select id="rb-day"></select></label>'
+            '<div class="tabs" role="tablist" id="rb-tf" style="align-self:flex-end"><button role="tab" data-tf="1" aria-selected="true">1 minuta</button>'
+            '<button role="tab" data-tf="5" aria-selected="false">5 minut</button><button role="tab" data-tf="15" aria-selected="false">15 minut</button></div></div>'
+            '<div id="rb-chart" style="height:440px;margin-top:12px;border-radius:14px;overflow:hidden"></div>'
+            '<p class="hint" id="rb-chint">Zelená šipka = vstup do longu, červená = vstup do shortu, kolečko = výstup. Svíčky jsou z Yahoo (1, 5 nebo 15 minut podle přepínače) (NQ futures, MNQ má stejnou cenu), časy jsou pražské.</p></section>'
+            '<section id="rb-statsec" hidden><h2>Výsledky</h2><div class="row" id="rb-srcrow" hidden><label style="max-width:300px">Zobrazit<select id="rb-src">'
+            '<option value="all">Všechny obchody</option><option value="live">Jen živé obchody (webhook)</option><option value="hist">Jen historie z TradingView</option></select></label></div>'
+            '<div class="stat" id="rb-stat"></div><div class="chartbox" style="height:260px"><canvas id="rb-eq"></canvas></div>'
+            '<h2 style="margin-top:22px">Podle modelu</h2><div id="rb-models"></div></section>'
+            '<section id="rb-mentsec"><h2>🧑‍🏫 Robot vs. mentor</h2><p class="hint">Porovnání obchodů robota s plánem od mentora (stránka Plán od mentora): '
+            'jestli šel robot stejným směrem jako mentor, jestli vstupoval u jeho zón a kdo měl ten den pravdu.</p><div id="rb-ment"><p class="empty">Zatím žádný den s plánem od mentora.</p></div></section>'
+            '<section id="rb-learnsec"><h2>🧠 Co se robot naučil</h2><p class="hint">Robot si u každého obchodu zapamatuje, za jakých podmínek ho udělal. Bere to ze všech částí Kompasu: '
+            '<b>obchod</b> (model, směr, den, čas vstupu), <b>aplikace</b> (ranní bias a jeho síla, nálada zpráv, fundament, kalendář zpráv, velké zprávy z USA, statistika trhu, futures před otevřením) '
+            '<b>plán od mentora</b> (jestli čekal stejný směr a jestli vstup byl u jeho zóny) a <b>trh</b> (předchozí den, jak divoký byl, gap, VIX, trend, noc před otevřením, jestli vedl Nasdaq nebo S&amp;P 500). Data z aplikace má jen ze dnů, kdy aplikace běžela, '
+            'u starších obchodů z backtestu se učí jen z obchodu a trhu. Počítá, ve kterých situacích vydělává a ve kterých prodělává, a ty prodělávající se učí vynechávat. '
+            'Učí se poctivě: o každém obchodu rozhoduje jen podle obchodů, které byly před ním. Porovnání níže proto ukazuje, co by učení opravdu přineslo.</p>'
+            '<div id="rb-learn"><p class="empty">Robot se začne učit po prvních obchodech. Rychleji to půjde, když dole nahraješ historii obchodů z TradingView.</p></div></section>'
+            '<section id="rb-listsec" hidden><h2>Všechny obchody</h2><p class="hint">Částky jsou za MNQ (1 bod = 2 $ na kontrakt), bez poplatků. Bias dne je ranní bias z této stránky.</p><div id="rb-list"></div></section>'
+            '<section><h2>📥 Historie obchodů z TradingView</h2><p class="hint">Aby se robot nemusel učit měsíce, nahraj mu obchody z backtestu. V TradingView otevři '
+            '<b>Strategy Tester → List of trades</b>, vpravo nahoře klikni na <b>Export</b> (ikona stažení) a ulož jako <b>CSV</b>. Pak ten soubor vyber tady. '
+            'Ukládá se jen do tohoto prohlížeče (na mobilu ho nahraj znovu). Nový export starý nahradí.</p>'
+            '<div class="row"><label style="flex:1">Soubor CSV z TradingView<input type="file" id="rb-file" accept=".csv,text/csv,text/plain"></label>'
+            '<label style="max-width:240px">Časy v souboru<select id="rb-tz"><option value="auto">Poznat automaticky</option><option value="Europe/Prague">Pražský čas</option>'
+            '<option value="America/New_York">Newyorský čas</option><option value="UTC">UTC</option></select></label></div>'
+            '<div class="row"><button type="button" class="ghost" id="rb-impdel">Smazat nahranou historii</button></div><p class="hint" id="rb-impmsg"></p></section>'
+            '<section><details id="rb-setup"><summary><b>⚙️ Jak robota napojit na TradingView</b> (klikni)</summary>'
+            '<ol class="hint" style="line-height:1.7">'
+            '<li><b>Cloudflare:</b> Workers &amp; Pages → Create → Worker → pojmenuj ho třeba <code>kompas-robot</code> → Deploy → Edit code → smaž vše a vlož obsah souboru <code>worker.js</code> → Deploy.</li>'
+            '<li><b>Úložiště:</b> Storage &amp; Databases → KV → Create namespace (název třeba <code>obchody</code>). Pak ve Workeru Settings → Bindings → Add → KV namespace, '
+            'Variable name napiš přesně <code>OBCHODY</code> a vyber to úložiště.</li>'
+            '<li><b>Heslo:</b> ve Workeru Settings → Variables and Secrets → Add → typ Secret, název <code>TOKEN</code>, hodnota si vymysli (jen písmena a čísla, aspoň 20 znaků). Nikomu ho neposílej.</li>'
+            '<li><b>TradingView:</b> Nastavení účtu → Security → zapni dvoufázové ověření (bez něj webhooky nejdou).</li>'
+            '<li><b>Alert:</b> otevři graf MNQ1! na 1 minutě se strategií → Alert (budík) → Condition: tvoje strategie → „Order fills only“ → Expiration: Open-ended. '
+            'V záložce Notifications zaškrtni Webhook URL a vlož <code>https://ADRESA-WORKERU/hook?t=TVŮJ_TOKEN</code>. Do Message vlož text níže a dej Create.</li>'
+            '<li><b>Tady:</b> vlož adresu Workeru (bez /hook a bez tokenu) do pole níže a ulož.</li></ol>'
+            '<p class="hint">Text do pole Message v TradingView (zkopíruj celý):</p>'
+            '<pre id="rb-msg" style="white-space:pre-wrap;user-select:all;padding:12px;border-radius:12px;background:var(--glass);font-size:13px">'
+            '{"cas":"{{time}}","akce":"{{strategy.order.action}}","kontrakty":{{strategy.order.contracts}},"cena":{{strategy.order.price}},'
+            '"pozice":"{{strategy.market_position}}","velikost":{{strategy.position_size}},"popis":"{{strategy.order.comment}}","id":"{{strategy.order.id}}","ticker":"{{ticker}}"}</pre>'
+            '<div class="row" style="margin-top:12px"><label style="flex:1">Adresa Workeru<input id="rb-url" type="url" placeholder="https://kompas-robot.tvojejmeno.workers.dev" translate="no"></label>'
+            '<button type="button" id="rb-save" style="align-self:flex-end">Uložit</button></div><p class="hint" id="rb-msg2"></p>'
+            '<p class="hint">Strategie běží na serverech TradingView, i když máš počítač vypnutý. TradingView obchoduje jen naoko (papírově), žádné skutečné peníze. '
+            'Obchody se tu objeví pár sekund po tom, co je strategie udělá.</p></details></section>')
+
+
+ROBOT_JS = r"""
+(function(){
+  const E = id => document.getElementById(id);
+  const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+  const nb = " ";
+  const fmt = (x, d) => (x < 0 ? "−" : "") + Math.abs(x).toLocaleString("cs-CZ", {minimumFractionDigits: d || 0, maximumFractionDigits: d || 0});
+  const usd = x => (x >= 0 ? "+" : "−") + Math.abs(x).toLocaleString("cs-CZ", {maximumFractionDigits: 0}) + nb + "$";
+  const pday = t => new Date(t).toLocaleDateString("sv-SE", {timeZone: "Europe/Prague"});
+  const ptime = t => new Date(t).toLocaleTimeString("cs-CZ", {timeZone: "Europe/Prague", hour: "2-digit", minute: "2-digit"});
+  const dcz = d => +d.slice(8, 10) + "." + nb + (+d.slice(5, 7)) + "." + nb + d.slice(0, 4);
+  let url = "";
+  try { url = localStorage.getItem("robotUrl") || ""; } catch (e) {}
+  if (!url && DATA.robot) url = DATA.robot;
+  E("rb-url").value = url;
+  E("rb-save").onclick = () => {
+    let v = E("rb-url").value.trim().replace(/\/+$/, "").replace(/\/hook.*$/, "");
+    if (v && !/^https:\/\//.test(v)) { E("rb-msg2").textContent = "Adresa musí začínat https://"; return; }
+    try { localStorage.setItem("robotUrl", v); } catch (e) {}
+    url = v; E("rb-msg2").textContent = v ? "Uloženo. Načítám obchody…" : "Adresa smazána."; load();
+  };
+  const biasOf = {};
+  (DATA.hist || []).forEach(x => { biasOf[x.date] = x.label; });
+
+  function pair(evs) {
+    evs = evs.filter(e => e && e.cena != null && e.pozice).map(e => Object.assign({}, e, {t: Date.parse(e.cas || e.prijato) || Date.parse(e.prijato)}))
+             .sort((a, b) => a.t - b.t);
+    const trades = []; let pos = null;
+    evs.forEach(e => {
+      const p = String(e.pozice).toLowerCase(), price = +e.cena;
+      if (pos && (p === "flat" || (p !== pos.side))) {
+        const pts = (price - pos.entry) * (pos.side === "long" ? 1 : -1);
+        const why = /konec dne/i.test(e.popis || "") ? "konec dne" : /stop/i.test(e.popis || "") ? "denní stop" : Math.abs(pts) <= 1.5 ? "break-even" : pts > 0 ? "cíl" : "stop";
+        trades.push(Object.assign(pos, {exit: price, tx: e.t, pts: pts, usd: pts * 2 * pos.qty, why: why}));
+        pos = null;
+      }
+      if (!pos && (p === "long" || p === "short")) {
+        pos = {side: p, entry: price, t: e.t, qty: Math.abs(+e.velikost || +e.kontrakty || 1), model: e.popis || e.id || ""};
+      }
+    });
+    return {trades: trades, open: pos, last: evs.length ? evs[evs.length - 1].t : null};
+  }
+
+  let chart = null, series = null, candles = null, TF = 1, lastDayArgs = null;
+  try { TF = +localStorage.getItem("robotTf") || 1; } catch (e) {}
+  document.querySelectorAll("#rb-tf [data-tf]").forEach(b => { b.setAttribute("aria-selected", +b.dataset.tf === TF ? "true" : "false");
+    b.onclick = () => { TF = +b.dataset.tf; try { localStorage.setItem("robotTf", TF); } catch (e) {}
+      document.querySelectorAll("#rb-tf [data-tf]").forEach(x => x.setAttribute("aria-selected", x === b ? "true" : "false")); if (lastDayArgs) drawDay(lastDayArgs[0], lastDayArgs[1]); }; });
+  async function drawDay(day, trades) {
+    lastDayArgs = [day, trades];
+    if (!window.LightweightCharts || !url) { E("rb-chint").textContent = "Graf se nepodařilo načíst."; return; }
+    try {
+      if (!candles) candles = await (await fetch(url + "/candles?sym=NQ=F")).json();
+    } catch (e) { candles = []; }
+    const off = ts => { const d = new Date(ts * 1000); return (new Date(d.toLocaleString("en-US", {timeZone: "Europe/Prague"})) - new Date(d.toLocaleString("en-US", {timeZone: "UTC"}))) / 1000; };
+    const raw = (Array.isArray(candles) ? candles : []).filter(c => pday(c[0] * 1000) === day), step = TF * 60, agg = [];
+    raw.forEach(c => { const b = Math.floor(c[0] / step) * step, last = agg[agg.length - 1];
+      if (last && last[0] === b) { last[2] = Math.max(last[2], c[2]); last[3] = Math.min(last[3], c[3]); last[4] = c[4]; } else agg.push([b, c[1], c[2], c[3], c[4]]); });
+    const data = agg.map(c => ({time: c[0] + off(c[0]), open: c[1], high: c[2], low: c[3], close: c[4]}));
+    const cs = getComputedStyle(document.documentElement);
+    const ink = (cs.getPropertyValue("--ink") || "#ddd").trim(), mut = (cs.getPropertyValue("--muted") || "#999").trim();
+    if (!chart) {
+      chart = LightweightCharts.createChart(E("rb-chart"), {layout: {background: {type: "solid", color: "transparent"}, textColor: mut},
+        grid: {vertLines: {color: "rgba(127,127,127,.12)"}, horzLines: {color: "rgba(127,127,127,.12)"}}, timeScale: {timeVisible: true, secondsVisible: false},
+        rightPriceScale: {borderVisible: false}, crosshair: {mode: 0}, autoSize: true});
+      series = chart.addCandlestickSeries({upColor: "#2EE6A6", downColor: "#FF6B8A", borderVisible: false, wickUpColor: "#2EE6A6", wickDownColor: "#FF6B8A"});
+    }
+    series.setData(data);
+    const mk = [];
+    trades.filter(t => pday(t.t) === day).forEach(t => {
+      const s1 = Math.floor(t.t / 60000 / TF) * TF * 60, s2 = Math.floor(t.tx / 60000 / TF) * TF * 60;
+      mk.push({time: s1 + off(s1), position: t.side === "long" ? "belowBar" : "aboveBar", color: t.side === "long" ? "#2EE6A6" : "#FF6B8A", shape: t.side === "long" ? "arrowUp" : "arrowDown", text: (t.side === "long" ? "L " : "S ") + t.qty});
+      mk.push({time: s2 + off(s2), position: t.side === "long" ? "aboveBar" : "belowBar", color: t.usd >= 0 ? "#2EE6A6" : "#FF6B8A", shape: "circle", text: usd(t.usd)});
+    });
+    if (openPos && pday(openPos.t) === day) { const s0 = Math.floor(openPos.t / 60000 / TF) * TF * 60;
+      mk.push({time: s0 + off(s0), position: openPos.side === "long" ? "belowBar" : "aboveBar", color: "#FFC457", shape: openPos.side === "long" ? "arrowUp" : "arrowDown", text: "otevřeno " + openPos.qty}); }
+    mk.sort((a, b) => a.time - b.time);
+    series.setMarkers(mk);
+    (series._mlines || []).forEach(l => { try { series.removePriceLine(l); } catch (e) {} });
+    series._mlines = [];
+    ((MENTOR[day] || {}).zones || []).forEach(z => { [z.lo, z.hi].filter((v, i, a) => a.indexOf(v) === i).forEach(v => { try {
+      series._mlines.push(series.createPriceLine({price: v, color: z.dir === "long" ? "#2EE6A6" : "#FF6B8A", lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "mentor " + (z.dir === "long" ? "↑" : "↓")})); } catch (e) {} }); });
+    chart.timeScale().fitContent();
+    E("rb-chint").textContent = data.length ? "Zelená šipka = vstup do longu, červená = vstup do shortu, kolečko = výstup s výsledkem. Čárkované čáry jsou zóny od mentora. Svíčky jsou z Yahoo (1, 5 nebo 15 minut podle přepínače) (NQ futures, MNQ má stejnou cenu), časy jsou pražské."
+      : "Pro tento den nejsou 1minutové svíčky (Yahoo je drží jen pár dní zpátky). Obchody najdeš v tabulce níže.";
+  }
+
+  // ---------- UČENÍ ----------
+  const MKF = window.MKF || {};
+  const DN = ["Neděle", "Pondělí", "Úterý", "Středa", "Čtvrtek", "Pátek", "Sobota"];
+  const BUCK = [[-1e9, 0, "před otevřením burzy"], [0, 30, "1. půlhodina po otevření (15:30–16:00)"], [30, 60, "2. půlhodina (16:00–16:30)"],
+    [60, 90, "16:30–17:00"], [90, 120, "17:00–17:30"], [120, 150, "17:30–18:00"], [150, 1e9, "po 18:00"]];
+  const nyMin = t => { const s = new Date(t).toLocaleTimeString("en-GB", {timeZone: "America/New_York", hour: "2-digit", minute: "2-digit", hour12: false}); return (+s.slice(0, 2) % 24) * 60 + (+s.slice(3, 5)) - 570; };
+  const modelOf = t => (t.model || "").replace(/\s*\|.*$/, "").replace(/^[LS] /, "").replace(/\s+P\d+$/, "").trim() || "?";
+  // 1R ≈ průměrná ztráta v bodech (stop skutečně nevíme, ztráty jsou typicky celý stop)
+  const oneR = a => { const l = a.filter(t => t.pts < -1).map(t => -t.pts); return l.length ? l.reduce((x, y) => x + y, 0) / l.length : null; };
+  let showAllTr = false;
+  function biasRel(side, lab) {
+    if (!lab) return null;
+    const l = lab.toLowerCase(), b = l.includes("bullish") ? 1 : l.includes("bearish") ? -1 : 0;
+    if (!b) return "ranní bias neutrální";
+    return (b === 1) === (side === "long") ? "ranní bias souhlasí se směrem obchodu" : "ranní bias proti směru obchodu";
+  }
+  const MENTOR = {}; let mentorReady = false;
+  const mentorLoad = () => new Promise(r => { try { const q = indexedDB.open("mentor", 1); q.onupgradeneeded = () => q.result.createObjectStore("plans", {keyPath: "id", autoIncrement: true});
+    q.onsuccess = () => { try { const g = q.result.transaction("plans").objectStore("plans").getAll(); g.onsuccess = () => r(g.result || []); g.onerror = () => r([]); } catch (e) { r([]); } }; q.onerror = () => r([]); } catch (e) { r([]); } });
+  const histOf = {};
+  (DATA.hist || []).forEach(x => { histOf[x.date] = x; });
+  const BIG = /CPI|Non-Farm|NFP|FOMC|Federal Funds|Fed Chair|Powell|GDP|PCE|Retail Sales|ISM|Unemployment|PPI|JOLTS/i;
+  const rel = (v, lim, po, proti, neu) => v > lim ? po : v < -lim ? proti : neu;
+  function appConds(t, d, c) {
+    const h = histOf[d]; if (!h) return;
+    const dir = t.side === "long" ? 1 : -1, cp = h.comp || {};
+    if (h.score != null) c.push(["app", rel(h.score * dir, 4.99, "Silný ranní bias po směru obchodu", "Silný ranní bias proti směru obchodu", "Ranní bias bez síly (skóre pod 5)")]);
+    if (cp["Zprávy"] != null) c.push(["app", rel(cp["Zprávy"] * dir, 0.2, "Nálada zpráv (sentiment) po směru obchodu", "Nálada zpráv (sentiment) proti směru obchodu", "Nálada zpráv neutrální")]);
+    if (cp["Futures"] != null) c.push(["app", rel(cp["Futures"] * dir, 0.3, "Futures před otevřením po směru obchodu", "Futures před otevřením proti směru obchodu", "Futures před otevřením bez směru")]);
+    if (cp["Statistika"] != null) c.push(["app", rel(cp["Statistika"] * dir, 0.5, "Statistika trhu po směru obchodu", "Statistika trhu proti směru obchodu", "Statistika trhu bez výhody")]);
+    const cv = Object.values(h.cats || {}).filter(v => typeof v === "number");
+    if (cv.length) c.push(["app", rel(cv.reduce((a, b) => a + b, 0) / cv.length * dir, 0.1, "Fundament po směru obchodu", "Fundament proti směru obchodu", "Fundament neutrální")]);
+    if (h.tilt != null) c.push(["app", rel(h.tilt * dir, 0.5, "Kalendář zpráv nakloněný po směru obchodu", "Kalendář zpráv nakloněný proti směru obchodu", "Kalendář zpráv bez naklonění")]);
+    if (Array.isArray(h.ev)) c.push(["app", h.ev.some(e => BIG.test(e.t || "")) ? "Den s velkou zprávou z USA (CPI, NFP, FOMC…)" : h.ev.length ? "Den jen s menšími zprávami z USA" : "Den bez zpráv z USA"]);
+  }
+  function conds(t) {
+    const d = pday(t.t), f = MKF[d] || {}, m = nyMin(t.t), c = [];
+    c.push(["model", "Model: " + modelOf(t)]);
+    c.push(["smer", "Směr: " + t.side]);
+    c.push(["model", "Model a směr: " + modelOf(t) + ", " + t.side]);
+    c.push(["den", "Den: " + DN[new Date(d + "T12:00:00Z").getUTCDay()]]);
+    const b = BUCK.find(x => m >= x[0] && m < x[1]); if (b) c.push(["cas", "Čas vstupu: " + b[2]]);
+    const br = biasRel(t.side, biasOf[d]); if (br) c.push(["bias", "Bias: " + br]);
+    if (f.p) c.push(["trh", "Předchozí den Nasdaq: " + f.p]);
+    if (f.g) c.push(["trh", "Gap při otevření: " + f.g]);
+    if (f.v) c.push(["trh", "VIX (strach): " + f.v]);
+    if (f.t) c.push(["trh", (t.side === "long") === (f.t === "nad") ? "Obchod po směru trendu (20 dní)" : "Obchod proti trendu (20 dní)"]);
+    if (f.r) c.push(["trh", "Předchozí den byl " + f.r]);
+    if (f.m) c.push(["trh", "Včera " + f.m]);
+    if (f.n) c.push(["trh", "Noc před otevřením: " + f.n + " rozpětí než obvykle"]);
+    if (f.p) c.push(["trh", (f.p === "růst") === (t.side === "long") ? "Obchod po směru předchozího dne" : "Obchod proti směru předchozího dne"]);
+    appConds(t, d, c);
+    const mp = MENTOR[d];
+    if (!mp) c.push(["mentor", "Den bez plánu od mentora"]);
+    else {
+      if (mp.dir === "long" || mp.dir === "short") c.push(["mentor", mp.dir === t.side ? "Mentor čekal stejný směr jako obchod" : "Mentor čekal opačný směr než obchod"]);
+      if (t.entry != null && (mp.zones || []).length) {
+        const near = mp.zones.map(z => ({z: z, d: t.entry < z.lo ? z.lo - t.entry : t.entry > z.hi ? t.entry - z.hi : 0})).sort((a, b) => a.d - b.d)[0];
+        c.push(["mentor", near.d <= 10 ? (near.z.dir === t.side ? "Vstup u zóny od mentora ve směru jeho šipky" : "Vstup u zóny od mentora proti jeho šipce") : "Vstup mimo zóny od mentora"]);
+      }
+    }
+    return c;
+  }
+  const K = 10, MINC = 10, MINT = 20;
+  // situace "prodělává", jen když je to po zohlednění náhody opravdu horší než průměr (z-skóre ≤ −2) a v průměru ztrátová
+  function bad(x, base) {
+    if (x.n < MINC) return false;
+    const avg = x.sum / x.n, sd = Math.sqrt(Math.max(0, x.sq / x.n - avg * avg)), z = (avg - base) / (sd / Math.sqrt(x.n) + 1e-9);
+    return z <= -2 && (x.sum + K * base) / (x.n + K) < 0;
+  }
+  function learn(all) {
+    const st = {}; let n = 0, sum = 0;
+    all.forEach(t => {
+      const cs = conds(t), base = n ? sum / n : 0;
+      t.skip = null; t.ready = n >= MINT;
+      if (t.ready) {
+        cs.forEach(([cat, c]) => { const x = st[c]; if (x && bad(x, base)) { const sh = (x.sum + K * base) / (x.n + K);
+          if (!t.skip || sh < t.skip.sh) t.skip = {c: c, sh: sh}; } });
+      }
+      cs.forEach(([cat, c]) => { const x = st[c] = st[c] || {cat: cat, n: 0, sum: 0, sq: 0, w: 0, usd: 0}; x.n++; x.sum += t.pts; x.sq += t.pts * t.pts; x.w += t.pts > 0 ? 1 : 0; x.usd += t.usd; });
+      n++; sum += t.pts;
+    });
+    const base = n ? sum / n : 0;
+    Object.values(st).forEach(x => { x.avg = x.sum / x.n; x.sh = (x.sum + K * base) / (x.n + K); });
+    return {st: st, base: base, n: n};
+  }
+  function recFor(cat, c) {
+    if (cat === "model") return "V nastavení strategie tenhle model vypni nebo mu sniž riziko (skupiny 3, 3c, 3d).";
+    if (cat === "smer") return "Zvaž vypnout „Obchodovat " + (c.includes("short") ? "SHORTY" : "LONGY") + "“ (skupina 0c).";
+    if (cat === "cas") return "Zkrať „Okno pro vstupy“ (skupina 2. Čas), ať tenhle čas vynechá.";
+    if (cat === "den") return "V tenhle den neobchoduj, nebo jen s menším rizikem.";
+    if (cat === "mentor") return "Při obchodování si hlídej plán od mentora: v téhle situaci obchod vynech nebo sniž riziko.";
+    if (cat === "bias" || cat === "app") return "Před vstupem se podívej do Kompasu (bias, zprávy, fundament, statistiky) a v téhle situaci obchod vynech nebo sniž riziko.";
+    return "V téhle situaci obchod vynech, nebo sniž riziko.";
+  }
+  // ---------- ROBOT VS. MENTOR ----------
+  function mentRel(t) {
+    const mp = MENTOR[pday(t.t)]; if (!mp) return null;
+    const r = {dir: mp.dir === "long" || mp.dir === "short" ? (mp.dir === t.side ? "stejný" : "opačný") : null, zone: null};
+    if ((mp.zones || []).length && t.entry != null) {
+      const near = mp.zones.map(z => ({z: z, d: t.entry < z.lo ? z.lo - t.entry : t.entry > z.hi ? t.entry - z.hi : 0})).sort((a, b) => a.d - b.d)[0];
+      r.zone = near.d <= 10 ? (near.z.dir === t.side ? "u zóny ve směru šipky" : "u zóny proti šipce") : "mimo zóny";
+    }
+    return r;
+  }
+  function mentHtml(all) {
+    const days = Object.keys(MENTOR).sort().reverse();
+    if (!days.length) return '<p class="empty">Zatím žádný den s plánem od mentora. Nahraj plán na stránce Plán od mentora a robot ho začne porovnávat se svými obchody.</p>';
+    const grp = (nm, a) => { const w = a.filter(t => t.pts > 0).length, s = a.reduce((x, t) => x + t.usd, 0);
+      return "<tr><td>" + nm + "</td><td>" + a.length + "</td><td>" + (a.length ? Math.round(100 * w / a.length) + nb + "%" : "–") + '</td><td class="' + (s >= 0 ? "up" : "down") + '">' + (a.length ? usd(s) : "–") + "</td></tr>"; };
+    const wm = all.map(t => [t, mentRel(t)]).filter(x => x[1]);
+    let h = '<div style="overflow-x:auto"><table class="wrap1"><thead><tr><th>Obchody robota</th><th>Obchodů</th><th>Úspěšnost</th><th>Výsledek</th></tr></thead><tbody>'
+      + grp("Stejný směr jako mentor", wm.filter(x => x[1].dir === "stejný").map(x => x[0]))
+      + grp("Opačný směr než mentor", wm.filter(x => x[1].dir === "opačný").map(x => x[0]))
+      + grp("Vstup u mentorovy zóny ve směru jeho šipky", wm.filter(x => x[1].zone === "u zóny ve směru šipky").map(x => x[0]))
+      + grp("Vstup u mentorovy zóny proti šipce", wm.filter(x => x[1].zone === "u zóny proti šipce").map(x => x[0]))
+      + grp("Vstup mimo zóny od mentora", wm.filter(x => x[1].zone === "mimo zóny").map(x => x[0]))
+      + grp("Dny bez plánu od mentora", all.filter(t => !MENTOR[pday(t.t)])) + "</tbody></table></div>";
+    const RES = {ok: "fungovala", fail: "nefungovala", none: "nedotkla se"};
+    h += '<h2 style="margin-top:22px">Den po dni</h2><div style="overflow-x:auto"><table class="wrap1"><thead><tr><th>Den</th><th>Mentor</th><th>Jeho zóny</th><th>Robot</th><th>Výsledek robota</th><th>Nasdaq</th><th>Kdo měl pravdu</th></tr></thead><tbody>'
+      + days.slice(0, 30).map(d => {
+        const mp = MENTOR[d], tr = all.filter(t => pday(t.t) === d), s = tr.reduce((x, t) => x + t.usd, 0);
+        const zs = (mp.zones || []).map(z => (z.dir === "long" ? "↑" : "↓") + fmt(z.lo, 0) + (z.res ? " " + RES[z.res] : "")).join(", ") || "–";
+        const real = (histOf[d] || {}).real;
+        const mOk = (mp.dir === "long" || mp.dir === "short") && real != null ? ((mp.dir === "long") === (real > 0)) : null;
+        const rOk = tr.length ? s > 0 : null;
+        const who = mOk == null && rOk == null ? "–" : (mOk ? "mentor ✓ " : mOk === false ? "mentor ✗ " : "") + (rOk ? "robot ✓" : rOk === false ? "robot ✗" : "robot neobchodoval");
+        return "<tr><td>" + dcz(d) + "</td><td>" + ({long: "spíš long", short: "spíš short", obe: "obě strany"}[mp.dir] || "neřekl") + "</td><td>" + esc(zs) + "</td><td>"
+          + (tr.length ? tr.map(t => (t.side === "long" ? "L" : "S") + " " + esc(modelOf(t))).join(", ") : "bez obchodu") + '</td><td class="' + (s >= 0 ? "up" : "down") + '">' + (tr.length ? usd(s) : "–")
+          + '</td><td class="' + (real == null ? "" : real >= 0 ? "up" : "down") + '">' + (real == null ? "–" : (real >= 0 ? "+" : "") + fmt(real, 2) + nb + "%") + "</td><td>" + who + "</td></tr>";
+      }).join("") + "</tbody></table></div>";
+    return h;
+  }
+
+  function learnHtml(all, L) {
+    if (all.length < 5) return '<p class="empty">Robot má zatím ' + all.length + ' obchodů. Učit se začne od ' + MINT + ' obchodů. Rychleji to půjde, když dole nahraješ historii z TradingView.</p>';
+    const sumU = a => a.reduce((s, t) => s + t.usd, 0);
+    const ready = all.filter(t => t.ready), kept = ready.filter(t => !t.skip), skipped = ready.filter(t => t.skip);
+    const wr = a => a.length ? Math.round(100 * a.filter(t => t.pts > 0).length / a.length) + nb + "%" : "–";
+    let h = "";
+    if (ready.length) {
+      const d = sumU(kept) - sumU(ready);
+      h += '<div class="stat"><div><b>' + usd(sumU(ready)) + '</b><span>bez učení, ' + ready.length + ' obchodů, úspěšnost ' + wr(ready) + '</span></div>'
+        + '<div><b>' + usd(sumU(kept)) + '</b><span>s naučeným filtrem, ' + kept.length + ' obchodů, úspěšnost ' + wr(kept) + '</span></div>'
+        + '<div><b class="' + (d >= 0 ? "up" : "down") + '">' + usd(d) + '</b><span>' + (d >= 0 ? "učení by ušetřilo" : "učení by stálo") + ', vynechal by ' + skipped.length + ' obchodů</span></div></div>'
+        + '<p class="hint">Porovnání je jen z obchodů od ' + (MINT + 1) + '. obchodu, dřív se robot ještě neměl z čeho učit. '
+        + (d > 0 ? "Učení zatím pomáhá." : d < 0 ? "Učení zatím nepomáhá: vynechané obchody by byly ziskové. Je to normální, dokud je obchodů málo, a s dalšími obchody se to zpřesní." : "Zatím bez rozdílu.") + "</p>";
+    } else {
+      h += '<p class="hint">Robot sbírá obchody. Filtr začne rozhodovat od ' + (MINT + 1) + '. obchodu (teď jich má ' + all.length + ').</p>';
+    }
+    const GR = [["model", "🧩 Modely"], ["smer", "↕️ Směr"], ["den", "📅 Den v týdnu"], ["cas", "🕒 Čas vstupu"], ["bias", "🧭 Ranní bias"], ["app", "📰 Aplikace: zprávy, fundament, statistika"],
+      ["mentor", "🧑‍🏫 Plán od mentora"], ["trh", "📈 Trh: předchozí den, gap, VIX, trend, noc"]];
+    const short = c => c.replace(/^(Model a směr|Model|Směr|Den|Čas vstupu|Bias|Gap při otevření|VIX \(strach\)|Předchozí den Nasdaq): /, (m0, k) => k === "Gap při otevření" ? "Gap " : k === "VIX (strach)" ? "VIX " : k === "Předchozí den Nasdaq" ? "Předchozí den: " : "");
+    const tagOf = x => { const bd = bad(x, L.base), good = x.n >= MINC && x.avg > 0 && x.sh > L.base * 1.2;
+      return x.n < MINC ? '<span class="badge flat">málo obchodů</span>' : bd ? '<span class="badge down">prodělává</span>' : good ? '<span class="badge up">daří se</span>' : '<span class="badge flat">průměr</span>'; };
+    h += '<h2 style="margin-top:22px">Co mu jde a co ne</h2><p class="hint">Rozbal si skupinu. Ø body jsou na 1 kontrakt. U málo obchodů je hodnocení opatrné.</p>';
+    GR.forEach(([cat, nm]) => {
+      const rows = Object.entries(L.st).filter(([c, x]) => x.cat === cat && x.n >= 2).sort((a, b) => b[1].sh - a[1].sh);
+      if (!rows.length) return;
+      const nGood = rows.filter(([c, x]) => x.n >= MINC && x.avg > 0 && x.sh > L.base * 1.2).length, nBad = rows.filter(([c, x]) => bad(x, L.base)).length;
+      h += '<details style="border:1px solid var(--rule);border-radius:14px;padding:10px 14px;margin:8px 0"><summary style="cursor:pointer;font-size:17px;font-weight:700">' + nm
+        + ' <span class="empty" style="font-weight:400;font-size:14px">· ' + rows.length + (rows.length === 1 ? " položka" : rows.length < 5 ? " položky" : " položek") + (nGood ? " · " + nGood + " daří se" : "") + (nBad ? " · " + nBad + " prodělává" : "") + "</span></summary>"
+        + '<div style="overflow-x:auto;margin-top:8px"><table class="wrap1"><thead><tr><th>Situace</th><th>Obchodů</th><th>Úspěšnost</th><th>Ø body</th><th>Výsledek</th><th>Hodnocení</th></tr></thead><tbody>'
+        + rows.map(([c, x]) => "<tr><td>" + esc(short(c)) + "</td><td>" + x.n + "</td><td>" + Math.round(100 * x.w / x.n) + nb + "%</td><td class=\"" + (x.avg >= 0 ? "up" : "down") + "\">" + fmt(x.avg, 1)
+          + "</td><td class=\"" + (x.usd >= 0 ? "up" : "down") + "\">" + usd(x.usd) + "</td><td>" + tagOf(x) + "</td></tr>").join("") + "</tbody></table></div></details>";
+    });
+    const badL = Object.entries(L.st).filter(([c, x]) => bad(x, L.base)).sort((a, b) => a[1].sh - b[1].sh);
+    h += '<h2 style="margin-top:22px">Doporučení pro strategii v TradingView</h2>';
+    h += badL.length ? '<p class="hint">Situace, které prodělávají aspoň na 10 obchodech a rozdíl není jen náhoda. Strategii v TradingView robot sám změnit neumí (TradingView to nedovolí), tohle je návod, co upravit. '
+        + 'Až budou doporučení stabilní, můžu ti podle nich upravit Pine Script.</p><ul class="facts">'
+        + badL.slice(0, 6).map(([c, x]) => "<li><b>" + esc(c) + "</b>: " + x.n + " obchodů, " + usd(x.usd) + ". " + recFor(x.cat, c) + "</li>").join("") + "</ul>"
+      : '<p class="empty">Zatím žádná situace neprodělává na dost obchodech, aby stálo za to strategii měnit.</p>';
+    // dnešek
+    const today = pday(Date.now()), nd = Object.keys(MKF).sort().pop() || today, f = MKF[nd] || {};
+    const warn = [];
+    const pd_ = nd.split("-").map(Number), t0 = wallToEpoch(pd_[0], pd_[1], pd_[2], 15, 45, "Europe/Prague");
+    const hyp = {long: conds({side: "long", t: t0, model: ""}).map(x => x[1]), short: conds({side: "short", t: t0, model: ""}).map(x => x[1])};
+    Object.entries(L.st).forEach(([c, x]) => {
+      if (!bad(x, L.base)) return;
+      if (x.cat === "model" || x.cat === "smer" || x.cat === "cas") { warn.push(c + " (platí vždy)"); return; }
+      const l = hyp.long.includes(c), sh = hyp.short.includes(c);
+      if (l && sh) warn.push(c); else if (l) warn.push(c + " – dnes to platí pro longy"); else if (sh) warn.push(c + " – dnes to platí pro shorty");
+    });
+    h += '<h2 style="margin-top:22px">Na co si dát pozor ' + (nd === today ? "dnes" : "v příští obchodní den") + '</h2>'
+      + (warn.length ? '<ul class="facts">' + warn.map(w => "<li>Robot by vynechal: <b>" + esc(w) + "</b></li>").join("") + "</ul>"
+         : '<p class="empty">' + (L.n >= MINT ? "Pro nejbližší den robot žádné prodělávající situace nevidí." : "Robot ještě nemá dost obchodů, aby varoval.") + "</p>");
+    return h;
+  }
+
+  // ---------- IMPORT Z TRADINGVIEW ----------
+  let imported = [];
+  try { imported = JSON.parse(localStorage.getItem("robotImport") || "[]"); } catch (e) { imported = []; }
+  function csvParse(txt) {
+    txt = txt.replace(/^﻿/, "");
+    const first = txt.split(/\r?\n/)[0] || "";
+    const cnt = ch => first.split(ch).length - 1;
+    const dl = cnt("\t") > cnt(",") && cnt("\t") > cnt(";") ? "\t" : cnt(";") > cnt(",") ? ";" : ",";
+    const rows = []; let row = [], f = "", q = false;
+    for (let i = 0; i < txt.length; i++) {
+      const ch = txt[i];
+      if (q) { if (ch === '"') { if (txt[i + 1] === '"') { f += '"'; i++; } else q = false; } else f += ch; }
+      else if (ch === '"') q = true;
+      else if (ch === dl) { row.push(f); f = ""; }
+      else if (ch === "\n" || ch === "\r") { if (ch === "\r" && txt[i + 1] === "\n") i++; row.push(f); rows.push(row); row = []; f = ""; }
+      else f += ch;
+    }
+    if (f || row.length) { row.push(f); rows.push(row); }
+    return rows.filter(r => r.some(x => x.trim()));
+  }
+  const pnum = s => { s = String(s || "").replace(/[\s $]/g, "").replace("−", "-"); if (s.includes(",") && s.includes(".")) s = s.replace(/,/g, ""); else if (s.includes(",")) s = s.replace(",", "."); return parseFloat(s); };
+  function wallToEpoch(y, mo, d, h, mi, tz) {
+    const g = Date.UTC(y, mo - 1, d, h, mi);
+    const off = o => { const x = new Date(o); return new Date(x.toLocaleString("en-US", {timeZone: tz})) - new Date(x.toLocaleString("en-US", {timeZone: "UTC"})); };
+    const e = g - off(g); return g - off(e);
+  }
+  function parseTV(txt, tzSel) {
+    const rows = csvParse(txt); if (rows.length < 2) throw new Error("Soubor je prázdný.");
+    const hd = rows[0].map(x => x.trim().toLowerCase());
+    const col = (re, not) => hd.findIndex(x => re.test(x) && !(not && not.test(x)));
+    const iN = col(/trade|obchod/), iT = col(/^type|^typ/), iD = col(/date|datum|time|čas/), iS = col(/signal|signál/), iP = col(/^price|^cena/),
+          iQ = col(/qty|contracts|kontrakt|quantity|množ/), iPL = col(/p&l|profit|zisk/, /%|cum|kumul|run|draw/);
+    if (iT < 0 || iD < 0 || iP < 0) throw new Error("Tohle nevypadá jako export „List of trades“ z TradingView (chybí sloupce Type, Date/Time nebo Price).");
+    const parts = rows.slice(1).map(r => {
+      const m = String(r[iD] || "").match(/(\d{4})-(\d{1,2})-(\d{1,2})[ T](\d{1,2}):(\d{2})/);
+      return {n: iN >= 0 ? r[iN] : "", type: String(r[iT] || "").toLowerCase(), wall: m ? m.slice(1).map(Number) : null, raw: r[iD], sig: iS >= 0 ? r[iS] : "",
+              price: pnum(r[iP]), qty: iQ >= 0 ? Math.abs(pnum(r[iQ])) : 1, pl: iPL >= 0 ? pnum(r[iPL]) : NaN};
+    }).filter(x => x.type && !isNaN(x.price));
+    let tz = tzSel;
+    if (tz === "auto") {
+      const hrs = parts.filter(x => /entry|vstup/.test(x.type) && x.wall).map(x => x.wall[3]).sort((a, b) => a - b);
+      const med = hrs.length ? hrs[Math.floor(hrs.length / 2)] : 15;
+      tz = med >= 9 && med < 13 ? "America/New_York" : med >= 15 ? "Europe/Prague" : "UTC";
+    }
+    const ep = x => x.wall ? wallToEpoch(x.wall[0], x.wall[1], x.wall[2], x.wall[3], x.wall[4], tz) : Date.parse(x.raw);
+    const by = {};
+    parts.forEach((x, i) => { const k = x.n || ("r" + Math.floor(i / 2)); (by[k] = by[k] || []).push(x); });
+    const out = [];
+    Object.values(by).forEach(g => {
+      const en = g.find(x => /entry|vstup/.test(x.type)), ex = g.find(x => /exit|výstup/.test(x.type));
+      if (!en || !ex || /open|otevř/.test(String(ex.sig).toLowerCase()) && isNaN(ex.pl)) return;
+      const side = /short|krát/.test(en.type + ex.type) ? "short" : "long";
+      const pts = (ex.price - en.price) * (side === "long" ? 1 : -1), qty = en.qty || ex.qty || 1;
+      const sig = String(ex.sig || "");
+      out.push({side: side, entry: en.price, exit: ex.price, t: ep(en), tx: ep(ex), qty: qty, pts: pts, usd: isNaN(en.pl) ? (isNaN(ex.pl) ? pts * 2 * qty : ex.pl) : en.pl,
+        model: en.sig || "", why: /konec dne/i.test(sig) ? "konec dne" : /stop/i.test(sig) ? "denní stop" : Math.abs(pts) <= 1.5 ? "break-even" : pts > 0 ? "cíl" : "stop", src: "historie"});
+    });
+    if (!out.length) throw new Error("V souboru jsem nenašel žádný uzavřený obchod.");
+    return {trades: out.filter(t => !isNaN(t.t)).sort((a, b) => a.t - b.t), tz: tz};
+  }
+  E("rb-file").onchange = () => {
+    const fl = E("rb-file").files[0]; if (!fl) return;
+    const rd = new FileReader();
+    rd.onload = () => {
+      try {
+        const r = parseTV(String(rd.result), E("rb-tz").value);
+        imported = r.trades;
+        try { localStorage.setItem("robotImport", JSON.stringify(imported)); } catch (e) {}
+        E("rb-impmsg").textContent = "Nahráno " + imported.length + " obchodů (" + dcz(pday(imported[0].t)) + " až " + dcz(pday(imported[imported.length - 1].t))
+          + "), časy brané jako " + ({"Europe/Prague": "pražské", "America/New_York": "newyorské", "UTC": "UTC"}[r.tz]) + ". Robot se z nich hned učí.";
+        rerender();
+      } catch (e) { E("rb-impmsg").textContent = "Soubor se nepodařilo načíst: " + e.message; }
+    };
+    rd.readAsText(fl);
+  };
+  E("rb-impdel").onclick = () => { imported = []; try { localStorage.removeItem("robotImport"); } catch (e) {} E("rb-impmsg").textContent = "Nahraná historie je smazaná."; rerender(); };
+  if (imported.length) E("rb-impmsg").textContent = "Nahraná historie: " + imported.length + " obchodů z TradingView.";
+
+  // ---------- ZOBRAZENÍ ----------
+  let eqChart = null, openPos = null, lastRes = {trades: [], open: null, last: null};
+  function rerender() { render(lastRes, true); }
+  function render(res, keepHero) {
+    lastRes = res; openPos = res.open;
+    const live = res.trades.map(t => Object.assign(t, {src: "živě"}));
+    const imp = imported.filter(i => !live.some(l => l.side === i.side && Math.abs(l.t - i.t) < 180000));
+    const all = live.concat(imp).sort((a, b) => a.t - b.t);
+    const L = learn(all);
+    E("rb-learn").innerHTML = learnHtml(all, L);
+    E("rb-ment").innerHTML = mentHtml(all);
+    const today = pday(Date.now());
+    const td = live.filter(t => pday(t.tx) === today);
+    const sum = a => a.reduce((s, t) => s + t.usd, 0);
+    const pnlT = sum(td);
+    if (!keepHero) {
+      E("rb-word").textContent = res.open ? (res.open.side === "long" ? "Otevřený LONG" : "Otevřený SHORT") : td.length ? ("Dnes " + usd(pnlT)) : "Dnes bez obchodu";
+      E("rb-word").className = "lede " + (res.open ? (res.open.side === "long" ? "up" : "down") : pnlT > 0 ? "up" : pnlT < 0 ? "down" : "");
+      const f = [];
+      if (res.open) f.push("Otevřená pozice: " + res.open.qty + " kontraktů od " + fmt(res.open.entry, 2) + " (" + ptime(res.open.t) + "), model: " + esc(res.open.model) + ".");
+      f.push("Dnes obchodů: " + td.length + (td.length ? ", výsledek " + usd(pnlT) : "") + ".");
+      f.push("Živých obchodů celkem: " + live.length + (live.length ? ", výsledek " + usd(sum(live)) : "") + "." + (imp.length ? " Z TradingView historie nahráno: " + imp.length + "." : ""));
+      f.push(res.last ? "Poslední zpráva z TradingView: " + dcz(pday(res.last)) + " v " + ptime(res.last) + "." : "Z TradingView zatím nepřišla žádná zpráva.");
+      E("rb-facts").innerHTML = f.map(x => "<li>" + x + "</li>").join("");
+    }
+    const days = [...new Set(all.map(t => pday(t.t)).concat([today]))].sort().reverse();
+    const prevDay = E("rb-day").value;
+    E("rb-day").innerHTML = days.map(d => '<option value="' + d + '">' + dcz(d) + (d === today ? " (dnes)" : "") + "</option>").join("");
+    if (prevDay && days.includes(prevDay)) E("rb-day").value = prevDay;
+    E("rb-day").onchange = () => drawDay(E("rb-day").value, all);
+    E("rb-daysec").hidden = !url;
+    if (url) drawDay(E("rb-day").value || days[0], all);
+    E("rb-srcrow").hidden = !(imp.length && live.length);
+    const srcV = E("rb-src").value;
+    const tr = all.filter(t => srcV === "all" || (srcV === "live" ? t.src === "živě" : t.src === "historie"));
+    E("rb-src").onchange = rerender;
+    if (!tr.length) { E("rb-statsec").hidden = !(imp.length && live.length); E("rb-listsec").hidden = true; E("rb-stat").innerHTML = ""; return; }
+    const win = tr.filter(t => t.usd > 0), loss = tr.filter(t => t.usd < 0);
+    const gw = sum(win), gl = -sum(loss);
+    let eq = 0, peak = 0, dd = 0, eq2 = 0; const curve = [], curve2 = [];
+    tr.forEach(t => { eq += t.usd; peak = Math.max(peak, eq); dd = Math.max(dd, peak - eq); curve.push(eq); if (!t.skip) eq2 += t.usd; curve2.push(eq2); });
+    const st = [["Obchodů", tr.length], ["Úspěšnost", Math.round(100 * win.length / tr.length) + nb + "%"], ["Profit factor", gl ? fmt(gw / gl, 2) : "–"],
+      ["Celkem", usd(sum(tr))], ["Body celkem (na 1 kontrakt)", fmt(tr.reduce((s, t) => s + t.pts, 0), 0) + nb + "b."], ["Ø výhra / Ø ztráta", (win.length ? usd(gw / win.length) : "–") + " / " + (loss.length ? usd(-gl / loss.length) : "–")],
+      ["Největší propad", usd(-dd)]];
+    E("rb-stat").innerHTML = st.map(x => "<div><b>" + x[1] + "</b><span>" + x[0] + "</span></div>").join("");
+    E("rb-statsec").hidden = false;
+    if (window.Chart) {
+      if (eqChart) eqChart.destroy();
+      eqChart = new Chart(E("rb-eq"), {type: "line", data: {labels: tr.map(t => dcz(pday(t.tx))), datasets: [{label: "Výsledek celkem ($)", data: curve, borderColor: "#8B7CFF", pointRadius: 1, tension: .2},
+        {label: "S naučeným filtrem ($)", data: curve2, borderColor: "#2EE6A6", borderDash: [5, 4], pointRadius: 0, tension: .2}]},
+        options: {maintainAspectRatio: false, plugins: {legend: {display: true}}}});
+    }
+    const mods = {};
+    tr.forEach(t => { const m = modelOf(t); (mods[m] = mods[m] || []).push(t); });
+    const R1 = oneR(tr);
+    E("rb-models").innerHTML = '<div style="overflow-x:auto"><table class="wrap1"><thead><tr><th>Model</th><th>Obchodů</th><th>Úspěšnost</th><th>Ø body</th><th>Ø v R</th><th>Výsledek</th></tr></thead><tbody>'
+      + Object.keys(mods).sort((x, y) => mods[y].length - mods[x].length).map(m => { const a = mods[m], w = a.filter(t => t.usd > 0).length, s = sum(a), ap = a.reduce((x, t) => x + t.pts, 0) / a.length;
+        return "<tr><td>" + esc(m) + "</td><td>" + a.length + "</td><td>" + Math.round(100 * w / a.length) + nb + "%</td><td class=\"" + (ap >= 0 ? "up" : "down") + "\">" + fmt(ap, 1) + "</td><td class=\""
+          + (ap >= 0 ? "up" : "down") + "\">" + (R1 ? (ap >= 0 ? "+" : "") + fmt(ap / R1, 2) + nb + "R" : "–") + "</td><td class=\"" + (s >= 0 ? "up" : "down") + "\">" + usd(s) + "</td></tr>"; }).join("") + "</tbody></table></div>"
+      + (R1 ? '<p class="hint">1R ≈ ' + fmt(R1, 1) + " bodu, to je průměrná ztráta strategie (ztrátové obchody obvykle končí na celém stopu). Ø v R říká, kolik R model vydělá průměrně na jeden obchod.</p>" : "");
+    E("rb-listsec").hidden = false;
+    E("rb-list").innerHTML = '<div style="overflow-x:auto"><table class="wrap1"><thead><tr><th>Den</th><th>Čas</th><th>Směr</th><th>Model</th><th>Kontr.</th><th>Vstup</th><th>Výstup</th><th>Body</th><th>Výsledek</th><th>Jak skončil</th><th>Bias dne</th><th>Mentor</th><th>Naučený filtr</th><th>Zdroj</th></tr></thead><tbody>'
+      + tr.slice().reverse().slice(0, showAllTr ? 400 : 5).map(t => "<tr><td>" + dcz(pday(t.t)) + "</td><td>" + ptime(t.t) + "–" + ptime(t.tx) + '</td><td class="' + (t.side === "long" ? "up" : "down") + '">' + (t.side === "long" ? "Long" : "Short")
+        + '</td><td title="' + esc(t.model) + '">' + esc(modelOf(t)) + "</td><td>" + t.qty + "</td><td>" + fmt(t.entry, 2) + "</td><td>" + fmt(t.exit, 2) + "</td><td>" + fmt(t.pts, 1) + '</td><td class="' + (t.usd >= 0 ? "up" : "down") + '">' + usd(t.usd)
+        + "</td><td>" + t.why + "</td><td>" + esc(biasOf[pday(t.t)] || "–") + "</td><td>"
+        + (() => { const r = mentRel(t); return !r ? '<span class="empty">bez plánu</span>' : (r.dir ? '<span class="badge ' + (r.dir === "stejný" ? "up" : "down") + '">' + (r.dir === "stejný" ? "se směrem" : "proti směru") + "</span> " : "") + (r.zone ? esc(r.zone) : ""); })()
+        + "</td><td>"
+        + (t.skip ? '<span class="badge down">vynechal by</span> ' + esc(t.skip.c) : t.ready ? '<span class="badge up">vzal by</span>' : '<span class="badge flat">učí se</span>')
+        + "</td><td>" + (t.src === "historie" ? "backtest" : "živě") + "</td></tr>").join("") + "</tbody></table></div>"
+      + (tr.length > 5 ? '<button type="button" class="moreb" id="rb-more">' + (showAllTr ? "▲ Skrýt starší obchody" : "▼ Zobrazit starší obchody (" + (tr.length - 5) + ")") + "</button>" : "");
+    if (E("rb-more")) E("rb-more").onclick = () => { showAllTr = !showAllTr; rerender(); if (!showAllTr) E("rb-listsec").scrollIntoView({block: "start"}); };
+  }
+
+  async function load() {
+    if (!mentorReady) { (await mentorLoad()).forEach(p => { MENTOR[p.date] = {dir: p.dir, zones: p.zones || []}; }); mentorReady = true; }
+    if (!url) {
+      render({trades: [], open: null, last: null}, true);
+      E("rb-word").textContent = "Robot ještě není napojený";
+      E("rb-facts").innerHTML = "<li>Postup je dole v části „Jak robota napojit na TradingView“. Zabere asi 15 minut a je zdarma.</li>";
+      E("rb-setup").open = true; return;
+    }
+    try {
+      const r = await fetch(url + "/events", {cache: "no-store"});
+      if (!r.ok) throw new Error(r.status);
+      render(pair(await r.json()));
+    } catch (e) {
+      render({trades: [], open: null, last: null}, true);
+      E("rb-word").textContent = "Robot neodpovídá";
+      E("rb-facts").innerHTML = "<li>Adresu " + esc(url) + " se nepodařilo načíst. Zkontroluj ji v nastavení dole.</li>";
+      E("rb-setup").open = true;
+    }
+  }
+  load();
+  setInterval(() => { if (!document.hidden && url) { candles = null; load(); } }, 60000);
+})();
+"""
+
+
+# ===== PLÁN OD MENTORA: fotka / video / screenshot se zónami, vyhodnocení a učení =====
+def mentor_body():
+    return ('<section class="hero"><div><p class="empty" style="margin:0 0 8px">Plán od mentora</p><p class="lede" id="mn-word">Načítám…</p>'
+            '<ul class="facts" id="mn-facts"></ul></div></section>'
+            '<section><h2>Nahrát plán od mentora</h2><p class="hint">Nahraj fotku nebo video, které ti mentor poslal. U videa stačí screenshot místa, kde ukazuje šipky: '
+            'na Macu stiskni <b>Cmd+Ctrl+Shift+4</b>, označ oblast a tady stiskni <b>Cmd+V</b>. Pak opiš ceny zón, kde čeká odraz. Obrázek sám přečíst neumím, '
+            'ceny jsou potřeba, aby se dalo vyhodnotit, jestli zóna fungovala.</p>'
+            '<div class="row"><label style="max-width:300px">Den<select id="mn-day"></select></label>'
+            '<label style="max-width:300px">Směr dne podle mentora<select id="mn-dir"><option value="">Neřekl</option><option value="long">Spíš long (nahoru)</option>'
+            '<option value="short">Spíš short (dolů)</option><option value="obe">Obě strany</option></select></label></div>'
+            '<div id="mn-drop" tabindex="0" style="margin-top:14px;padding:26px 16px;border:2px dashed var(--rule);border-radius:16px;text-align:center;cursor:pointer;font-size:16px">'
+            '📷 Přetáhni sem fotku nebo video, klikni pro výběr, nebo vlož screenshot (Cmd+V)</div>'
+            '<input type="file" id="mn-file" accept="image/*,video/*" multiple hidden>'
+            '<div id="mn-prev" style="display:flex;flex-wrap:wrap;gap:10px;margin-top:12px"></div>'
+            '<h2 style="margin-top:22px;font-size:20px">Zóny, kde čeká odraz</h2><p class="hint">Odraz nahoru = čeká long, odraz dolů = čeká short. Když je to jen čára, napiš stejnou cenu do obou polí. '
+            'Ceny ber z MNQ nebo NQ (mají stejnou cenu).</p><div id="mn-zones"></div>'
+            '<div class="row"><button type="button" class="ghost" id="mn-addz">+ Přidat zónu</button></div>'
+            '<label style="margin-top:14px">Poznámka nebo přepis videa (co mentor říkal)<textarea id="mn-note" style="min-height:160px" '
+            'placeholder="Sem vlož celý přepis videa nebo napiš, co mentor říkal. Např. čeká sweep nočního minima a pak long od zóny 29 450…"></textarea></label>'
+            '<div class="row"><button type="button" class="ghost" id="mn-txtbtn">📄 Nahrát přepis ze souboru (.txt, .srt, .vtt)</button>'
+            '<button type="button" class="ghost" id="mn-scan">🔎 Najít ceny v textu a udělat z nich zóny</button></div>'
+            '<input type="file" id="mn-txt" accept=".txt,.srt,.vtt,text/plain" hidden>'
+            '<div class="row"><button type="button" id="mn-save" style="min-width:220px">Uložit plán</button><button type="button" class="ghost" id="mn-new">Vyčistit formulář</button></div>'
+            '<p class="hint" id="mn-msg"></p></section>'
+            '<section><h2>Jak mentorovi vycházejí zóny</h2><div id="mn-stats"><p class="empty">Zatím žádné vyhodnocené zóny.</p></div>'
+            '<p class="hint">Zóna se vyhodnotí sama, když máš napojeného robota (stránka Robot), z 1minutových svíček do 5 dnů po dni plánu. '
+            '<b>Fungovala</b> = po dotyku zóny šla cena aspoň 20 bodů správným směrem dřív, než prorazila zónu o 15 bodů. Výsledek můžeš kdykoli změnit ručně v detailu plánu.</p></section>'
+            '<section><h2>Uložené plány</h2><div id="mn-list"><p class="empty">Zatím žádný plán.</p></div></section>'
+            '<dialog id="mn-view"></dialog>')
+
+
+MENTOR_JS = r"""
+(function(){
+  const E = id => document.getElementById(id);
+  const nb = " ";
+  const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+  const DNk = ["ne", "po", "út", "st", "čt", "pá", "so"];
+  const iso = dt => dt.toLocaleDateString("sv-SE", {timeZone: "Europe/Prague"});
+  const dcz = d => { const x = new Date(d + "T12:00:00Z"); return DNk[x.getUTCDay()] + " " + (+d.slice(8, 10)) + "." + nb + (+d.slice(5, 7)) + "." + nb + d.slice(0, 4); };
+  const fmtP = x => (+x).toLocaleString("cs-CZ", {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  const DIRW = {long: "spíš long", short: "spíš short", obe: "obě strany", "": "neřekl"};
+  const RES = {ok: ['up', 'fungovala'], fail: ['down', 'nefungovala'], none: ['flat', 'nedotkla se']};
+  // ---- databáze v prohlížeči (zálohuje se se vším ostatním v Nastavení) ----
+  const mdb = () => new Promise(r => { try { const q = indexedDB.open("mentor", 1); q.onupgradeneeded = () => q.result.createObjectStore("plans", {keyPath: "id", autoIncrement: true}); q.onsuccess = () => r(q.result); q.onerror = () => r(null); } catch (e) { r(null); } });
+  const mall = async () => { const db = await mdb(); if (!db) return []; return new Promise(r => { try { const q = db.transaction("plans").objectStore("plans").getAll(); q.onsuccess = () => r(q.result || []); q.onerror = () => r([]); } catch (e) { r([]); } }); };
+  const mput = async p => { const db = await mdb(); if (!db) throw new Error("Úložiště prohlížeče není dostupné."); return new Promise((r, j) => { const tx = db.transaction("plans", "readwrite"); const q = tx.objectStore("plans").put(p); q.onsuccess = () => { p.id = q.result; }; tx.oncomplete = () => r(p); tx.onerror = () => j(tx.error); }); };
+  const mdel = async id => { const db = await mdb(); return new Promise(r => { const tx = db.transaction("plans", "readwrite"); tx.objectStore("plans").delete(id); tx.oncomplete = r; tx.onerror = r; }); };
+  let plans = [], files = [], editId = null, urls = [];
+
+  // ---- formulář ----
+  const now = new Date();
+  let def = new Date(now.getTime() + (+now.toLocaleString("en-GB", {timeZone: "Europe/Prague", hour: "2-digit", hour12: false}) >= 22 ? 864e5 : 0)); while ([0, 6].includes(new Date(iso(def) + "T12:00:00Z").getUTCDay())) def = new Date(def.getTime() + 864e5);
+  const days = []; for (let i = -3; i <= 40; i++) { const d = iso(new Date(def.getTime() - i * 864e5)); const w = new Date(d + "T12:00:00Z").getUTCDay(); if (w > 0 && w < 6 && !days.includes(d)) days.push(d); }
+  const todayI = iso(now);
+  E("mn-day").innerHTML = days.map(d => '<option value="' + d + '">' + dcz(d) + (d === todayI ? " (dnes)" : d > todayI ? " (příští obchodní den)" : "") + "</option>").join("");
+  E("mn-day").value = iso(def);
+  function zoneRow(z) {
+    z = z || {};
+    const div = document.createElement("div"); div.className = "row mnz"; div.style.alignItems = "flex-end";
+    div.innerHTML = '<label style="flex:1;min-width:120px">Od (cena)<input type="number" step="0.25" inputmode="decimal" class="z-lo" translate="no"></label>'
+      + '<label style="flex:1;min-width:120px">Do (cena)<input type="number" step="0.25" inputmode="decimal" class="z-hi" translate="no"></label>'
+      + '<label style="flex:1.3;min-width:190px">Čeká<select class="z-dir"><option value="long">Odraz nahoru (long)</option><option value="short">Odraz dolů (short)</option></select></label>'
+      + '<label style="flex:2;min-width:160px">Poznámka<input class="z-note" placeholder="např. 1H FVG, noční minimum"></label>'
+      + '<button type="button" class="ghost z-del" title="Odebrat zónu" style="min-height:46px">✕</button>';
+    if (z.lo != null) div.querySelector(".z-lo").value = z.lo;
+    if (z.hi != null) div.querySelector(".z-hi").value = z.hi;
+    div.querySelector(".z-dir").value = z.dir || "long";
+    div.querySelector(".z-note").value = z.note || "";
+    div.querySelector(".z-del").onclick = () => div.remove();
+    div._res = z.res || null; div._auto = z.auto;
+    E("mn-zones").appendChild(div);
+  }
+  E("mn-addz").onclick = () => zoneRow();
+  function clearForm(keepDay) {
+    editId = null; files = []; E("mn-zones").innerHTML = ""; zoneRow(); E("mn-note").value = ""; E("mn-dir").value = ""; renderPrev();
+    if (!keepDay) E("mn-day").value = iso(def);
+    E("mn-save").textContent = "Uložit plán";
+  }
+  function renderPrev() {
+    urls.forEach(u => URL.revokeObjectURL(u)); urls = [];
+    E("mn-prev").innerHTML = "";
+    files.forEach((f, i) => {
+      const u = URL.createObjectURL(f.blob); urls.push(u);
+      const w = document.createElement("div"); w.style.cssText = "position:relative";
+      w.innerHTML = (f.type.startsWith("video") ? '<video src="' + u + '" style="height:120px;border-radius:10px" muted></video>' : '<img src="' + u + '" style="height:120px;border-radius:10px;display:block">')
+        + '<button type="button" class="ghost" style="position:absolute;top:4px;right:4px;padding:2px 9px;background:rgba(0,0,0,.6)">✕</button>';
+      w.querySelector("button").onclick = () => { files.splice(i, 1); renderPrev(); };
+      E("mn-prev").appendChild(w);
+    });
+  }
+  function addFiles(list) {
+    let big = false;
+    [...list].forEach(f => { if (!/^(image|video)\//.test(f.type)) return; if (f.size > 300 * 1048576) { big = true; return; } files.push({type: f.type, name: f.name || "screenshot.png", blob: f}); });
+    E("mn-msg").textContent = big ? "Video nad 300 MB se nevejde. Udělej z něj radši screenshot (Cmd+Ctrl+Shift+4, pak Cmd+V)." : "";
+    renderPrev();
+  }
+  E("mn-drop").onclick = () => E("mn-file").click();
+  E("mn-file").onchange = () => { addFiles(E("mn-file").files); E("mn-file").value = ""; };
+  E("mn-drop").ondragover = e => { e.preventDefault(); E("mn-drop").style.background = "rgba(139,124,255,.12)"; };
+  E("mn-drop").ondragleave = () => { E("mn-drop").style.background = ""; };
+  E("mn-drop").ondrop = e => { e.preventDefault(); E("mn-drop").style.background = ""; addFiles(e.dataTransfer.files); };
+  document.addEventListener("paste", e => {
+    const it = [...(e.clipboardData || {}).items || []].filter(x => x.kind === "file").map(x => x.getAsFile()).filter(Boolean);
+    if (it.length) { e.preventDefault(); addFiles(it); E("mn-msg").textContent = "Screenshot vložen. Nezapomeň opsat ceny zón a dát Uložit."; }
+  });
+  E("mn-day").onchange = () => { const p = plans.find(x => x.date === E("mn-day").value); if (p) loadPlan(p); else clearForm(true); };
+  function loadPlan(p) {
+    editId = p.id; E("mn-day").value = p.date; E("mn-dir").value = p.dir || ""; E("mn-note").value = p.note || "";
+    files = (p.files || []).slice(); renderPrev();
+    E("mn-zones").innerHTML = ""; (p.zones && p.zones.length ? p.zones : [{}]).forEach(zoneRow);
+    E("mn-save").textContent = "Uložit změny";
+    E("mn-msg").textContent = "Upravuješ plán na " + dcz(p.date) + ".";
+  }
+  E("mn-new").onclick = () => { clearForm(); E("mn-msg").textContent = ""; };
+  // ---- přepis videa ----
+  E("mn-txtbtn").onclick = () => E("mn-txt").click();
+  E("mn-txt").onchange = () => {
+    const f = E("mn-txt").files[0]; if (!f) return;
+    const rd = new FileReader();
+    rd.onload = () => {
+      let t = String(rd.result).replace(/^\uFEFF/, "");
+      if (/-->/.test(t)) t = t.split(/\r?\n/).filter(l => l.trim() && !/-->/.test(l) && !/^\d+$/.test(l.trim()) && !/^WEBVTT/.test(l)).join(" ").replace(/<[^>]+>/g, "");
+      const cur = E("mn-note").value.trim();
+      E("mn-note").value = (cur ? cur + "\n\n" : "") + t.trim();
+      E("mn-msg").textContent = "Přepis vložen (" + t.trim().length.toLocaleString("cs-CZ") + " znaků). Teď můžeš dát „Najít ceny v textu“.";
+      E("mn-txt").value = "";
+    };
+    rd.readAsText(f);
+  };
+  function refPrice() {
+    const v = (DATA.nq && DATA.nq.v) || [];
+    return v.length ? v[v.length - 1] : null;
+  }
+  E("mn-scan").onclick = () => {
+    const txt = E("mn-note").value, ref = refPrice();
+    const found = [];
+    const re = /(\d{2})[ \u00a0.,]?(\d{3})(?:[.,](\d{1,2}))?(?!\d)/g; let m;
+    while ((m = re.exec(txt))) {
+      const v = parseFloat(m[1] + m[2] + (m[3] ? "." + m[3] : ""));
+      if (v < 5000 || v > 60000) continue;
+      if (ref && Math.abs(v / ref - 1) > 0.08) continue;
+      // jen věta, ve které cena je (konec věty = tečka/!/? a za ní velké písmeno, nebo nový řádek)
+      const raw = txt.slice(Math.max(0, m.index - 80), m.index + m[0].length + 80), p0 = m.index - Math.max(0, m.index - 80);
+      const bnd = /[.!?]\s+(?=[A-ZÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ])|\n/g; let b0 = 0, b1 = raw.length, bm;
+      while ((bm = bnd.exec(raw))) { if (bm.index < p0) b0 = bm.index + bm[0].length; else if (bm.index > p0 + m[0].length) { b1 = bm.index; break; } }
+      const ctx = raw.slice(b0, b1).toLowerCase(), pos = p0 - b0;
+      const near = re2 => { let best = 1e9, k; const r = new RegExp(re2, "g"); while ((k = r.exec(ctx))) best = Math.min(best, Math.abs(k.index - pos)); return best; };
+      const dL = near("long|nahoru|nákup|koup|buy|support|podpor|demand|býčí"), dS = near("short|dolů|prodej|prodat|sell|resist|odpor|supply|medvěd");
+      found.push({v: v, dir: dL < dS ? "long" : dS < dL ? "short" : (ref ? (v < ref ? "long" : "short") : "long")});
+    }
+    if (!found.length) { E("mn-msg").textContent = "V textu jsem nenašel žádnou cenu blízko aktuální ceny Nasdaqu" + (ref ? " (" + Math.round(ref).toLocaleString("cs-CZ") + ")" : "") + "."; return; }
+    found.sort((a, b) => a.v - b.v);
+    const zones = [];
+    found.forEach(f => { const z = zones.find(z => f.v - z.hi <= 15 && z.dir === f.dir); if (z) z.hi = Math.max(z.hi, f.v); else zones.push({lo: f.v, hi: f.v, dir: f.dir}); });
+    const have = [...document.querySelectorAll(".mnz")].map(r => [parseFloat(r.querySelector(".z-lo").value), parseFloat(r.querySelector(".z-hi").value)]);
+    [...document.querySelectorAll(".mnz")].forEach(r => { if (!r.querySelector(".z-lo").value && !r.querySelector(".z-hi").value) r.remove(); });
+    let n = 0;
+    zones.forEach(z => { if (have.some(h => Math.abs(h[0] - z.lo) < 3 && Math.abs(h[1] - z.hi) < 3)) return; zoneRow(Object.assign(z, {note: "z přepisu"})); n++; });
+    E("mn-msg").textContent = n ? "Našel jsem " + n + (n === 1 ? " zónu" : n < 5 ? " zóny" : " zón") + " z textu. Zkontroluj ceny a hlavně směr (odraz nahoru / dolů), pak dej Uložit plán."
+      : "Ceny z textu už v zónách máš.";
+    if (!document.querySelector(".mnz")) zoneRow();
+  };
+  E("mn-save").onclick = async () => {
+    const zones = [...document.querySelectorAll(".mnz")].map(r => {
+      let lo = parseFloat(r.querySelector(".z-lo").value), hi = parseFloat(r.querySelector(".z-hi").value);
+      if (isNaN(lo) && isNaN(hi)) return null; if (isNaN(lo)) lo = hi; if (isNaN(hi)) hi = lo;
+      const old = r._res; return {lo: Math.min(lo, hi), hi: Math.max(lo, hi), dir: r.querySelector(".z-dir").value, note: r.querySelector(".z-note").value.trim(), res: old || null, auto: r._auto};
+    }).filter(Boolean);
+    if (!files.length && !zones.length && !E("mn-note").value.trim()) { E("mn-msg").textContent = "Nahraj obrázek nebo napiš aspoň jednu zónu."; return; }
+    const date = E("mn-day").value;
+    const other = plans.find(x => x.date === date && x.id !== editId);
+    const p = {date: date, dir: E("mn-dir").value, zones: zones, note: E("mn-note").value.trim(), files: files, saved: Date.now()};
+    if (editId != null) p.id = editId; else if (other) p.id = other.id;
+    try { await mput(p); } catch (e) { E("mn-msg").textContent = "Uložení se nepovedlo: " + (e && e.message || e) + ". Možná je soubor moc velký."; return; }
+    await refresh(); clearForm(true); loadPlan(plans.find(x => x.date === date));
+    E("mn-msg").textContent = "Plán na " + dcz(date) + " je uložený. Robot ho od teď bere do učení.";
+  };
+
+  // ---- automatické vyhodnocení zón ze svíček ----
+  async function autoEval() {
+    let url = ""; try { url = localStorage.getItem("robotUrl") || ""; } catch (e) {}
+    if (!url) return false;
+    const nyNow = new Date(new Date().toLocaleString("en-US", {timeZone: "America/New_York"}));
+    const nyToday = nyNow.toLocaleDateString("sv-SE"), nyMinNow = nyNow.getHours() * 60 + nyNow.getMinutes();
+    const todo = plans.filter(p => (p.zones || []).some(z => !z.res) && (Date.now() - Date.parse(p.date + "T12:00:00Z")) < 6 * 864e5 && (p.date < nyToday || (p.date === nyToday && nyMinNow >= 9 * 60 + 35)));
+    if (!todo.length) return false;
+    let c; try { c = await (await fetch(url + "/candles?sym=NQ=F")).json(); } catch (e) { return false; }
+    if (!Array.isArray(c) || !c.length) return false;
+    const ny = ts => { const s = new Date(ts * 1000).toLocaleString("sv-SE", {timeZone: "America/New_York"}); return {d: s.slice(0, 10), m: +s.slice(11, 13) * 60 + (+s.slice(14, 16))}; };
+    let changed = false;
+    for (const p of todo) {
+      const bars = c.map(b => Object.assign({k: ny(b[0])}, {h: b[2], l: b[3]})).filter(b => b.k.d === p.date && b.k.m >= 570 && b.k.m < 960);
+      if (!bars.length) continue;
+      const done = p.date < nyToday || nyMinNow >= 960;
+      for (const z of p.zones) {
+        if (z.res) continue;
+        const k = bars.findIndex(b => b.l <= z.hi + 2 && b.h >= z.lo - 2);
+        if (k < 0) { if (done) { z.res = "none"; z.auto = true; changed = true; } continue; }
+        const tgt = z.dir === "long" ? z.hi + 20 : z.lo - 20, inv = z.dir === "long" ? z.lo - 15 : z.hi + 15;
+        let r = null;
+        for (let i = k; i < Math.min(bars.length, k + 90); i++) {
+          const b = bars[i], hitInv = z.dir === "long" ? b.l <= inv : b.h >= inv, hitT = z.dir === "long" ? b.h >= tgt : b.l <= tgt;
+          if (hitInv) { r = "fail"; break; } if (hitT) { r = "ok"; break; }
+        }
+        if (!r && (k + 90 <= bars.length || done)) r = "fail";
+        if (r) { z.res = r; z.auto = true; changed = true; }
+      }
+      if (changed) { const q = Object.assign({}, p); await mput(q); }
+    }
+    return changed;
+  }
+
+  // ---- přehled, statistika, seznam ----
+  const hist = {}; (DATA.hist || []).forEach(x => { hist[x.date] = x; });
+  function statsHtml() {
+    const zs = plans.flatMap(p => (p.zones || []).map(z => Object.assign({date: p.date}, z)));
+    const ok = zs.filter(z => z.res === "ok").length, fail = zs.filter(z => z.res === "fail").length, none = zs.filter(z => z.res === "none").length;
+    const pr = (a, b) => a + b ? Math.round(100 * a / (a + b)) + nb + "%" : "–";
+    const dirP = plans.filter(p => (p.dir === "long" || p.dir === "short") && hist[p.date] && hist[p.date].real != null);
+    const dirOk = dirP.filter(p => (p.dir === "long") === (hist[p.date].real > 0)).length;
+    let h = '<div class="stat"><div><b>' + pr(ok, fail) + '</b><span>zóny, kterých se cena dotkla, fungovaly (' + ok + " z " + (ok + fail) + ')</span></div>'
+      + '<div><b>' + pr(ok + fail, none) + '</b><span>zón se cena během dne dotkla (' + (ok + fail) + " z " + (ok + fail + none) + ')</span></div>'
+      + '<div><b>' + (dirP.length ? Math.round(100 * dirOk / dirP.length) + nb + "%" : "–") + '</b><span>směr dne podle mentora vyšel (' + dirOk + " z " + dirP.length + ')</span></div>'
+      + '<div><b>' + plans.length + '</b><span>uložených plánů</span></div></div>';
+    const rows = ["long", "short"].map(d => { const a = zs.filter(z => z.dir === d); const o = a.filter(z => z.res === "ok").length, f = a.filter(z => z.res === "fail").length;
+      return "<tr><td>" + (d === "long" ? "Odraz nahoru (long)" : "Odraz dolů (short)") + "</td><td>" + a.length + "</td><td>" + pr(o, f) + "</td></tr>"; });
+    h += '<div style="overflow-x:auto"><table class="wrap1"><thead><tr><th>Zóny</th><th>Počet</th><th>Fungovaly (po dotyku)</th></tr></thead><tbody>' + rows.join("") + "</tbody></table></div>";
+    return h;
+  }
+  let showAll = false;
+  function listHtml() {
+    const ps = plans.slice().sort((a, b) => b.date.localeCompare(a.date));
+    if (!ps.length) return '<p class="empty">Zatím žádný plán.</p>';
+    const vis = showAll ? ps : ps.slice(0, 5);
+    return vis.map(p => {
+      const f = (p.files || [])[0];
+      const th = f ? (f.type.startsWith("video") ? '<div style="width:110px;height:76px;border-radius:10px;background:var(--glass);display:grid;place-items:center;font-size:30px">🎬</div>'
+        : '<img data-th="' + p.id + '" style="width:110px;height:76px;object-fit:cover;border-radius:10px">') : '<div style="width:110px;height:76px;border-radius:10px;background:var(--glass);display:grid;place-items:center;font-size:28px">📝</div>';
+      const zs = (p.zones || []).map(z => '<span class="badge ' + (z.res ? RES[z.res][0] : "flat") + '" style="margin:2px 4px 2px 0">' + (z.dir === "long" ? "↑ " : "↓ ") + fmtP(z.lo) + (z.hi !== z.lo ? "–" + fmtP(z.hi) : "")
+        + (z.res ? " · " + RES[z.res][1] : "") + "</span>").join("");
+      return '<button type="button" class="ghost" data-open="' + p.id + '" style="display:flex;gap:14px;align-items:center;width:100%;text-align:left;margin:0 0 10px;padding:12px">' + th
+        + '<div style="flex:1"><b>' + dcz(p.date) + "</b> · směr: " + DIRW[p.dir || ""] + '<div style="margin-top:6px">' + (zs || '<span class="empty">bez zón</span>') + "</div></div></button>";
+    }).join("") + (ps.length > 5 ? '<button type="button" class="moreb" id="mn-more">' + (showAll ? "▲ Skrýt starší" : "▼ Zobrazit starší (" + (ps.length - 5) + ")") + "</button>" : "");
+  }
+  function heroHtml() {
+    const tp = plans.find(p => p.date === iso(def));
+    E("mn-word").textContent = tp ? "Plán na " + (iso(def) === todayI ? "dnes" : "příští obchodní den") + " je" : "Zatím bez plánu na " + (iso(def) === todayI ? "dnes" : "příští obchodní den");
+    E("mn-word").className = "lede " + (tp ? (tp.dir === "long" ? "up" : tp.dir === "short" ? "down" : "") : "");
+    const f = [];
+    if (tp) {
+      f.push("Směr: " + DIRW[tp.dir || ""] + ". Zón: " + (tp.zones || []).length + ".");
+      (tp.zones || []).forEach(z => f.push((z.dir === "long" ? "Čeká odraz nahoru (long) od " : "Čeká odraz dolů (short) od ") + fmtP(z.lo) + (z.hi !== z.lo ? " do " + fmtP(z.hi) : "") + (z.note ? " – " + esc(z.note) : "")));
+    } else f.push("Až ti mentor pošle fotku nebo video, nahraj ho níže a opiš ceny zón.");
+    E("mn-facts").innerHTML = f.map(x => "<li>" + x + "</li>").join("");
+  }
+  function openView(p) {
+    const v = E("mn-view"); let delStep = 0;
+    const media = (p.files || []).map(f => { const u = URL.createObjectURL(f.blob); return f.type.startsWith("video") ? '<video src="' + u + '" controls style="width:100%;border-radius:12px;margin-bottom:10px"></video>'
+      : '<img src="' + u + '" style="width:100%;border-radius:12px;margin-bottom:10px">'; }).join("");
+    const zs = (p.zones || []).map((z, i) => '<div class="row" style="align-items:center;gap:8px"><div style="flex:1;min-width:220px"><b>' + (z.dir === "long" ? "↑ Odraz nahoru " : "↓ Odraz dolů ") + fmtP(z.lo) + (z.hi !== z.lo ? "–" + fmtP(z.hi) : "") + "</b>"
+      + (z.note ? " · " + esc(z.note) : "") + (z.res ? ' <span class="badge ' + RES[z.res][0] + '">' + RES[z.res][1] + (z.auto ? " (automaticky)" : "") + "</span>" : ' <span class="badge flat">čeká na vyhodnocení</span>') + "</div>"
+      + ["ok", "fail", "none"].map(r => '<button type="button" class="ghost" data-z="' + i + '" data-r="' + r + '">' + RES[r][1] + "</button>").join("") + "</div>").join("");
+    v.innerHTML = "<h2>Plán od mentora: " + dcz(p.date) + "</h2><p>Směr dne: <b>" + DIRW[p.dir || ""] + "</b></p>" + media + (zs ? "<h3>Zóny</h3>" + zs : "")
+      + (p.note ? '<p style="white-space:pre-wrap;margin-top:12px">' + esc(p.note) + "</p>" : "")
+      + '<div class="vact"><button type="button" id="mv-close" style="flex:2">Zavřít</button><button type="button" class="ghost" id="mv-edit">Upravit plán</button><button type="button" class="ghost vdel" id="mv-del" style="flex:1">Smazat</button></div>';
+    v.querySelectorAll("[data-z]").forEach(b => b.onclick = async () => { const z = p.zones[+b.dataset.z]; z.res = b.dataset.r; z.auto = false; await mput(p); await refresh(); openView(p); });
+    E("mv-close").onclick = () => v.close();
+    E("mv-edit").onclick = () => { v.close(); loadPlan(p); E("mn-day").scrollIntoView({behavior: "smooth", block: "center"}); };
+    E("mv-del").onclick = async () => { delStep++; if (delStep === 1) { E("mv-del").textContent = "Opravdu smazat?"; return; } if (delStep === 2) { E("mv-del").textContent = "Naposledy: smazat navždy?"; return; }
+      await mdel(p.id); v.close(); if (editId === p.id) clearForm(); await refresh(); };
+    if (!v.open) v.showModal();
+  }
+  async function refresh() {
+    plans = await mall();
+    heroHtml();
+    E("mn-stats").innerHTML = plans.some(p => (p.zones || []).some(z => z.res)) || plans.length ? statsHtml() : '<p class="empty">Zatím žádné vyhodnocené zóny.</p>';
+    E("mn-list").innerHTML = listHtml();
+    E("mn-list").querySelectorAll("img[data-th]").forEach(im => { const p = plans.find(x => x.id === +im.dataset.th); const f = p && (p.files || []).find(x => x.type.startsWith("image")); if (f) im.src = URL.createObjectURL(f.blob); });
+    E("mn-list").querySelectorAll("[data-open]").forEach(b => b.onclick = () => openView(plans.find(x => x.id === +b.dataset.open)));
+    if (E("mn-more")) E("mn-more").onclick = () => { showAll = !showAll; refresh(); };
+  }
+  (async () => {
+    clearForm();
+    await refresh();
+    const tp = plans.find(p => p.date === iso(def)); if (tp) loadPlan(tp);
+    if (await autoEval()) await refresh();
+  })();
+})();
+"""
+
+
+
+# ===== KNIHY O TRADINGU: shrnutí vlastními slovy (ne citace) =====
+# tool: "z20" = výzva 20 obchodů, "checks" = týdenní zaškrtávání pravidel, "form" = vyplňovací list, "calc" = kalkulačka rizika
+BOOKS = [
+    {"id": "zone", "t": "Trading in the Zone", "cz": "Obchodování v zóně", "a": "Mark Douglas", "y": "2000", "ico": "🧠",
+     "short": "Každý jednotlivý obchod má nejistý výsledek, ale série obchodů má jasnou statistickou pravděpodobnost. Přestaň řešit, jestli vyjde právě tenhle vstup, a hodnoť strategii až po vzorku 20 a více obchodů.",
+     "lead": "Úspěšné obchodníky neodlišuje lepší analýza, ale způsob myšlení. Kniha učí obchodovat bez strachu: přijmout riziko, myslet v pravděpodobnostech a dodržovat svoje pravidla, i když se ti nechce.",
+     "big": "Jeden obchod nic neznamená. Výhoda se ukáže až na sérii obchodů.",
+     "parts": [
+         ("🎯 Hlavní myšlenka", [
+             "Strategii najde skoro každý. Dodržovat ji umí málokdo, protože do rozhodování vstupuje strach, chamtivost a ego.",
+             "Cílem není vyhrát dnešní obchod, ale být <b>konzistentní</b>: dělat pořád to samé správné, ať dopadl poslední obchod jakkoli.",
+             "Trh tě nemůže naučit disciplínu. Nemá žádná pravidla, konec ani hranice, takže je musíš mít ty."]),
+         ("🌊 Trh je neutrální", [
+             "Trh ti nic nedělá. Neví o tobě a nechce ti nic vzít. Každý pohyb je jen informace.",
+             "Jestli v pohybu vidíš hrozbu, nebo příležitost, rozhoduješ ty, podle svých zkušeností a strachů.",
+             "Za každý výsledek můžeš ty, ne trh, mentor ani zprávy. Dokud viníš něco venku, nezlepšíš se."]),
+         ("😨 Čtyři strachy obchodníka", [
+             "<b>Strach, že nebudu mít pravdu:</b> kvůli němu držíš ztrátu a čekáš, až se trh vrátí.",
+             "<b>Strach ze ztráty peněz:</b> kvůli němu váháš se vstupem do dobrého setupu.",
+             "<b>Strach, že mi něco uteče (FOMO):</b> kvůli němu skáčeš do obchodů bez setupu.",
+             "<b>Strach, že nechám peníze na stole:</b> kvůli němu posouváš cíl, nebo zavíráš moc brzy.",
+             "Strach zúží pozornost: vidíš jen to, co potvrzuje tvůj názor, a přehlížíš varování."]),
+         ("🎲 Myslet v pravděpodobnostech", [
+             "Výsledek jednoho obchodu je náhodný. Výhoda funguje jako u kasina: jednu hru může prohrát, ale na tisících her vydělá.",
+             "Ztráta neznamená, že strategie nefunguje. Výhra neznamená, že jsi geniální. Hodnotí se celá série.",
+             "Nemusíš vědět, co trh udělá, abys vydělal. Stačí vědět, co uděláš ty, když se objeví tvůj setup."]),
+         ("📜 Pět základních pravd (převyprávěno)", [
+             "Na trhu se může stát cokoliv, kdykoliv.",
+             "Abys vydělal, nemusíš vědět, co se stane dál.",
+             "Výhry a ztráty u tvé výhody přicházejí v náhodném pořadí.",
+             "Výhoda je jen vyšší pravděpodobnost jednoho výsledku, ne jistota.",
+             "Každý okamžik na trhu je jedinečný. Stejně vypadající setup může dopadnout jinak."]),
+         ("🛡️ Opravdu přijmout riziko", [
+             "Riziko urči předem (stop a velikost pozice) a ztrátu přijmi <b>dřív, než vstoupíš</b>.",
+             "Test: když tě ztráta při vstupu bolí nebo naštve, riziko jsi ve skutečnosti nepřijal.",
+             "Ztráta je náklad podnikání, jako nájem za obchod. Není to osobní selhání.",
+             "Když je riziko přijaté, strach zmizí a začneš trh vidět takový, jaký je."]),
+         ("✅ Sedm principů konzistence (převyprávěno)", [
+             "Objektivně si definuj svou výhodu: jasný setup, který poznáš.",
+             "U každého obchodu předem urči riziko.",
+             "Riziko úplně přijmi a buď ochotný obchod opustit.",
+             "Když se výhoda objeví, jednej bez váhání.",
+             "Vybírej zisky, když je trh nabízí. Měj předem plán výstupu.",
+             "Neustále sleduj svoje chyby.",
+             "Pochop, proč tyhle principy potřebuješ, a nikdy je neporušuj."]),
+         ("🎢 Euforie je stejně nebezpečná jako strach", [
+             "Po sérii výher přichází pocit „teď už to umím“: větší pozice, volnější pravidla, obchody navíc.",
+             "Přesně tehdy často přichází největší ztráta. Po výhrách buď stejně přísný jako po ztrátách."]),
+         ("🧩 Přesvědčení řídí jednání", [
+             "Jednáš podle toho, čemu věříš, ne podle toho, co víš. Když věříš, že ztráta znamená selhání, budeš se ztrátám vyhýbat a držet je moc dlouho.",
+             "Disciplína je nástroj: opakovaným dodržováním pravidel si postupně vytvoříš nové přesvědčení.",
+             "Skryté přesvědčení „nezasloužím si peníze“ umí sabotovat i dobrou strategii."]),
+         ("🌀 Zóna", [
+             "Zóna je stav, kdy obchoduješ klidně, bez strachu i bez euforie. Vidíš, co trh nabízí, a jednáš bez vnitřního boje.",
+             "Nedá se do ní dostat silou vůle. Je výsledkem přijatého rizika a myšlení v pravděpodobnostech."]),
+     ],
+     "mnq": [
+         "Před session si napiš riziko v dolarech a ztrátu přijmi předem. Pokud tě vstup s tímhle stopem děsí, zmenši pozici.",
+         "Po ztrátě se neptej „proč mi to trh udělal“, ale „dodržel jsem pravidla?“. Zapiš to do Deníku.",
+         "Bias, statistiky a plán od mentora jsou pravděpodobnosti, ne jistoty. Ani silná výhoda nevyjde vždycky.",
+         "Po dvou výhrách po sobě dávej pozor na euforii: stejné riziko, stejná pravidla."],
+     "tool": "z20"},
+
+    {"id": "loser", "t": "Best Loser Wins", "cz": "Vyhrává nejlepší poražený", "a": "Tom Hougaard", "y": "2022", "ico": "🥊",
+     "short": "Většina obchodníků prodělává, protože ze strachu rychle zavírá malé zisky a ve ztrátách doufá v obrat. Elitní tradeři dělají pravý opak: ztráty řežou okamžitě bez emocí a ziskové pozice nechávají plně rozvinout.",
+     "lead": "Tom Hougaard je intradenní obchodník indexů, známý velkými a otevřeně ukazovanými obchody. Podle jeho knihy není problém většiny obchodníků strategie, ale lidské instinkty, které na trhu fungují přesně obráceně.",
+     "big": "Nevyhrává ten, kdo má nejvíc pravdy. Vyhrává ten, kdo nejlépe prohrává.",
+     "parts": [
+         ("🎯 Hlavní myšlenka", [
+             "Mozek je stavěný na přežití, ne na trading. Co ti připadá přirozené (rychle si vzít zisk, počkat, jestli se ztráta vrátí), na trhu prodělává.",
+             "Úspěch je proto <b>trénink chování</b>: naučit se dělat to, co je nepříjemné, a dělat to pořád."]),
+         ("🔄 Obrácené instinkty", [
+             "Běžný obchodník: malý zisk zavře, aby ho neztratil. Ztrátu drží, protože „ještě se to otočí“. Výsledek jsou malé výhry a velké ztráty.",
+             "Nejlepší obchodník: ztrátu zavře hned, jak je obchod špatně. Zisk nechá běžet, dokud trh neřekne jinak. Výsledek jsou malé ztráty a velké výhry.",
+             "Ztráta tě bolí zhruba dvakrát víc, než tě těší stejně velký zisk. Proto ji instinktivně odkládáš."]),
+         ("✂️ Umět prohrávat", [
+             "Ztráta je běžná součást práce, ne selhání. Kdo ji neumí přijmout, bude s trhem bojovat.",
+             "Dobrá ztráta je malá, rychlá a podle plánu. Špatná ztráta je posunutý stop, „ještě chvilku“, průměrování.",
+             "Obchodník, který se bojí ztráty, se nikdy nenaučí vydělávat na velkých pohybech."]),
+         ("📈 Nechat zisk růst", [
+             "Výsledek dělají velké dny. Když trh jde tvým směrem, nezavírej jen proto, že máš strach o zisk.",
+             "Do vydělávající pozice se dá přidávat. Do prodělávající nikdy.",
+             "Zisk vybírej podle plánu (cíl, trailing stop), ne podle pocitu."]),
+         ("🧠 Emoce se nedají vypnout, dají se zvládnout", [
+             "Strach, naděje i chamtivost přijdou vždycky. Rozdíl je, jestli podle nich jednáš.",
+             "Pomáhá zapisovat si, co cítíš během obchodu. Uvidíš vzorce, které tě stojí peníze.",
+             "Nepohodlí je dobré znamení: obvykle znamená, že děláš správnou věc."]),
+         ("🎯 Jednoduchost", [
+             "Strategie nemusí být složitá. Výhoda je hlavně v chování, ne v počtu indikátorů.",
+             "Méně obchodů, ale lepších. Obchod z nudy je skoro vždy ztráta."]),
+         ("🪞 Pracuj na sobě", [
+             "Kniha hodně mluví o sebepoznání: proč se bojíš, proč potřebuješ mít pravdu, co pro tebe znamenají peníze.",
+             "Největší zlepšení obvykle nepřijde z nového setupu, ale z toho, že se zbavíš jedné opakované chyby."]),
+     ],
+     "mnq": [
+         "Stop na MNQ nikdy neposouvej dál. Posunout ho smíš jen ve směru zisku (na break-even, nebo trailing).",
+         "Když obchod jde do zisku, nezavírej ho ručně před cílem jen ze strachu. Nech pracovat plán: cíl 2R, nebo break-even po 1R.",
+         "Do ztrátové pozice MNQ nikdy nepřidávej kontrakty.",
+         "Po každém obchodu si do Deníku zapiš jednou větou, co jsi cítil. Za měsíc uvidíš svoje vzorce."],
+     "tool": "checks", "rules": ["Stop jsem neposunul dál", "Ztrátu jsem zavřel bez váhání", "Zisk jsem nezavřel před cílem ze strachu", "Nepřidal jsem do ztráty", "Zapsal jsem, co jsem cítil"],
+     "toolt": "🥊 Týden nejlepšího poraženého", "toold": "Každý obchodní den zaškrtni, co se ti povedlo dodržet. Cíl: celý týden zelený."},
+
+    {"id": "remin", "t": "Reminiscences of a Stock Operator", "cz": "Vzpomínky burzovního spekulanta", "a": "Edwin Lefèvre (podle života Jesse Livermora)", "y": "1923", "ico": "📈",
+     "short": "Grafy a technologie se mění, ale lidská chamtivost a strach zůstávají stejné. Největší peníze nevyděláš neustálým klikáním v bočním šumu, ale trpělivým čekáním na jasný setup.",
+     "lead": "Klasika napsaná podle života legendárního spekulanta Jesse Livermora. Je přes sto let stará, ale lidská povaha na trhu se nezměnila, takže lekce platí dodnes. Livermore několikrát zbohatl a několikrát přišel o všechno. Kniha ukazuje proč.",
+     "big": "Na trhu se nic nového neděje. Co se děje dnes, už se dělo, protože lidská povaha se nemění.",
+     "parts": [
+         ("🎯 Hlavní myšlenka", [
+             "Trh se opakuje, protože ho hýbou lidé a jejich strach a chamtivost. Grafy se mění, lidé ne.",
+             "Největší nepřítel obchodníka je on sám: naděje, strach, netrpělivost a ego."]),
+         ("⏳ Peníze se vydělávají sezením", [
+             "Velké peníze nepřináší neustálé obchodování, ale trpělivé držení správné pozice.",
+             "Je těžší umět sedět a nic nedělat, než mít pravdu o směru trhu.",
+             "Obchodovat každý den jen proto, že je trh otevřený, je jedna z nejdražších chyb."]),
+         ("🌊 Linie nejmenšího odporu", [
+             "Obchoduj tím směrem, kterým se trh hýbe nejsnáz. Jdi s trendem, ne proti němu.",
+             "Nesnaž se trefit úplné dno, nebo vrchol. Stačí vzít střed pohybu.",
+             "Počkej, až trh sám ukáže směr. Nepředbíhej ho."]),
+         ("💭 Naděje a strach jsou obráceně", [
+             "Obchodník doufá tam, kde by se měl bát (drží ztrátu a doufá), a bojí se tam, kde by měl doufat (zavírá zisk moc brzy).",
+             "Udělej to obráceně: ztrátu zavři rychle, zisk nech běžet."]),
+         ("🙉 Tipy a cizí názory", [
+             "Obchodovat podle tipů a cizích názorů je cesta ke ztrátě. Musíš rozumět, proč obchod děláš.",
+             "I dobrá rada je k ničemu, když ji nedokážeš vést podle vlastního plánu."]),
+         ("⚖️ Přidávej jen do vítězů", [
+             "Nepřidávej do ztrátové pozice. Když první obchod prodělává, je to signál, že se mýlíš.",
+             "Přidávat se dá jen do pozice, která už vydělává. Trh tím potvrdil, že máš pravdu."]),
+         ("🔁 Stejné chyby znovu", [
+             "Livermore přišel o majetek většinou proto, že porušil vlastní pravidla, často po velkých výhrách.",
+             "Znát pravidla nestačí. Musíš je dodržovat i po velkých výhrách."]),
+         ("🛑 Kdy přestat", [
+             "Po sérii ztrát není chyba přestat a odejít. Trh tu bude i zítra.",
+             "Když nevíš, co trh dělá, nejlepší pozice je žádná pozice."]),
+     ],
+     "mnq": [
+         "Nikdy neprůměruj ztrátový obchod na MNQ. Když jde proti tobě, stop je stop.",
+         "Plán od mentora ber jako informaci, ne jako příkaz. Vstup dělej jen tehdy, když vidíš svůj setup.",
+         "Boční trh kolem poledne v New Yorku (u nás asi 17:50–19:00) je šum. Tvoje strategie tam záměrně neobchoduje, dělej to stejně.",
+         "Po dobrém dni neobchoduj „z radosti“ dál. Uzavři den a odejdi."],
+     "tool": "checks", "rules": ["Obchodoval jsem jen jasný setup", "Žádný obchod z nudy v šumu", "Šel jsem se směrem trhu", "Neprůměroval jsem ztrátu", "Po splněném plánu jsem skončil"],
+     "toolt": "⏳ Týden trpělivosti", "toold": "Každý den zaškrtni, co jsi dodržel. Den bez obchodu, protože nebyl setup, je výhra."},
+
+    {"id": "wizards", "t": "Market Wizards", "cz": "Čarodějové trhů", "a": "Jack D. Schwager", "y": "1989", "ico": "🧙",
+     "short": "Neexistuje jediný správný styl obchodování, protože každý z vrcholových traderů vydělává jinak. Všichni ale sdílejí dvě věci: vlastní otestovanou výhodu (edge) a nekompromisní ochranu kapitálu.",
+     "lead": "Rozhovory s nejúspěšnějšími obchodníky své doby, například s Paulem Tudor Jonesem, Brucem Kovnerem, Edem Seykotou, Richardem Dennisem a Martym Schwartzem. Každý obchoduje jinak, ale všechny spojuje řízení rizika, disciplína a strategie, která sedí jejich povaze.",
+     "big": "Neexistuje jedna správná metoda. Existuje jen tvoje metoda, kterou dodržuješ.",
+     "parts": [
+         ("🎯 Hlavní myšlenka", [
+             "Mezi nejlepšími jsou technici, fundamentalisti, dlouhodobí i krátkodobí. Žádná metoda není ta jediná.",
+             "Co mají společné: <b>vlastní výhodu</b>, které věří, a <b>ochranu kapitálu</b> na prvním místě."]),
+         ("🛡️ Obrana dřív než útok", [
+             "Nejdřív přežít, pak vydělávat. Kdo přijde o účet, nemůže využít další příležitost.",
+             "Paul Tudor Jones kladl obranu nade vše a hledal obchody, kde je možný zisk mnohem větší než riziko.",
+             "Velká ztráta se těžko dohání: po ztrátě 50 % musíš vydělat 100 %, abys byl zpátky."]),
+         ("📍 Výstup víš dřív než vstup", [
+             "Bruce Kovner: ještě před vstupem musíš vědět, kde vystoupíš, když se mýlíš. Stop určuje velikost pozice, ne naopak.",
+             "Na jeden obchod riskuj jen malou část účtu. Řada obchodníků z knihy riskuje kolem 1 % nebo méně."]),
+         ("📉 Když se nedaří, zmenši se", [
+             "Marty Schwartz se stal konzistentním, až když se naučil po ztrátách zmenšit pozice a dát si pauzu.",
+             "Velikost zvyšuj, až když se daří. Nikdy ne proto, abys dohnal ztrátu."]),
+         ("📏 Pravidla a systém", [
+             "Richard Dennis a jeho „želvy“ ukázali, že obchodování podle jasných pravidel se dá naučit.",
+             "Ed Seykota: sleduj trend, krať ztráty a nech zisky běžet. Jednoduchá pravidla, ale těžko se dodržují."]),
+         ("🧘 Trpělivost", [
+             "Čekej na setup, ve kterém máš výhodu. Dobrý obchodník umí dlouho nic nedělat.",
+             "Nejlepší obchody často přicházejí, když se sejde víc důvodů najednou."]),
+         ("🪞 Metoda podle povahy", [
+             "Strategie, která nesedí tvé povaze, nevydrží. Když nesneseš velké výkyvy, nemůžeš dlouho držet pozice.",
+             "Najdi styl, při kterém jsi klidný, a ten zdokonaluj."]),
+         ("🙅 Ego a chyby", [
+             "Mít pravdu není důležité, důležité je vydělávat. Když trh jde proti tobě, změň názor, ne stop.",
+             "Téměř každý z nich na začátku přišel o peníze. Rozdíl je, že se z chyb poučili a nedělali je znovu."]),
+     ],
+     "mnq": [
+         "Drž denní limit ztráty. Tvoje strategie ho má (450 $), dodržuj ho i v ručním obchodování.",
+         "Po dvou ztrátách za den přestaň. Zítra je další session.",
+         "Před každým vstupem musíš znát stop. Podle něj spočítej počet kontraktů MNQ (kalkulačka je u knihy Trading for a Living).",
+         "Pokud ti nevyhovuje rychlost 1minutového grafu, není chyba v tobě. Hledej tempo, ve kterém jsi klidný."],
+     "tool": "form", "toolt": "🧭 Moje výhoda na jedné stránce", "toold": "Čarodějové trhů mají svou výhodu jasně popsanou. Napiš si tu svoji. Ukládá se v tomto prohlížeči.",
+     "fields": [("edge", "Moje výhoda (setup jednou větou)"), ("kdy", "Kdy funguje nejlépe (čas, den, trh)"), ("nekdy", "Kdy ji neobchoduji"),
+                ("riziko", "Riziko na obchod (v $)"), ("den", "Denní limit ztráty a max. počet obchodů"), ("proc", "Proč věřím, že funguje (čísla z backtestu)")]},
+
+    {"id": "onegood", "t": "One Good Trade", "cz": "Jeden dobrý obchod", "a": "Mike Bellafiore", "y": "2010", "ico": "🎯",
+     "short": "Soustřeď se na dokonalé provedení procesu, ne na aktuální dolary na obrazovce. Když dodržíš všechna svá pravidla pro A+ vstup i risk management, je obchod správný, ať skončí, jak skončí, i na stop-lossu.",
+     "lead": "Mike Bellafiore je spoluzakladatel firmy SMB Capital, která vychovává intradenní obchodníky. Kniha ukazuje, jak se z tradera stává profesionál: krok za krokem, obchod za obchodem, se zaměřením na proces a neustálé zlepšování.",
+     "big": "Neobchoduj peníze. Obchoduj jeden dobrý obchod, a pak další.",
+     "parts": [
+         ("🎯 Hlavní myšlenka", [
+             "Nemysli na to, kolik dnes vyděláš. Mysli jen na to, jestli je <b>tenhle obchod</b> dobře provedený.",
+             "Dobrý obchod = podle plánu, ve tvém setupu, se správným rizikem. Výsledek jednoho obchodu nemáš pod kontrolou, provedení ano."]),
+         ("📘 Playbook", [
+             "Profesionálové mají sepsané svoje nejlepší setupy: jak vypadají, kdy fungují, kde je vstup, stop a cíl.",
+             "Každý setup je doložený screenshoty skutečných obchodů. Když se objeví znovu, víš přesně, co dělat.",
+             "Obchoduj jen to, co je v playbooku. Všechno ostatní je hazard."]),
+         ("🅰️ A+ setupy a velikost", [
+             "Ne každý obchod je stejně dobrý. A+ setup (všechno sedí) si zaslouží plnou velikost, slabší setup menší, nebo žádnou.",
+             "Většina peněz se vydělá na malém počtu nejlepších obchodů. Nerozmělňuj je spoustou průměrných."]),
+         ("🔥 In Play: obchoduj, kde se něco děje", [
+             "Hledej trh, který má důvod se hýbat: zprávy, otevření, průraz důležité úrovně.",
+             "Pro MNQ to znamená obchodovat hlavně v nejživějších hodinách a kolem důležitých zpráv, ne v poledním šumu."]),
+         ("🎥 Rozbor vlastních obchodů", [
+             "V SMB si obchodníci nahrávají a rozebírají svoje obchody, jako sportovci záznam zápasu.",
+             "Každý den najdi jednu věc, kterou zítra uděláš lépe. Malá zlepšení se sčítají."]),
+         ("📈 Trading je dovednost", [
+             "Dovednost se buduje pomalu, obvykle měsíce až roky. Kdo čeká rychlé bohatství, skončí dřív, než se ji naučí.",
+             "Nejdřív konzistence s malou velikostí, pak teprve větší pozice."]),
+         ("🧘 Disciplína a mentor", [
+             "Nejlepší obchodníci mají kolem sebe lidi, kteří jim dávají zpětnou vazbu.",
+             "Když nejsi v rytmu s trhem, přestaň. Lepší je den bez obchodu než den plný chyb."]),
+     ],
+     "mnq": [
+         "Před každým vstupem si polohlasem řekni: je tohle můj A+ setup? Jestli ne, nevstupuj.",
+         "Vyplň si níže playbook pro svůj hlavní setup (třeba 5m CISD + POC). Přidej screenshoty do Backtest deníku.",
+         "Hodnoť den podle toho, kolik obchodů bylo podle pravidel, ne podle dolarů.",
+         "Plán od mentora a robot ti dávají zpětnou vazbu. Využij je jako svůj „trading desk“."],
+     "tool": "form", "toolt": "📘 Můj playbook: A+ setup", "toold": "Popiš svůj nejlepší setup tak, aby ho podle popisu poznal i někdo jiný. Ukládá se v tomto prohlížeči.",
+     "fields": [("nazev", "Název setupu"), ("kontext", "Kontext (směr dne, bias, zóna, čas)"), ("spoustec", "Spouštěč vstupu (co přesně musí nastat)"),
+                ("vstup", "Vstup, stop a cíl"), ("aplus", "Kdy je to A+ (plná velikost) a kdy jen B (menší)"), ("chyby", "Typické chyby u tohoto setupu")]},
+
+    {"id": "elder", "t": "Trading for a Living", "cz": "Obchodováním se živit", "a": "Alexander Elder", "y": "1993", "ico": "💰",
+     "short": "Úspěch stojí na třech M: Mind (hlava), Method (metoda) a Money (řízení peněz). Nejdůležitější jsou dvě pravidla: na jeden obchod nikdy neriskuj víc než 2 % účtu a po ztrátě 6 % za měsíc přestaň do konce měsíce obchodovat.",
+     "lead": "Alexander Elder je psychiatr a obchodník. Jeho kniha je jedna z nejčtenějších učebnic tradingu. Spojuje psychologii, technickou analýzu a hlavně řízení peněz, které podle něj odděluje ty, kdo přežijí, od těch, kdo skončí.",
+     "big": "Hlava, metoda, peníze. Bez kteréhokoli z nich nevydržíš.",
+     "parts": [
+         ("🎯 Tři M", [
+             "<b>Mind (hlava):</b> psychologie, disciplína, zvládání emocí.",
+             "<b>Method (metoda):</b> jak čteš trh a kdy vstupuješ.",
+             "<b>Money (peníze):</b> kolik riskuješ. Bez toho tě časem zničí i dobrá metoda."]),
+         ("🦈 Pravidlo 2 %", [
+             "Na jeden obchod nikdy neriskuj víc než 2 % účtu. Začátečníkům radí ještě méně.",
+             "Riziko = vzdálenost stopu × počet kontraktů × hodnota bodu. Podle toho spočítáš velikost pozice.",
+             "Elder to přirovnává ke žralokovi: jedno velké kousnutí tě zabije, malá kousnutí přežiješ."]),
+         ("🐟 Pravidlo 6 %", [
+             "Když ztráty za aktuální měsíc dosáhnou 6 % účtu, přestaň obchodovat do konce měsíce.",
+             "Chrání tě to před špatnou sérií, kdy se chyby sčítají a ty začneš „dohánět“."]),
+         ("🧠 Trader jako závislák", [
+             "Elder jako psychiatr přirovnává ztrátové obchodníky k závislým: pořád doufají, že další obchod to spraví.",
+             "Řešení začíná přiznáním: „Mám sklon dělat tuhle chybu.“ Pak ji můžeš hlídat."]),
+         ("🐑 Psychologie davu", [
+             "Ceny jsou výsledkem chování davu. Dav jedná emotivně, takže se dá částečně předvídat.",
+             "Úspěšný obchodník davu nepodléhá, sleduje ho zvenku."]),
+         ("📺 Tři obrazovky", [
+             "Elderův systém: směr urči na vyšším časovém rámci, korekci najdi na středním a vstup načasuj na nejnižším.",
+             "Pro MNQ je to podobné tvé strategii: směr dne z 1H, nastavení na 15m/5m, spouštěč na 30s/15s."]),
+         ("📓 Deník a záznamy", [
+             "Zapisuj každý obchod: důvod vstupu a výstupu a screenshot. Bez záznamů se nedá učit.",
+             "Kdo si nevede deník, opakuje stejné chyby a neví o tom."]),
+     ],
+     "mnq": [
+         "Na účtu 50 000 $ jsou 2 % 1 000 $ na obchod. Pro začátek je ale rozumnější 0,5 až 1 % (250 až 500 $), jako to má tvoje strategie.",
+         "6 % z 50 000 $ je 3 000 $ za měsíc. Když ztratíš tolik, do konce měsíce jen backtestuj.",
+         "Kalkulačka níže spočítá, kolik kontraktů MNQ smíš vzít při daném stopu.",
+         "Zapisuj obchody do Deníku i se screenshotem. Elder to považuje za základ."],
+     "tool": "calc"},
+]
+
+
+def books_body():
+    tabs = "".join(f'<button role="tab" data-bk="{b["id"]}" aria-selected="{"true" if i == 0 else "false"}">{b["ico"]} {escape(b["t"])}</button>'
+                   for i, b in enumerate(BOOKS))
+    panes = ""
+    for i, b in enumerate(BOOKS):
+        cards = "".join(f'<div class="bkcard"><h3>{h}</h3><ul>{"".join(f"<li>{x}</li>" for x in items)}</ul></div>' for h, items in b["parts"])
+        tool = ""
+        if b["tool"] == "z20":
+            tool = ('<section><h2>🏁 Výzva z knihy: 20 obchodů bez změny pravidel</h2>'
+                    '<p class="hint">Vyber si jeden setup s pevným vstupem, stopem a cílem. Udělej přesně 20 obchodů (klidně v Backtest deníku) a pravidla během nich vůbec neměň, ani po ztrátách. '
+                    'Cílem není vydělat, ale naučit se jednat bez váhání a myslet v sériích.</p>'
+                    '<label style="max-width:620px">Můj setup a pravidla<input id="bk-rules" placeholder="např. 5m CISD + POC, stop 30 b., cíl 2R, jen 15:30–17:50"></label>'
+                    '<div id="bk-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:8px;margin-top:14px"></div>'
+                    '<div class="stat" id="bk-sum" style="margin-top:14px"></div>'
+                    '<div class="row"><button type="button" class="ghost" id="bk-reset">Začít výzvu znovu</button></div>'
+                    '<p class="hint">Klikni na políčko obchodu: 1× = výhra podle pravidel ✅, 2× = ztráta podle pravidel ☑️, 3× = porušil jsem pravidla ❌, 4× = vymazat. '
+                    'Ztráta podle pravidel je stejně dobrý obchod jako výhra.</p></section>')
+        elif b["tool"] == "checks":
+            tool = (f'<section><h2>{b["toolt"]}</h2><p class="hint">{b["toold"]}</p>'
+                    f'<div class="bkchk" data-key="{b["id"]}" data-rules="{escape(json.dumps(b["rules"], ensure_ascii=False))}"></div></section>')
+        elif b["tool"] == "form":
+            tool = (f'<section><h2>{b["toolt"]}</h2><p class="hint">{b["toold"]}</p><div class="bkform" data-key="{b["id"]}">'
+                    + "".join(f'<label style="margin-top:10px">{escape(lab)}<textarea data-f="{k}" style="min-height:70px"></textarea></label>' for k, lab in b["fields"])
+                    + '<p class="hint bkok"></p></div></section>')
+        elif b["tool"] == "calc":
+            tool = ('<section><h2>🧮 Kalkulačka 2 % a 6 % pro MNQ</h2><p class="hint">Zadej účet, riziko a stop. Spočítá, kolik kontraktů MNQ smíš vzít (1 bod = 2 $) a kdy podle pravidla 6 % přestat na zbytek měsíce.</p>'
+                    '<div class="row"><label style="flex:1;min-width:160px">Velikost účtu ($)<input type="number" id="ec-acc" value="50000" inputmode="decimal"></label>'
+                    '<label style="flex:1;min-width:160px">Riziko na obchod (%)<input type="number" id="ec-r" value="1" step="0.1" inputmode="decimal"></label>'
+                    '<label style="flex:1;min-width:160px">Stop (body)<input type="number" id="ec-sl" value="30" step="0.25" inputmode="decimal"></label>'
+                    '<label style="flex:1;min-width:160px">Ztráta tento měsíc ($)<input type="number" id="ec-m" value="0" inputmode="decimal"></label></div>'
+                    '<div class="stat" id="ec-out" style="margin-top:14px"></div></section>')
+        panes += (f'<div class="bkpane" data-pane="{b["id"]}"{"" if i == 0 else " hidden"}>'
+                  f'<section class="hero"><div><p class="empty" style="margin:0 0 8px">{escape(b["a"])} · {b["y"]} · česky „{escape(b["cz"])}“</p>'
+                  f'<p class="lede" style="font-size:clamp(28px,4.6vw,44px)">{b["ico"]} {escape(b["t"])}</p>'
+                  f'<ul class="facts"><li>{b["lead"]}</li><li><b>{b["big"]}</b></li></ul></div></section>'
+                  f'<section><h2>⚡ Ve zkratce</h2><p style="font-size:18px;line-height:1.6;margin:0">{b["short"]}</p></section>'
+                  f'<section><div class="bkgrid">{cards}</div></section>'
+                  f'<section><h2>🧭 Co si z toho vzít pro MNQ</h2><ul class="facts">{"".join(f"<li>{x}</li>" for x in b["mnq"])}</ul></section>{tool}</div>')
+    return ('<div class="bookbar"><div class="tabs" role="tablist">' + tabs + '</div></div>' + panes
+            + '<section><p class="empty">Shrnutí jsou napsaná vlastními slovy podle obsahu knih, nejsou to citace. Knihy stojí za přečtení celé, tady jsou jen hlavní myšlenky.</p></section>')
+
+
+BOOKS_JS = r"""
+(function(){
+  const E = id => document.getElementById(id);
+  const ls = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
+  const lset = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+  const btns = document.querySelectorAll("[data-bk]"), panes = document.querySelectorAll("[data-pane]");
+  const show = id => { btns.forEach(b => b.setAttribute("aria-selected", b.dataset.bk === id ? "true" : "false")); panes.forEach(p => p.hidden = p.dataset.pane !== id);
+    lset("bookTab", id); const ab = document.querySelector('[data-bk="' + id + '"]'); };
+  btns.forEach(b => b.onclick = () => { show(b.dataset.bk); window.scrollTo({top: 0, behavior: "smooth"}); });
+  const fixTop = () => { const bb = document.querySelector(".bkbar"), bar = document.querySelector(".bookbar"); if (bar) bar.style.top = (bb && bb.offsetParent !== null ? bb.offsetHeight : 0) + "px"; };
+  fixTop(); setInterval(fixTop, 1000); window.addEventListener("resize", fixTop);
+  const last = ls("bookTab", null);
+  if (location.hash && document.querySelector('[data-bk="' + location.hash.slice(1) + '"]')) show(location.hash.slice(1)); else if (last && document.querySelector('[data-bk="' + last + '"]')) show(last);
+
+  // výzva 20 obchodů
+  if (E("bk-grid")) {
+    let st = ls("zone20", {r: "", t: []});
+    const save = () => lset("zone20", st), S = ["", "✅", "☑️", "❌"];
+    E("bk-rules").value = st.r || ""; E("bk-rules").oninput = () => { st.r = E("bk-rules").value; save(); };
+    const draw = () => {
+      E("bk-grid").innerHTML = Array.from({length: 20}, (_, i) => '<button type="button" class="ghost" data-i="' + i + '" style="min-height:64px;font-size:22px;padding:4px">'
+        + (S[st.t[i] || 0] || '<span style="font-size:14px;color:var(--muted)">' + (i + 1) + "</span>") + "</button>").join("");
+      E("bk-grid").querySelectorAll("[data-i]").forEach(b => b.onclick = () => { const i = +b.dataset.i; st.t[i] = ((st.t[i] || 0) + 1) % 4; save(); draw(); });
+      const n = st.t.filter(Boolean).length, ok = st.t.filter(v => v === 1 || v === 2).length, w = st.t.filter(v => v === 1).length, br = st.t.filter(v => v === 3).length;
+      E("bk-sum").innerHTML = "<div><b>" + n + " / 20</b><span>obchodů ve výzvě</span></div><div><b>" + (n ? Math.round(100 * ok / n) : 0) + " %</b><span>podle pravidel</span></div>"
+        + "<div><b>" + w + "</b><span>výher podle pravidel</span></div><div><b>" + br + "</b><span>porušení pravidel</span></div>"
+        + (n === 20 ? "<div><b>" + (br === 0 ? "🏆 Splněno" : "Ještě jednou") + "</b><span>" + (br === 0 ? "všech 20 obchodů podle pravidel" : "cíl je 20 obchodů bez porušení") + "</span></div>" : "");
+    };
+    E("bk-reset").onclick = () => { if (E("bk-reset").dataset.c !== "1") { E("bk-reset").dataset.c = "1"; E("bk-reset").textContent = "Opravdu začít znovu?"; return; }
+      st.t = []; save(); draw(); E("bk-reset").dataset.c = ""; E("bk-reset").textContent = "Začít výzvu znovu"; };
+    draw();
+  }
+
+  // týdenní zaškrtávání pravidel
+  const DN = ["Po", "Út", "St", "Čt", "Pá"];
+  const monday = () => { const d = new Date(new Date().toLocaleDateString("sv-SE", {timeZone: "Europe/Prague"}) + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7)); return d.toISOString().slice(0, 10); };
+  document.querySelectorAll(".bkchk").forEach(box => {
+    const key = "bkchk:" + box.dataset.key, rules = JSON.parse(box.dataset.rules);
+    const draw = () => {
+      let st = ls(key, {w: "", c: {}}); if (st.w !== monday()) st = {w: monday(), c: {}};
+      const tot = rules.length * 5, done = Object.values(st.c).filter(Boolean).length;
+      box.innerHTML = '<div style="overflow-x:auto"><table class="wrap1"><thead><tr><th>Pravidlo</th>' + DN.map(d => '<th style="text-align:center">' + d + "</th>").join("") + "</tr></thead><tbody>"
+        + rules.map((r, i) => "<tr><td>" + r + "</td>" + DN.map((d, j) => '<td style="text-align:center"><button type="button" class="ghost" data-c="' + i + "-" + j + '" style="min-width:48px;min-height:44px;padding:4px;font-size:18px">'
+          + (st.c[i + "-" + j] ? "✅" : "·") + "</button></td>").join("") + "</tr>").join("") + "</tbody></table></div>"
+        + '<p class="hint">Týden od ' + monday().split("-").reverse().join(". ") + ": splněno " + done + " z " + tot + " (" + Math.round(100 * done / tot) + " %)." + (done === tot ? " 🏆 Celý týden podle pravidel!" : "") + " Každé pondělí se tabulka vynuluje.</p>";
+      box.querySelectorAll("[data-c]").forEach(b => b.onclick = () => { st.c[b.dataset.c] = !st.c[b.dataset.c]; lset(key, st); draw(); });
+    };
+    draw();
+  });
+
+  // vyplňovací listy (výhoda, playbook)
+  document.querySelectorAll(".bkform").forEach(f => {
+    const key = "bkform:" + f.dataset.key, st = ls(key, {}), ok = f.querySelector(".bkok");
+    f.querySelectorAll("[data-f]").forEach(t => { t.value = st[t.dataset.f] || ""; let tm; t.oninput = () => { st[t.dataset.f] = t.value; lset(key, st); clearTimeout(tm); ok.textContent = "Uloženo ✓"; tm = setTimeout(() => ok.textContent = "", 1500); }; });
+  });
+
+  // kalkulačka 2 % a 6 %
+  if (E("ec-acc")) {
+    const s0 = ls("elderCalc", null); if (s0) ["acc", "r", "sl", "m"].forEach(k => { if (s0[k] != null) E("ec-" + k).value = s0[k]; });
+    const f = x => Math.round(x).toLocaleString("cs-CZ") + " $";
+    const calc = () => {
+      const acc = +E("ec-acc").value || 0, r = +E("ec-r").value || 0, sl = +E("ec-sl").value || 0, m = +E("ec-m").value || 0;
+      lset("elderCalc", {acc: acc, r: r, sl: sl, m: m});
+      const risk = acc * r / 100, per = sl * 2, q = per > 0 ? Math.floor(risk / per) : 0, cap2 = acc * 0.02, m6 = acc * 0.06, left = m6 - m;
+      E("ec-out").innerHTML = "<div><b>" + f(risk) + "</b><span>riziko na obchod (" + r + " % účtu)" + (r > 2 ? " ⚠️ víc než 2 %!" : "") + "</span></div>"
+        + "<div><b>" + q + " MNQ</b><span>max. kontraktů při stopu " + sl + " b. (" + f(per) + " na kontrakt)</span></div>"
+        + "<div><b>" + f(cap2) + "</b><span>strop podle pravidla 2 %</span></div>"
+        + "<div><b>" + (left > 0 ? f(left) : "STOP") + "</b><span>" + (left > 0 ? "ještě můžeš ztratit tento měsíc (limit 6 % = " + f(m6) + ")" : "limit 6 % je vyčerpaný: do konce měsíce jen backtest") + "</span></div>";
+    };
+    ["acc", "r", "sl", "m"].forEach(k => E("ec-" + k).oninput = calc); calc();
+  }
+})();
+"""
+
+
+# ===== AI ASISTENT: znalosti o webu (ai.txt) a stránka s chatem =====
+def ai_context(label, total, comp, sent, week, hist, sv_, mkt, ses, hrs, mzt):
+    """Krátký textový přehled celého webu a dnešních dat. Posílá se AI spolu s otázkou."""
+    L = []
+    now = datetime.now(PRAGUE)
+    L.append(f"Datum a čas aktualizace: {now.strftime('%-d. %-m. %Y %H:%M')} (pražský čas). Obchoduje se MNQ (Micro Nasdaq futures), 1 bod = 2 $. Seance v New Yorku 9:30–16:00 = u nás obvykle 15:30–22:00.")
+    L.append("\nSTRÁNKY WEBU:")
+    for grp, files in NAVG:
+        items = [next(((t, s) for h, i, t, s in NAV if h == f), None) for f in files]
+        L.append(f"- {grp}: " + "; ".join(f"{t} ({s})" for t, s in [x for x in items if x]))
+    try:
+        L.append(f"\nDNEŠNÍ BIAS: {label}, skóre {total:+.1f} z 10 (−10 až +10). Bias se ukládá do 15:00 a pak se už nemění.")
+        for c in comp or []:
+            L.append(f"- složka {c['n']}: {c['s']:+.1f} (váha {c['w']}) – {c['t']}")
+    except Exception:
+        pass
+    try:
+        done = [x for x in (hist or []) if hit(x) is not None]
+        if done:
+            L.append(f"Přesnost biasu: {sum(hit(x) for x in done)} z {len(done)} dní ({100 * sum(hit(x) for x in done) / len(done):.0f} %).")
+        last = [x for x in (hist or []) if x.get("real") is not None][-5:]
+        if last:
+            L.append("Posledních 5 dní (bias → skutečný pohyb Nasdaqu): " + "; ".join(f"{x['date']} {x['label']} → {x['real']:+.2f} %" for x in last))
+    except Exception:
+        pass
+    try:
+        if sent and sent.get("status") == "ok":
+            o = sent["overall"]
+            L.append(f"\nSENTIMENT ZPRÁV (24 h): skóre {o['score']:+.1f} z 5, {o['bias']}.")
+            for it in (sent.get("all") or [])[:6]:
+                L.append(f"- {it.get('t', '')} ({it.get('src', '')})")
+    except Exception:
+        pass
+    try:
+        if week:
+            nowms = now.timestamp() * 1000
+            up = [e for e in week if e.get("ts", 0) > nowms - 3 * 3600 * 1000][:10]
+            L.append("\nKALENDÁŘ ZPRÁV Z USA (nejbližší):")
+            for e in up:
+                t = datetime.fromtimestamp(e["ts"] / 1000, PRAGUE).strftime("%a %-d. %-m. %H:%M") if e.get("ts") else e.get("day", "")
+                L.append(f"- {t}: {e.get('title')} (dopad {e.get('impact')}, očekávání {e.get('forecast') or '–'}, minule {e.get('previous') or '–'})")
+    except Exception:
+        pass
+    try:
+        if sv_:
+            L.append(f"\nSTATISTIKY TRHU pro dnešek: {sv_[0]} výrazných situací spíš nahoru, {sv_[1]} spíš dolů (po zkoušce naživo).")
+        mk = _closed(mkt or [])
+        if len(mk) > 30:
+            st = market_stats(mk, _closed(mzt or [], 17, 15))
+            base = sum(1 for x in st if x["ret"] > 0) / len(st)
+            L.append(f"Archiv Nasdaqu: {len(mk)} dní, Nasdaq rostl v {100 * base:.0f} % dní.")
+            rr = [x["h"] - x["l"] for x in mk[-250:] if x.get("h") and x.get("l")]
+            if rr:
+                L.append(f"Běžný denní rozsah (medián 250 dní): {_q(rr, 0.5):.0f} bodů, klidný den {_q(rr, 0.25):.0f}, divoký {_q(rr, 0.75):.0f}. Posledních 20 dní průměr {sum(rr[-20:]) / len(rr[-20:]):.0f} bodů.")
+        hh = (hrs or {}).get("h") or {}
+        if hh:
+            top = sorted(hh, key=lambda k: -hh[k]["a"])[:3]
+            L.append("Nejživější hodiny (pražský čas): " + ", ".join(f"{k} ({hh[k]['a']:.0f} b.)" for k in top))
+        ss = [x for x in (ses or []) if x.get("onh")]
+        if ss:
+            n = len(ss)
+            L.append(f"Seance prorazí noční maximum v {100 * sum(1 for x in ss if x['h'] > x['onh']) / n:.0f} % dní, noční minimum v {100 * sum(1 for x in ss if x['l'] < x['onl']) / n:.0f} % ({n} dní).")
+        mz = _closed(mzt or [], 17, 15)
+        if len(mz) > 21 and mz[-1].get("nq") and mz[-21].get("nq") and mz[-1].get("es") and mz[-21].get("es"):
+            a = (mz[-1]["nq"] / mz[-21]["nq"] - 1) * 100
+            b = (mz[-1]["es"] / mz[-21]["es"] - 1) * 100
+            L.append(f"Souvislosti trhů: za 20 dní Nasdaq {a:+.2f} %, S&P 500 {b:+.2f} %.")
+    except Exception as e:
+        print("AI kontext statistik:", e)
+    L.append("\nJAK FUNGUJE ROBOT: strategie uživatele (ICT MNQ v40, modely 5m CISD, continuation, zóna+iFVG) běží v TradingView a posílá obchody přes webhook do Cloudflare. "
+             "Stránka Robot ukazuje obchody, výsledky a co se robot naučil: hledá situace, ve kterých prodělává, a vynechává je. Učí se i z biasu, sentimentu, fundamentu, kalendáře, statistik, mentora a stavu trhu.")
+    L.append("PLÁN OD MENTORA: uživatel nahrává fotku nebo screenshot od mentora a opisuje zóny (cena od–do, odraz nahoru/dolů). Zóny se vyhodnotí jako fungovala / nefungovala / nedotkla se.")
+    L.append("KNIHY na webu: " + "; ".join(f"{b['t']} ({b['a']}): {re.sub('<[^>]+>', '', b['big'])}" for b in BOOKS))
+    return "\n".join(L)
+
+
+def ai_body():
+    return ('<section class="hero"><div><p class="empty" style="margin:0 0 8px">AI asistent Kompasu</p><p class="lede">Zeptej se na cokoliv</p>'
+            '<ul class="facts"><li>Ví, co je na které stránce a jaká jsou dnešní data (bias, zprávy, kalendář, statistiky, rozsahy). Zná i trading a psychologii obchodování.</li>'
+            '<li>Je zdarma, proto má denní limit otázek. Odpovědi si vždycky ověř, AI se umí splést.</li></ul></div></section>'
+            '<section><div id="ai-log" style="display:flex;flex-direction:column;gap:12px;min-height:120px"></div>'
+            '<div id="ai-chips" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px"></div>'
+            '<div class="row" style="align-items:flex-end"><label style="flex:1">Tvoje otázka<textarea id="ai-q" style="min-height:80px" placeholder="Např. Proč je dnes bias bearish? Co je CISD? Kdy je dnes nejvíc pohybu?"></textarea></label>'
+            '<button type="button" id="ai-send" style="min-width:140px;min-height:58px">Zeptat se</button></div>'
+            '<div class="row"><button type="button" class="ghost" id="ai-clear">Nový rozhovor</button></div><p class="hint" id="ai-msg"></p></section>'
+            '<section><details><summary><b>⚙️ Jak AI zapnout (jednou, asi 3 minuty)</b></summary><ol class="hint" style="line-height:1.7">'
+            '<li>V Cloudflare otevři svůj Worker <code>kompas-robot</code> → <b>Edit code</b>, smaž vše a vlož nový obsah souboru <code>worker.js</code> → <b>Deploy</b>.</li>'
+            '<li>Ve Workeru <b>Settings → Bindings → Add binding → Workers AI</b>, jako Variable name napiš přesně <code>AI</code> → <b>Add binding</b>.</li>'
+            '<li>Hotovo. AI používá stejnou adresu jako Robot (nastavuje se na stránce Robot).</li></ol>'
+            '<p class="hint">AI běží na Cloudflare Workers AI zdarma do denního limitu. Aby se limit nevyčerpal, odpoví nejvýš 40 otázek denně. '
+            'Ve Workeru jde počet změnit proměnnou <code>AI_LIMIT</code>.</p></details></section>')
+
+
+AI_JS = r"""
+(function(){
+  const E = id => document.getElementById(id);
+  const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+  const md = s => esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/^\s*[-*] (.+)$/gm, "• $1").replace(/\n/g, "<br>");
+  let url = ""; try { url = localStorage.getItem("robotUrl") || ""; } catch (e) {}
+  if (!url && DATA.robot) url = DATA.robot;
+  let hist = []; try { hist = JSON.parse(sessionStorage.getItem("aiHist")) || []; } catch (e) {}
+  let ctx = "";
+  const bubble = (role, html) => '<div style="align-self:' + (role === "user" ? "flex-end" : "flex-start") + ';max-width:min(760px,92%);padding:12px 16px;border-radius:16px;line-height:1.55;'
+    + (role === "user" ? "background:linear-gradient(135deg,#8B7CFF,#38BDF8);color:#fff" : "background:var(--glass);border:1px solid var(--rule)") + '">' + html + "</div>";
+  function draw() {
+    E("ai-log").innerHTML = hist.length ? hist.map(m => bubble(m.role, m.role === "user" ? esc(m.content) : md(m.content))).join("")
+      : '<p class="empty">Zatím žádná otázka. Vyber si z návrhů níže, nebo napiš vlastní.</p>';
+  }
+  const CH = ["Shrň mi dnešní den: bias, zprávy a na co si dát pozor", "Proč je dnes takový bias?", "Kdy jsou dnes velké zprávy z USA?", "Jak velký pohyb můžu dnes čekat na MNQ?",
+    "Co je CISD a FVG?", "Jak se vyrovnat se ztrátou podle Trading in the Zone?", "Co dělá stránka Statistiky trhu?"];
+  E("ai-chips").innerHTML = CH.map(c => '<button type="button" class="ghost" style="font-size:14px">' + esc(c) + "</button>").join("");
+  E("ai-chips").querySelectorAll("button").forEach(b => b.onclick = () => { E("ai-q").value = b.textContent; send(); });
+  async function local() {
+    // k přehledu webu přidá i to, co je jen v tomto prohlížeči: dnešní plán od mentora a obchody robota
+    let extra = "";
+    try {
+      const plans = await new Promise(r => { try { const q = indexedDB.open("mentor", 1); q.onupgradeneeded = () => q.result.createObjectStore("plans", {keyPath: "id", autoIncrement: true});
+        q.onsuccess = () => { try { const g = q.result.transaction("plans").objectStore("plans").getAll(); g.onsuccess = () => r(g.result || []); g.onerror = () => r([]); } catch (e) { r([]); } }; q.onerror = () => r([]); } catch (e) { r([]); } });
+      const today = new Date().toLocaleDateString("sv-SE", {timeZone: "Europe/Prague"});
+      const p = plans.filter(x => x.date >= today).sort((a, b) => a.date.localeCompare(b.date))[0];
+      if (p) extra += "\nPLÁN OD MENTORA na " + p.date + ": směr " + (p.dir || "neřekl") + "; zóny: " + (p.zones || []).map(z => (z.dir === "long" ? "odraz nahoru " : "odraz dolů ") + z.lo + (z.hi !== z.lo ? "–" + z.hi : "")).join(", ") + (p.note ? "; poznámka: " + p.note.slice(0, 1500) : "");
+    } catch (e) {}
+    try {
+      if (url) { const ev = await (await fetch(url + "/events")).json();
+        if (Array.isArray(ev) && ev.length) extra += "\nROBOT: z TradingView přišlo " + ev.length + " zpráv o obchodech, poslední " + (ev[ev.length - 1].cas || ev[ev.length - 1].prijato) + "."; }
+    } catch (e) {}
+    return extra;
+  }
+  async function send() {
+    const q = E("ai-q").value.trim(); if (!q) return;
+    if (!url) { E("ai-msg").textContent = "Nejdřív napoj Robota (stránka Robot → Jak robota napojit) a pak zapni AI podle návodu dole."; return; }
+    E("ai-send").disabled = true; E("ai-msg").textContent = "Přemýšlím…";
+    hist.push({role: "user", content: q}); E("ai-q").value = ""; draw();
+    try {
+      if (!ctx) { try { ctx = await (await fetch("ai.txt?" + Date.now())).text(); } catch (e) { ctx = ""; } ctx += await local(); }
+      const r = await fetch(url + "/ai", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({q: q, ctx: ctx, hist: hist.slice(-7, -1)})});
+      const d = await r.json();
+      if (d.a) { hist.push({role: "assistant", content: d.a}); E("ai-msg").textContent = "Dnes zbývá " + d.zbyva + " otázek."; }
+      else { hist.pop(); E("ai-q").value = q; E("ai-msg").textContent = d.chyba || "AI neodpověděla."; }
+    } catch (e) { hist.pop(); E("ai-q").value = q; E("ai-msg").textContent = "Spojení s AI se nepovedlo. Je ve Workeru nahraný nový kód a napojení AI? (návod dole)"; }
+    try { sessionStorage.setItem("aiHist", JSON.stringify(hist.slice(-20))); } catch (e) {}
+    E("ai-send").disabled = false; draw();
+    E("ai-log").lastElementChild && E("ai-log").lastElementChild.scrollIntoView({behavior: "smooth", block: "nearest"});
+  }
+  E("ai-send").onclick = send;
+  E("ai-q").addEventListener("keydown", e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) send(); });
+  E("ai-clear").onclick = () => { hist = []; try { sessionStorage.removeItem("aiHist"); } catch (e) {} draw(); E("ai-msg").textContent = ""; };
+  draw();
+})();
+"""
+
+# ===== SAMOUČENÍ STATISTIK: zkouška den po dni, jako by se statistika používala naživo =====
+def _trust(r):
+    """Důvěra v situaci podle toho, jak se trefovala naživo (opatrně: začíná jako 5 trefených a 5 netrefených)."""
+    n, ok = r
+    t = (ok + 5) / (n + 10)
+    return t, max(0.0, min(2.0, 1 + (t - 0.5) * 6)) if n >= 5 else 1.0
+
+
+def walk_forward(st, conds, groups=None):
+    """Projde historii den po dni. Každý den použije jen to, co bylo známo předem: spočítá výhody situací z dosavadních dní,
+    dá signál, porovná ho se skutečností a zapamatuje si, jak se která situace trefuje. Tím se učí z vlastních chyb."""
+    cs = [(g, nm, fn) for g, nm, fn in conds if groups is None or g in groups]
+    cnt = {nm: [0, 0] for _g, nm, _f in cs}
+    rec = {nm: [0, 0] for _g, nm, _f in cs}
+    n_all = up_all = 0
+    plain, learned, plain60, learned60 = [0, 0], [0, 0], [], []
+    for x in st:
+        up = x["ret"] > 0
+        sig = []
+        if n_all >= 250:
+            p0 = up_all / n_all
+            for _g, nm, fn in cs:
+                c = cnt[nm]
+                if c[0] >= 60 and fn(x):
+                    z = (c[1] / c[0] - p0) / max(1e-9, (p0 * (1 - p0) / c[0]) ** 0.5)
+                    if abs(z) >= 2:
+                        sig.append((nm, 1 if z > 0 else -1))
+        if sig:
+            sp = sum(d for _n, d in sig)
+            sl = sum(d * _trust(rec[nm])[1] for nm, d in sig)
+            for s_, acc, last in ((sp, plain, plain60), (sl, learned, learned60)):
+                if abs(s_) > 0.5:
+                    ok = (s_ > 0) == up
+                    acc[0] += 1
+                    acc[1] += ok
+                    last.append(ok)
+            for nm, d in sig:
+                rec[nm][0] += 1
+                rec[nm][1] += (d > 0) == up
+        for _g, nm, fn in cs:
+            if fn(x):
+                cnt[nm][0] += 1
+                cnt[nm][1] += up
+        n_all += 1
+        up_all += up
+    return {"rec": rec, "plain": plain, "learned": learned, "plain60": plain60[-60:], "learned60": learned60[-60:]}
+
+
+def learned_vote(plati, wf):
+    """Dnešní verdikt: výrazné situace hlasují, každá s váhou podle toho, jak se trefovala naživo."""
+    s_ = 0.0
+    nup = ndn = 0
+    for _g, nm, _fn, a in plati:
+        if a["n"] >= 30 and abs(a["z"]) >= 2:
+            w = _trust(wf["rec"].get(nm, [0, 0]))[1]
+            s_ += (1 if a["z"] > 0 else -1) * w
+            if w > 0:
+                nup += a["z"] > 0
+                ndn += a["z"] < 0
+    return s_, nup, ndn
+
+
+def _pc_(a):
+    return f"{100 * a[1] / a[0]:.0f}{NB}% ({a[0]} dní)" if a[0] else "–"
+
+
+def wf_section(wf, conds, groups, title="🧠 Co se statistika naučila"):
+    pl, le = wf["plain"], wf["learned"]
+    l60 = wf["learned60"]
+    o = (f'<section><h2>{title}</h2><p class="hint">Robot si statistiku vyzkoušel den po dni na celé historii, jako by ji používal naživo: každý den znal jen to, '
+         'co bylo do té doby, dal signál a pak zkontroloval, jestli se trefil. Situace, které se naživo trefují, dostávají větší váhu, ty, které se pletou, menší, '
+         'a když se pletou hodně, vyřadí se. Každý nový den se to celé přepočítá, takže se učí dál.</p><div class="stat">'
+         f'<div><b>{_pc_(pl).split(" (")[0]}</b><span>trefa verdiktu bez učení, {pl[0]} dní</span></div>'
+         f'<div><b>{_pc_(le).split(" (")[0]}</b><span>trefa verdiktu s učením, {le[0]} dní</span></div>'
+         f'<div><b>{(f"{100 * sum(l60) / len(l60):.0f}{NB}%") if l60 else "–"}</b><span>s učením za posledních {len(l60)} signálů</span></div></div>')
+    rows = []
+    for g, nm, _fn in conds:
+        if g not in groups:
+            continue
+        r = wf["rec"].get(nm, [0, 0])
+        if r[0] < 5:
+            continue
+        t, w = _trust(r)
+        stav = ('<span class="badge down">vyřazená</span>' if w <= 0.05 else '<span class="badge up">posílená</span>' if w > 1.15
+                else '<span class="badge warn">oslabená</span>' if w < 0.85 else '<span class="badge flat">beze změny</span>')
+        rows.append((w, f"<tr><td>{nm}</td><td>{r[0]}</td><td>{100 * r[1] / r[0]:.0f}{NB}%</td><td>{num(w, 1)}×</td><td>{stav}</td></tr>"))
+    if rows:
+        rows.sort(key=lambda x: -x[0])
+        o += _t(["Situace", "Signálů naživo", "Trefa naživo", "Váha", "Stav"], [r for _w, r in rows])
+    else:
+        o += '<p class="empty">Zatím žádná situace nedala dost signálů naživo. S každým dnem jich přibývá.</p>'
+    return o + "</section>"
+
+
+def range_learn(mk):
+    """Naučí se, jak nejlépe odhadnout dnešní rozsah: kolik věřit posledním 20 dnům a kolik celému roku. Zkouší to den po dni na historii."""
+    rr = [x["h"] - x["l"] for x in mk if x.get("h") and x.get("l")]
+    if len(rr) < 300:
+        return None
+    test = range(max(270, len(rr) - 500), len(rr))
+    best = None
+    for a10 in range(0, 11):
+        a = a10 / 10
+        err = []
+        for i in test:
+            r20 = sum(rr[i - 20:i]) / 20
+            ry = _q(rr[i - 250:i], 0.5)
+            err.append(abs(a * r20 + (1 - a) * ry - rr[i]))
+        mae = sum(err) / len(err)
+        if best is None or mae < best[1]:
+            best = (a, mae)
+    a = best[0]
+    errs0 = [abs(_q(rr[i - 250:i], 0.5) - rr[i]) for i in test]
+    res = []
+    for i in test:
+        p = a * sum(rr[i - 20:i]) / 20 + (1 - a) * _q(rr[i - 250:i], 0.5)
+        res.append(rr[i] / p)
+    pred = a * sum(rr[-20:]) / 20 + (1 - a) * _q(rr[-250:], 0.5)
+    return {"a": a, "mae": best[1], "mae0": sum(errs0) / len(errs0), "pred": pred, "lo": pred * _q(res, 0.25), "hi": pred * _q(res, 0.75), "n": len(test)}
+
+
+# ===== SAMOUČENÍ BIASU: z každého vyhodnoceného dne se upraví váhy složek =====
+LEARN_MIN = 10
+
+
+def blabel(tot):
+    return "Bullish" if tot >= 5 else "Mírně bullish" if tot >= 2 else "Neutrální" if tot > -2 else "Mírně bearish" if tot > -5 else "Bearish"
+
+
+def load_hist_ro():
+    try:
+        h = json.loads(hist_path().read_text(encoding="utf-8"))
+        return h if isinstance(h, list) else []
+    except Exception:
+        return []
+
+
+def learn_weights(h):
+    """Pro každou složku biasu: kolikrát ukázala správný směr. Dobré složky dostanou větší váhu, špatné menší.
+    Začíná opatrně (jako by měla 10 trefených a 10 netrefených dní navíc), takže pár náhod váhy nerozhodí."""
+    out = {}
+    for x in h:
+        r, cp = x.get("real"), x.get("comp")
+        if r is None or not cp or abs(r) < 0.1:
+            continue
+        for n, s in cp.items():
+            if abs(s) < 0.1:
+                continue
+            d = out.setdefault(n, {"n": 0, "ok": 0})
+            d["n"] += 1
+            d["ok"] += 1 if (s > 0) == (r > 0) else 0
+    for n, d in out.items():
+        acc = (d["ok"] + 10) / (d["n"] + 20)
+        d["acc"] = d["ok"] / d["n"]
+        d["mult"] = round(max(0.3, min(2.0, 1 + (acc - 0.5) * 4)), 2) if d["n"] >= LEARN_MIN else 1.0
+    return out
+
+
+def stat_verdict(mk, mz):
+    """Kolik výrazných statistických situací (kterým robot po zkoušce naživo věří) platí pro dnešek nahoru a kolik dolů."""
+    mk = _closed(mk or [])
+    if len(mk) < 30:
+        return None
+    mz = _closed(mz or [], 17, 15)
+    st = market_stats(mk, mz)
+    base = sum(1 for x in st if x["ret"] > 0) / len(st)
+    lo_v, hi_v = _vix_cut(st)
+    conds = conditions(lo_v, hi_v)
+    tf, _nd = today_feat(mk, mz)
+    plati = [(g, nm, fn, a) for g, nm, fn in conds if fn(tf) for a in [_ev(st, fn, base)] if a]
+    _s, nup, ndn = learned_vote(plati, walk_forward(st, conds))
+    return nup, ndn
+
+
+def learn_html(h, learn, comp):
+    o = ('<section><h2>🧠 Co se bias naučil</h2><p class="hint">Bias se skládá ze složek (futures, akcie, VIX, zprávy, statistika…). Každý den po zavření burzy se zkontroluje, '
+         'která složka ukázala správný směr. Složky, které se často trefují, dostanou větší váhu, ty, které se pletou, menší. Váhy se začnou měnit, až má složka '
+         f'aspoň {LEARN_MIN} vyhodnocených dní, a mění se opatrně, aby je nerozhodila jedna náhoda.</p>')
+    rows = []
+    for c in comp or []:
+        d = (learn or {}).get(c["n"])
+        w0, w = c.get("w0", c["w"]), c["w"]
+        if not d:
+            st_ = "zatím bez dat"
+        elif d["n"] < LEARN_MIN:
+            st_ = f'učí se ({d["n"]}/{LEARN_MIN} dní)'
+        else:
+            st_ = ("posílená" if w > w0 * 1.05 else "oslabená" if w < w0 * 0.95 else "beze změny")
+        pct_ = f'{100 * d["acc"]:.0f}{NB}%' if d else "–"
+        rows.append(f'<tr><td>{escape(c["n"])}</td><td>{d["n"] if d else 0}</td><td>{pct_}</td>'
+                    f'<td>{num(w0, 1)}</td><td>{num(w, 1)}</td><td>{st_}</td></tr>')
+    o += _t(["Složka", "Vyhodnocených dní", "Trefa směru", "Původní váha", "Váha teď", "Stav"], rows) if rows else '<p class="empty">Složky biasu dnes nejsou k dispozici.</p>'
+    both = [x for x in h if x.get("real") is not None and x.get("label0") and hit(x) is not None]
+    if both:
+        a = sum(hit(x) for x in both)
+        b = sum(hit(dict(x, label=x["label0"])) for x in both)
+        o += (f'<p class="hint">Srovnání na {len(both)} dnech: naučený bias se trefil {a}×, původní (bez učení) by se trefil {b}×. '
+              + ("Učení zatím pomáhá." if a > b else "Učení zatím nepomohlo, váhy se dál upravují." if a < b else "Zatím je to nastejno.") + "</p>")
+    miss = [x for x in h if hit(x) == 0 and x.get("comp")][-5:]
+    if miss:
+        rows = []
+        for x in reversed(miss):
+            wrong = [(n, s) for n, s in x["comp"].items() if abs(s) >= 0.1 and (s > 0) != (x["real"] > 0)]
+            w_ = max(wrong, key=lambda t: abs(t[1])) if wrong else None
+            rows.append(f'<tr><td>{_dcz(x["date"])}</td><td>{escape(x["label"])}</td><td class="{"up" if x["real"] >= 0 else "down"}">{pc(x["real"])}</td>'
+                        f'<td>{escape(w_[0]) + " (" + ("+" if w_[1] >= 0 else "−") + num(abs(w_[1]), 1) + ")" if w_ else "–"}</td></tr>')
+        o += ('<h2 style="margin-top:22px">Poslední chyby a co je nejvíc spletlo</h2><p class="hint">U každé chyby je složka, která nejsilněji ukazovala špatný směr. '
+              'Právě těmhle složkám učení postupně ubírá váhu.</p>' + _t(["Den", "Bias", "Skutečný pohyb", "Nejvíc zavádějící složka"], rows))
+    elif not both:
+        o += '<p class="empty">Učení začalo. Každý vyhodnocený den se teď ukládá i s tím, co ukazovala každá složka.</p>'
+    return o + "</section>"
+
+
+def hist_path():
+    return ROOT / "docs" / "history.json"
+
+
+def us_pre_open():
+    """True, dokud je v Praze méně než 15:00. Od 15:00 se denní bias už nemění, aby statistika měřila bias před začátkem session."""
+    return datetime.now(PRAGUE).hour < 15
+
+
+def update_history(label, total, extra=None):
+    """Denní archiv. Nikdy se nemaže: načte se, doplní se dnešek a uloží se. Drží posledních 2500 dní (jako archivy statistik)."""
+    p = hist_path()
+    h = []
+    if p.exists():
+        try:
+            h = json.loads(p.read_text(encoding="utf-8"))
+            if not isinstance(h, list):
+                raise ValueError("není seznam")
+        except Exception as e:
+            print("history.json nejde přečíst, nic nepřepisuju:", e)
+            return []
+    n0 = len(h)
+    if datetime.now(PRAGUE).weekday() >= 5:
+        return h
+    today = datetime.now(PRAGUE).strftime("%Y-%m-%d")
+    if us_pre_open():
+        cur = next((x for x in h if x.get("date") == today), {})
+        h = [x for x in h if x.get("date") != today]
+        cur.update({"date": today, "label": label, "score": round(total, 1)})
+        if extra:
+            cur.update(extra)
+        h.append(cur)
+    else:
+        print("Je po 15:00 pražského času, dnešní bias se nepřepisuje (zůstává ten před session).")
+    try:
+        c = yf.download("^NDX", period="6mo", interval="1d", progress=False)["Close"].squeeze().dropna()
+        ch = c.pct_change() * 100
+        real = {i.strftime("%Y-%m-%d"): round(float(v), 2) for i, v in ch.dropna().items()}
+        for x in h:
+            if "real" not in x and x["date"] < today and x["date"] in real:
+                x["real"] = real[x["date"]]
+    except Exception as e:
+        print("Skutečný pohyb Nasdaqu nejde stáhnout:", e)
+    h = sorted(h, key=lambda x: x["date"])[-2500:]
+    if len(h) >= min(n0, 2500):
+        p.write_text(json.dumps(h, ensure_ascii=False), encoding="utf-8")
+    return h
+
+
+def hit(x):
+    """1 = bias měl pravdu, 0 = neměl, None = ještě nevíme."""
+    if "real" not in x:
+        return None
+    b = x["label"].lower()
+    r = x["real"]
+    if "bullish" in b:
+        return 1 if r > 0.1 else 0
+    if "bearish" in b:
+        return 1 if r < -0.1 else 0
+    return 1 if abs(r) < 0.5 else 0
+
+
+def conf(comp, total):
+    if not comp:
+        return 0
+    sg_ = 1 if total >= 0 else -1
+    w = sum(c["w"] for c in comp)
+    return round(sum(c["w"] for c in comp if c["s"] * sg_ > 0.05) / w * 100)
+
+
+def numval(s):
+    m = re.search(r"-?\d+(?:[.,]\d+)?", str(s or ""))
+    return float(m.group().replace(",", ".")) if m else None
+
+
+RULES = [
+    (r"CPI|PPI|PCE|Inflation|Price", "Inflace", "Čísla o cenách. Fed podle nich rozhoduje o sazbách.",
+     ("Výš než předpověď", "Inflace je horší. Fed zůstane přísný, výnosy rostou.", "down"), ("Podle předpovědi", "Trh to čekal, reakce bývá malá.", ""),
+     ("Níž než předpověď", "Inflace slábne. Naděje na nižší sazby, akcie často rostou.", "up"), 1),
+    (r"Non-Farm|NFP|Employment|Unemployment|JOLTS|Jobless|Payroll|ADP", "Trh práce", "Kolik lidí pracuje. Silná práce může zvednout sazby.",
+     ("Výš než předpověď", "Silná ekonomika, ale vyšší výnosy. Nasdaq často tlačí dolů.", "down"), ("Podle předpovědi", "Bez překvapení, klidnější reakce.", ""),
+     ("Níž než předpověď", "Slabší práce. Naděje na nižší sazby, ale roste strach z recese.", "warn"), 1),
+    (r"FOMC|Funds Rate|Powell|Fed|Rate Decision", "Fed a sazby", "Rozhodnutí o úrokových sazbách. Nejsilnější zpráva týdne.",
+     ("Přísnější (hawkish)", "Sazby vyšší nebo delší. Nasdaq obvykle klesá.", "down"), ("Podle očekávání", "Pohyb přijde až při tiskové konferenci.", ""),
+     ("Mírnější (dovish)", "Naděje na nižší sazby. Nasdaq obvykle roste.", "up"), 1),
+    (r"GDP|Retail|ISM|PMI|Sales|Confidence|Sentiment|Housing|Durable", "Růst ekonomiky", "Jak se daří ekonomice a spotřebě.",
+     ("Výš než předpověď", "Silná ekonomika. Pro akcie dobré, pokud nezvedne sazby.", "up"), ("Podle předpovědi", "Bez překvapení.", ""),
+     ("Níž než předpověď", "Slabší ekonomika. Trh se může bát zpomalení.", "down"), 1),
+]
+
+
+DIRW = {"up": "bullish, hledej long", "down": "bearish, hledej short", "warn": "nejasné, počkej na reakci", "": "bez směru, nespěchej"}
+
+
+def vysvetlivky():
+    return ('<section><details open><summary><b>Jak číst zprávy: vysvětlení jednoduše</b></summary><ul class="facts" style="margin-top:12px">'
+            '<li><b>Předpověď</b> je číslo, které čekají analytici. <b>Skutečnost</b> je číslo, které opravdu vyjde. Trh se hýbe podle překvapení, tedy podle rozdílu mezi nimi.</li>'
+            '<li><b>Bullish</b> = čekám růst, hledám long. <b>Bearish</b> = čekám pokles, hledám short.</li>'
+            '<li><b>Příklad inflace (CPI):</b> předpověď 3,0 %, vyjde 3,2 %. Ceny rostou rychleji, Fed zůstane přísný, takže je to <b>bearish</b>. Vyjde 2,8 % → <b>bullish</b>.</li>'
+            '<li><b>Pozor:</b> vyšší číslo není vždy bullish. U inflace je vyšší horší. U růstu ekonomiky (GDP, ISM) je vyšší lepší. U trhu práce silné číslo zvedá výnosy, takže je to často bearish.</li>'
+            '<li><b>Hawkish</b> (jestřábí) = Fed mluví přísně, sazby nechá vysoko nebo zvedne → <b>bearish</b> pro Nasdaq.</li>'
+            '<li><b>Dovish</b> (holubičí) = Fed mluví mírně, sazby sníží nebo to naznačí → <b>bullish</b> pro Nasdaq.</li>'
+            '<li><b>Moje pravidlo:</b> po velké zprávě počkám aspoň 5 minut. Long nebo short beru jen tehdy, když sedí i můj setup.</li></ul></details></section>')
+
+
+def rule_for(title):
+    for r in RULES:
+        if re.search(r[0], title, re.I):
+            return r
+    return None
+
+
+def archive_html(h):
+    if not h:
+        return ""
+    sg = lambda v: "–" if v is None else ("+%s" % v if v > 0 else str(v))
+    rows = ""
+    for x in sorted(h, key=lambda x: x["date"], reverse=True):
+        r, t = x.get("real"), x.get("tilt")
+        ok = "–" if (r is None or not t) else ("✓" if (t > 0) == (r > 0) else "✗")
+        cats = ", ".join("%s %s" % (escape(k.split(",")[0].split(" ")[0]), sg(v)) for k, v in (x.get("cats") or {}).items() if v) or "–"
+        rows += "<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" % (x["date"], escape(str(x.get("label", "–"))), sg(t), cats, ("%s %%" % r) if r is not None else "čeká", ok)
+    return ('<section><h2>Archiv predikcí (každý den)</h2><p class="hint">Tady se ukládá každý den, co aplikace předpověděla, a pak se doplní, jak to dopadlo. Nemaže se. Stejná data jsou v souboru <a href="history.json">history.json</a>.</p>'
+            '<div style="overflow-x:auto"><table><thead><tr><th>Den</th><th>Bias</th><th>Naklonění zpráv</th><th>Kategorie</th><th>Skutečný pohyb Nasdaqu</th><th>Trefa</th></tr></thead><tbody>' + rows + '</tbody></table></div></section>')
+
+
+def stats_html(h):
+    rows = [x for x in h if x.get("real") is not None and x.get("tilt") is not None]
+    nd = len(h)
+    if not rows:
+        return ('<section><h2>Statistika ze všech dnů</h2><p class="hint">Archiv zatím drží %d dní. Ukládá se každý den a nemaže se (jen nejstarší den po 2500). '
+                'Statistika se objeví, jakmile bude u dnů známý skutečný pohyb Nasdaqu. Od teď se ukládá i naklonění zpráv.</p></section>' % nd)
+    def hit(v, r):
+        return 1 if (v > 0 and r > 0) or (v < 0 and r < 0) else 0
+    act = [x for x in rows if x["tilt"] != 0]
+    ok = sum(hit(x["tilt"], x["real"]) for x in act)
+    out = '<section><h2>Statistika ze všech dnů</h2><div class="stat"><div><b>%d</b><span>dní v archivu</span></div><div><b>%d</b><span>dní se známým pohybem</span></div>' % (nd, len(rows))
+    out += '<div><b>%s</b><span>trefa směru podle zpráv (%d dní)</span></div></div>' % (("%d %%" % round(100 * ok / len(act))) if act else "–", len(act))
+    names = {}
+    for x in rows:
+        for k, v in (x.get("cats") or {}).items():
+            if v:
+                a = names.setdefault(k, [0, 0]); a[1] += 1; a[0] += hit(v, x["real"])
+    if names:
+        out += '<table><thead><tr><th>Kategorie</th><th>Dní s názorem</th><th>Trefa</th></tr></thead><tbody>' + "".join(
+            "<tr><td>%s</td><td>%d</td><td>%d %%</td></tr>" % (escape(k), a[1], round(100 * a[0] / a[1])) for k, a in names.items()) + '</tbody></table>'
+    return out + '<p class="hint">Počítá se ze všech uložených dní, ne jen z tohoto týdne. Čím víc dní, tím víc se dá věřit.</p></section>'
+
+
+def predikce_body(week, hist=None, evarch=None):
+    vy = vysvetlivky()
+    if not week:
+        return '<section><div class="note">Kalendář se nepodařilo stáhnout. Otevři <a href="https://www.forexfactory.com/calendar">Forex Factory</a>.</div></section>'
+    now_ms = datetime.now(PRAGUE).timestamp() * 1000
+    ev = [e for e in week if e["ts"] > now_ms][:12]
+    old = not ev
+    if old:
+        ev = [e for e in week if rule_for(e["title"])][-12:]
+    out = vy + ('<section><h2>Jak to funguje</h2><p class="hint">U každé důležité zprávy vidíš, co se obvykle stane, když vyjde lépe, stejně nebo hůř než předpověď. '
+           'Jsou to pravidla z praxe, ne jistota. Procenta pravděpodobnosti zdarma nejdou spočítat poctivě, proto je tu nevymýšlím.</p></section>')
+    cards = stats_html(hist or []) + events_html(evarch or []) + archive_html(hist or [])
+    est = ev_stats(evarch or [])
+    if old and ev:
+        cards += '<section><div class="note">Nové zprávy na příští týden zatím nejsou zveřejněné. Ukazuju poslední zprávy z tohoto týdne, ať stránka není prázdná. Až je zveřejní, ukážou se tady samy.</div></section>'
+    for e in ev:
+        r = rule_for(e["title"])
+        if not r:
+            continue
+        f, p = numval(e["forecast"]), numval(e["previous"])
+        hint = ""
+        if f is not None and p is not None:
+            hint = ("Předpověď je <b>vyšší</b> než minule." if f > p else "Předpověď je <b>nižší</b> než minule." if f < p else "Předpověď je stejná jako minule.")
+        sc = "".join(f'<div class="scen {c[2]}"><b>{escape(c[0])} · {DIRW.get(c[2], "")}</b><span>{escape(c[1])}</span></div>' for c in (r[3], r[4], r[5]))
+        ex = ""
+        if r[1] == "Fed a sazby":
+            ex = "Příklad: Fed řekne, že sazby zůstanou vysoko (hawkish) → bearish, hledej short. Řekne, že sazby sníží (dovish) → bullish, hledej long."
+        elif f is not None:
+            u = (re.search(r"[%KMB]+$", str(e["forecast"]).strip()) or [""])[0]
+            step = max(round(abs(f) * 0.07, 1), 0.1)
+            fm = lambda v: str(round(v, 1)).replace(".", ",") + u
+            ex = (f"Příklad: předpověď {escape(e['forecast'])}, vyjde {fm(f + step)} → {DIRW.get(r[3][2], '')}. "
+                  f"Vyjde {fm(f - step)} → {DIRW.get(r[5][2], '')}.")
+        evl = ""
+        if e["title"] in est:
+            q_ = est[e["title"]]
+            evl = '<p class="empty">V archivu: %d případů, po 15 minutách šel Nasdaq nahoru v %d %%.%s</p>' % (q_["n"], round(100 * q_["up"] / q_["n"]), " Zatím málo dat." if q_["n"] < 10 else "")
+            if q_.get("sp"):
+                evl += '<p class="empty">' + " · ".join("%s předpovědí: %d× (nahoru %d %%)" % ({"nad": "Nad", "pod": "Pod", "shoda": "Stejně jako"}[k], v["n"], round(100 * v["up"] / v["n"])) for k, v in q_["sp"].items()) + "</p>"
+        cards += (f'<section><div class="evh"><span class="badge {"down" if e["impact"] == "vysoký" else "warn"}">{e["impact"]}</span> <b>{e["dn"]} {e["time"]}</b> · {escape(e["title"])} '
+                  f'<em class="empty">({r[1]}, {("už vyšlo" if old else "za " + fmt_in(e["ts"]))})</em></div><p class="empty">{r[2]} Předpověď: {escape(e["forecast"] or "–")}, minule: {escape(e["previous"] or "–")}. {hint}</p>'
+                  f'<p class="exm">{ex}</p>{evl}'
+                  f'<div class="scens">{sc}</div></section>')
+    return out + (cards or '<section><p class="empty">Tento týden nejsou žádné zprávy, ke kterým umím scénáře.</p></section>')
+
+
+def categories(q, week, sent):
+    g = {r["sym"]: r["chg"] for r in q}
+    now_ms = datetime.now(PRAGUE).timestamp() * 1000
+    ups = [e for e in (week or []) if e["ts"] > now_ms] or list(week or [])
+    cats = []
+
+    def cat(name, bull, bear, note):
+        s = max(-2, min(2, len(bull) - len(bear)))
+        cats.append({"n": name, "s": s, "bull": bull, "bear": bear, "note": note})
+    for key, name, pattern, inv in (("inf", "Inflace", r"CPI|PPI|PCE|Inflation", True), ("job", "Trh práce", r"Non-Farm|NFP|Employment|Unemployment|JOLTS|Jobless|ADP", True),
+                                    ("gr", "Růst ekonomiky", r"GDP|Retail|ISM|PMI|Sales", False)):
+        bull, bear = [], []
+        for e in ups:
+            if not re.search(pattern, e["title"], re.I):
+                continue
+            f, p = numval(e["forecast"]), numval(e["previous"])
+            if f is None or p is None or f == p:
+                continue
+            up = f > p
+            text = f"{e['title']}: předpověď {e['forecast']} proti minulým {e['previous']}"
+            (bear if (up and inv) or (not up and not inv) else bull).append(text)
+        note = {"inf": "Vyšší inflace tlačí akcie dolů.", "job": "Silná práce zvedá výnosy, což Nasdaqu škodí.", "gr": "Silnější růst obvykle akciím pomáhá."}[key]
+        cat(name, bull, bear, note)
+    bull, bear = [], []
+    if "^TNX" in g:
+        (bear if g["^TNX"] > 0.5 else bull if g["^TNX"] < -0.5 else []).append(f"Výnos 10letých dluhopisů se změnil o {pc(g['^TNX'])}")
+    if "DX-Y.NYB" in g:
+        (bear if g["DX-Y.NYB"] > 0.3 else bull if g["DX-Y.NYB"] < -0.3 else []).append(f"Dolarový index se změnil o {pc(g['DX-Y.NYB'])}")
+    fed = [e for e in ups if re.search(r"FOMC|Funds Rate|Powell", e["title"])]
+    if fed:
+        bear.append(f"Blíží se Fed: {fed[0]['title']} ({fed[0]['dn']} {fed[0]['time']}), nejistota roste")
+    cat("Fed, sazby a dluhopisy", bull, bear, "Vyšší výnosy a silný dolar bývají pro Nasdaq špatné.")
+    bull, bear = [], []
+    if "^VIX" in g:
+        (bear if g["^VIX"] > 5 else bull if g["^VIX"] < -5 else []).append(f"VIX (strach) se změnil o {pc(g['^VIX'])}")
+    if sent.get("status") == "ok":
+        sc = sent["overall"]["score"]
+        (bull if sc > 0.8 else bear if sc < -0.8 else []).append(f"Titulky zpráv mají skóre {sgn(sc)} z 5")
+    cat("Nálada a zprávy", bull, bear, "Strach a negativní titulky obvykle předcházejí poklesům.")
+    return cats
+
+
+def cat_html(cats):
+    rows = ""
+    for c in cats:
+        cls = "up" if c["s"] > 0 else "down" if c["s"] < 0 else ""
+        word = {2: "Silně bullish", 1: "Bullish", 0: "Neutrální", -1: "Bearish", -2: "Silně bearish"}[c["s"]]
+        li = lambda a, k: "".join(f'<li class="{k}">{escape(x)}</li>' for x in a)
+        rows += (f'<div class="cat"><div class="cath"><b>{escape(c["n"])}</b><span class="badge {cls or "warn"}">{word}</span></div>'
+                 f'<div class="bar wide"><span></span><div class="track {cls or "up"}"><i style="width:{abs(c["s"]) / 2 * 100:.0f}%"></i></div><b></b></div>'
+                 f'<div class="det"><ul class="facts">{li(c["bull"], "up")}{li(c["bear"], "down")}</ul><p class="empty">{escape(c["note"])}</p></div></div>')
+    return ('<section><h2>Hodnocení podle oblastí</h2><p class="hint">Každá oblast má zelené (bullish) a červené (bearish) faktory. Přepni si krátký nebo podrobný pohled.</p>'
+            '<div class="pills" id="vtabs"><button data-v="s">Stručně</button><button class="pill-off" data-v="d">Detailně</button></div>'
+            f'<div id="cats" class="brief">{rows}</div></section>')
+
+
+FUND_JS = """
+document.querySelectorAll("#vtabs button").forEach(b => b.onclick = () => { $("cats").className = b.dataset.v === "d" ? "full" : "brief";
+  document.querySelectorAll("#vtabs button").forEach(x => x.classList.toggle("pill-off", x !== b)); });
+"""
+
+
+def zpravy_body(q, sent):
+    g = {r["sym"]: r for r in q}
+    cards = ""
+    for sym, name, inv in (("^VIX", "VIX (strach)", True), ("DX-Y.NYB", "Dolarový index", True), ("^TNX", "Výnos 10letých dluhopisů", True), ("NQ=F", "Nasdaq futures", False)):
+        if sym in g:
+            r = g[sym]
+            good = (r["chg"] <= 0) if inv else (r["chg"] >= 0)
+            cards += f'<div class="k"><b class="{"up" if good else "down"}">{num(r["last"])}</b><span>{name}: {pc(r["chg"])}</span></div>'
+    hero = ""
+    if sent.get("status") == "ok":
+        o = sent["overall"]
+        sc = float(o["score"])
+        word = {"bullish": "Bullish", "bearish": "Bearish"}.get(o["bias"], "Neutrální")
+        cls = "up" if o["bias"] == "bullish" else "down" if o["bias"] == "bearish" else ""
+        its = sent.get("all") or []
+        pos, neg = sum(1 for x in its if x["s"] > 0), sum(1 for x in its if x["s"] < 0)
+        hero = (f'<section class="hero"><div><p class="empty" style="margin:0 0 8px">Nálada zpráv za posledních 24 hodin</p><p class="lede {cls}">{word}</p>'
+                f'<ul class="facts"><li>Zpracováno {sent["n"]} titulků z {len(sent["groups"])} zdrojů.</li><li>Pozitivních {pos}, negativních {neg}.</li>'
+                f'<li>Skóre {sgn(sc)} z 5 (od −5 do +5). Plus znamená převahu pozitivních zpráv.</li></ul></div>{gauge_box(sc * 0.3, sc, 5, "skóre zpráv")}</section>')
+    body = f'<section><h2>Puls trhu</h2><div class="kpis">{cards}</div><p class="hint">Zeleně je to, co je pro akcie dobré. U strachu, dolaru a výnosů je dobré pokles.</p></section>' if cards else ""
+    if sent.get("status") != "ok":
+        return body + '<section><div class="note">Zprávy se dnes nepodařilo stáhnout.</div></section>'
+    return hero + body + ('<section><h2>Všechny zprávy za posledních 24 hodin</h2><div class="pills"><button data-f="">Všechny</button><button class="pill-off" data-f="1">Pozitivní</button>'
+                   '<button class="pill-off" data-f="-1">Negativní</button></div><label style="max-width:300px;margin-top:10px">Zdroj<select id="nsrc"></select></label>'
+                   '<ul class="facts" id="nlist" style="margin-top:12px"></ul></section>')
+
+
+NEWS_JS = """
+if ($("nlist")) { let f = "", src = ""; const srcs = [...new Set(DATA.news.map(n => n.src))];
+  $("nsrc").innerHTML = '<option value="">Všechny zdroje</option>' + srcs.map(s => `<option>${esc(s)}</option>`).join("");
+  const draw = () => { const rows = DATA.news.filter(n => (!f || Math.sign(n.s) === +f) && (!src || n.src === src));
+    $("nlist").innerHTML = rows.length ? rows.map(n => `<li><span class="badge ${n.s > 0 ? "up" : n.s < 0 ? "down" : "warn"}">${n.s > 0 ? "pozitivní" : n.s < 0 ? "negativní" : "neutrální"}</span> <a href="${esc(n.l)}">${esc(n.t)}</a> <span class="empty">(${esc(n.src)})</span></li>`).join("") : "<li>Nic.</li>"; };
+  document.querySelectorAll("[data-f]").forEach(b => b.onclick = () => { f = b.dataset.f; document.querySelectorAll("[data-f]").forEach(x => x.classList.toggle("pill-off", x !== b)); draw(); });
+  $("nsrc").onchange = () => { src = $("nsrc").value; draw(); }; draw(); }
+"""
+
+
+def bias_body(label, total, comp, rs, q, week):
+    cls = "up" if "bullish" in label.lower() else "down" if "bearish" in label.lower() else ""
+    c = conf(comp, total)
+    oe = (f'<section class="hero"><div><p class="empty" style="margin:0 0 8px">Open Bias Engine, výpočet z dat před otevřením</p><p class="lede {cls}">{escape(label)}</p>'
+          f'<ul class="facts"><li>Skóre {sgn(total)} z 10.</li><li>Shoda ukazatelů: {c} %. Čím víc ukazatelů míří stejným směrem, tím je bias spolehlivější.</li></ul></div>{gauge_box(total * 0.15, total, 10, "skóre biasu")}</section>')
+    if rs:
+        rows = "".join(f'<div class="k"><b class="{rsi_word(v)[1]}">{v}</b><span>RSI {k}: {rsi_word(v)[0]}</span></div>' for k, v in rs.items())
+        avg = sum(rs.values()) / len(rs)
+        rb = (f'<section><h2>Denní bias podle RSI</h2><p class="hint">RSI měří sílu pohybu od 0 do 100. Nad 55 převažují kupující, pod 45 prodávající.</p><div class="kpis">{rows}</div>'
+              f'<p class="lede {rsi_word(avg)[1]}" style="font-size:22px">Celkově: {rsi_word(avg)[0]}</p></section>')
+    else:
+        rb = '<section><div class="note">RSI se dnes nepodařilo spočítat (Yahoo neposlal data po minutách).</div></section>'
+    nxt = ('<section class="hero"><div><p class="empty" style="margin:0 0 8px">Nejbližší velká zpráva z USA</p><p class="lede" id="cd">–</p><ul class="facts"><li id="cdt">Načítám…</li></ul></div></section>')
+    return oe + rb + nxt + comp_html(comp)
+
+
+BIAS_JS = """
+if ($("cd") && DATA.cal && !$("cal-t")) { const tick = () => { const n = DATA.cal.find(e => e.ts > Date.now() && e.impact === "vysoký") || DATA.cal.find(e => e.ts > Date.now());
+  if (!n) { $("cd").textContent = "–"; $("cdt").textContent = "Tento týden už žádná další zpráva."; return; }
+  let s = Math.floor((n.ts - Date.now()) / 1000); const d = Math.floor(s / 86400); s %= 86400;
+  $("cd").textContent = (d ? d + " d " : "") + [Math.floor(s / 3600), Math.floor(s % 3600 / 60), s % 60].map(x => String(x).padStart(2, "0")).join(":");
+  $("cdt").textContent = "Do zprávy: " + n.dn + " " + n.time + ", " + n.title; }; tick(); setInterval(tick, 1000); }
+"""
+
+
+def weekly():
+    try:
+        c = yf.download("^NDX", period="3mo", interval="1d", progress=False)["Close"].squeeze().dropna()
+        mv = c.pct_change().abs().dropna().tail(20).mean() * 100
+        last = float(c.iloc[-1])
+        wk = float(c.iloc[-1] / c.iloc[-6] - 1) * 100
+        exp = float(mv) * 5 ** 0.5
+        return {"last": last, "daily": float(mv), "wk": wk, "exp": exp, "lo": last * (1 - exp / 100), "hi": last * (1 + exp / 100)}
+    except Exception as e:
+        print("Týdenní data nejdou:", e)
+        return None
+
+
+def tyden_body(w, week, label):
+    body = ""
+    if w:
+        tone_ = "up" if w["wk"] > 1 else "down" if w["wk"] < -1 else ""
+        body += (f'<section class="hero"><div><p class="empty" style="margin:0 0 8px">Týdenní výhled pro Nasdaq 100</p><p class="lede {tone_}">{"Bullish týden" if w["wk"] > 1 else "Bearish týden" if w["wk"] < -1 else "Vyrovnaný týden"}</p>'
+                 f'<ul class="facts"><li>Za posledních 5 obchodních dní se index změnil o {pc(w["wk"])}.</li><li>Průměrný denní pohyb je {num(w["daily"])} %.</li>'
+                 f'<li>Dnešní denní bias: {escape(label)}.</li></ul></div></section>'
+                 f'<div class="kpis"><div class="k"><b>{num(w["lo"], 0)}</b><span>běžný týdenní pohyb dolů</span></div><div class="k"><b>{num(w["last"], 0)}</b><span>poslední zavírací cena</span></div>'
+                 f'<div class="k"><b>{num(w["hi"], 0)}</b><span>běžný týdenní pohyb nahoru</span></div></div>'
+                 '<p class="hint">Rozmezí je jen odhad podle běžných pohybů za poslední měsíc (denní pohyb krát odmocnina z pěti dní). Není to předpověď.</p>')
+    else:
+        body += '<section><div class="note">Týdenní data se nepodařilo stáhnout.</div></section>'
+    if week:
+        body += ('<section><h2>Kolik důležitých zpráv je který den</h2><div class="chartbox" style="height:240px"><canvas id="c-wk"></canvas></div></section>'
+                 '<section><h2>Zprávy s vysokým dopadem tento týden</h2>' + events_table([e for e in week if e["impact"] == "vysoký"][:15]) + '</section>')
+    return body
+
+
+WK_JS = """
+if (window.Chart && DATA.wk && $("c-wk")) new Chart($("c-wk"), {type: "bar", data: {labels: DATA.wk.d, datasets: [{label: "Vysoký dopad", data: DATA.wk.h, backgroundColor: "#FF6B8A", borderRadius: 6}, {label: "Střední dopad", data: DATA.wk.m, backgroundColor: "#FFB454", borderRadius: 6}]},
+  options: {maintainAspectRatio: false, plugins: {legend: {position: "bottom"}}, scales: {x: {stacked: true, grid: {display: false}}, y: {stacked: true, ticks: {precision: 0}}}}});
+"""
+
+
+def presnost_body(h):
+    done = [x for x in h if hit(x) is not None]
+    if not done:
+        return ('<section class="hero"><div><p class="lede">Zatím málo dat</p><ul class="facts"><li>Robot si každý den uloží svůj bias. Druhý den dopíše, jak se Nasdaq opravdu pohnul.</li>'
+                '<li>První výsledky uvidíš po dvou dnech provozu. Do té doby je tu prázdno, to je v pořádku.</li></ul></div></section>')
+    ok = sum(hit(x) for x in done)
+    last = done[-20:]
+    ok20 = sum(hit(x) for x in last)
+    rows = "".join(f'<tr><td>{x["date"]}</td><td>{escape(x["label"])}</td><td class="n">{sgn(x["score"])}</td><td class="n {("up" if x["real"] >= 0 else "down")}">{pc(x["real"])}</td>'
+                   f'<td><span class="badge {"up" if hit(x) else "down"}">{"trefil" if hit(x) else "netrefil"}</span></td></tr>' for x in reversed(done[-30:]))
+    return (f'<section class="hero"><div><p class="empty" style="margin:0 0 8px">Jak často měl denní bias pravdu</p><p class="lede {"up" if ok / len(done) >= .55 else "warn"}">{ok / len(done) * 100:.0f} %</p>'
+            f'<ul class="facts"><li>Celkem {len(done)} dní, trefil {ok}×.</li><li>Posledních {len(last)} dní: {ok20 / len(last) * 100:.0f} %.</li>'
+            '<li>Neutrální bias se počítá jako trefa, když byl pohyb menší než 0,5 %.</li></ul></div></section>'
+            '<section><h2>Bias a skutečný pohyb (najeď myší)</h2><div class="chartbox"><canvas id="c-acc"></canvas></div></section>'
+            f'<section><h2>Posledních 30 dní</h2><div class="wrap"><table><thead><tr><th>Den</th><th>Bias</th><th class="n">Skóre</th><th class="n">Skutečný pohyb</th><th>Výsledek</th></tr></thead><tbody>{rows}</tbody></table></div>'
+            '<p class="empty">Skutečný pohyb je změna indexu Nasdaq 100 za celý den. Nejde o výsledek tvých obchodů.</p></section>')
+
+
+ACC_JS = """
+if (window.Chart && DATA.hist && $("c-acc")) { const h = DATA.hist.filter(x => x.real != null);
+  new Chart($("c-acc"), {type: "bar", data: {labels: h.map(x => x.date), datasets: [{type: "line", label: "Skóre biasu", data: h.map(x => x.score), borderColor: "#8B7CFF", yAxisID: "y2", tension: .3, pointRadius: 3},
+    {label: "Skutečný pohyb (%)", data: h.map(x => x.real), borderRadius: 6, backgroundColor: h.map(x => x.real >= 0 ? "#2EE6A6" : "#FF6B8A")}]},
+    options: {maintainAspectRatio: false, interaction: {mode: "index", intersect: false}, plugins: {legend: {position: "bottom"}}, scales: {y: {ticks: {callback: v => v + " %"}}, y2: {position: "right", min: -10, max: 10, grid: {display: false}}, x: {grid: {display: false}, ticks: {maxTicksLimit: 8}}}}}); }
+"""
+
+
+def roadmap_body():
+    st_ = [("Etapa 1: Základy", ["Umím vysvětlit, co je long, short, stop loss a take profit", "Znám časy: burza otevírá v 15:30 pražského času", "Každé ráno projdu Přehled, Fundament a Kalendář", "Vím, co je VIX, dolar a výnosy a jak hýbou Nasdaqem"]),
+           ("Etapa 2: Deník a disciplína", ["Zapisuji každý obchod do deníku i se screenshotem", "Každý obchod má stop loss před vstupem", "Dodržel jsem plán aspoň 20 obchodů po sobě", "Znám své tři nejčastější chyby"]),
+           ("Etapa 3: Mikro kontrakty", ["Riskuji nejvýš 1 % účtu na obchod", "Používám kalkulačku v Plánu dne před každým obchodem", "Mám 30 dní deníku s kladným očekáváním (expectancy)", "Vyhnu se obchodování před velkými zprávami"]),
+           ("Etapa 4: Trpělivost a konzistence", ["Dokážu celý den neobchodovat, když nevidím svůj setup", "Splnil jsem 10 dní za sebou „Dnes jsem se ovládl“", "Mám jasně popsanou jednu strategii s pravidly", "Měsíc skončil v plusu při dodržení pravidel"]),
+           ("Etapa 5: Růst", ["Zvyšuji počet kontraktů jen po třech dobrých měsících", "Dělám měsíční rozbor deníku (záložka Analýza)", "Mám záložní plán na špatné období (pauza, menší velikost)"])]
+    out = '<section><p class="hint">Zaškrtávej, co už umíš. Ukládá se v tomto prohlížeči. Postupuj po etapách, nic nepřeskakuj.</p><p id="rprog" class="lede" style="font-size:24px"></p></section>'
+    n = 0
+    for t, items in st_:
+        out += f'<section><h2>{t}</h2><div class="chips">' + "".join(f'<label class="chip"><input type="checkbox" data-r="{n + i}">{escape(x)}</label>' for i, x in enumerate(items)) + '</div></section>'
+        n += len(items)
+    return out
+
+
+ROAD_JS = """
+if ($("rprog")) { let R = []; try { R = JSON.parse(localStorage.getItem("roadmap")) || []; } catch (e) {}
+  const all = document.querySelectorAll("[data-r]"), draw = () => { $("rprog").textContent = "Splněno " + R.length + " z " + all.length; };
+  all.forEach(c => { c.checked = R.includes(+c.dataset.r); c.onchange = () => { R = R.filter(x => x !== +c.dataset.r); if (c.checked) R.push(+c.dataset.r); try { localStorage.setItem("roadmap", JSON.stringify(R)); } catch (e) {} draw(); }; }); draw(); }
+"""
+
+
+def prirucka_body():
+    G = [("Long", "Nakupuješ a chceš, aby cena vzrostla."), ("Short", "Prodáváš a chceš, aby cena klesla."), ("Stop loss", "Cena, kde obchod uzavřeš se ztrátou, aby ses nezničil. Zadáváš ho vždy před vstupem."),
+         ("Take profit (TP)", "Cena, kde obchod uzavřeš se ziskem. TP1 je 1:2, TP2 je 1:2,5."), ("R:R (poměr zisku k riziku)", "Kolikrát víc můžeš vydělat, než kolik riskuješ. 1:2 znamená riskuješ 1, chceš vydělat 2."),
+         ("Mikro kontrakt (MNQ)", "Malá verze Nasdaq futures. Jeden bod je 2 $. Hodí se pro začátek."), ("Pre-market", "Obchodování před oficiálním otevřením burzy. Ukazuje náladu před startem."),
+         ("Bias", "Tvůj názor na směr dne: bullish (růst), bearish (pokles), neutrální."), ("Bullish", "Čekáš, že cena poroste. Hledáš long (nákup)."), ("Bearish", "Čekáš, že cena klesne. Hledáš short (prodej)."), ("Hawkish", "Fed mluví přísně: sazby nechá vysoko nebo je zvedne. Pro Nasdaq je to bearish."), ("Dovish", "Fed mluví mírně: sazby sníží nebo naznačí snížení. Pro Nasdaq je to bullish."), ("Překvapení", "Rozdíl mezi předpovědí a skutečným číslem. Trh se hýbe hlavně podle něj."),
+         ("VIX", "Index strachu. Když roste, investoři se bojí a akcie často klesají."), ("Dolarový index (DXY)", "Síla dolaru. Silný dolar bývá pro akcie spíš špatný."),
+         ("Výnos 10letých dluhopisů", "Úrok z amerického dluhu. Vyšší výnos tlačí na technologické akcie."), ("Fed a FOMC", "Americká centrální banka a její výbor, který rozhoduje o úrokových sazbách."),
+         ("CPI", "Inflace, tedy jak rostou ceny. Velmi sledované číslo."), ("NFP (Non-Farm Payrolls)", "Kolik nových pracovních míst vzniklo. Vychází první pátek v měsíci."),
+         ("RSI", "Číslo 0 až 100 o síle pohybu. Nad 70 bývá přehřátý trh, pod 30 vyprodaný."), ("Profit factor", "Součet zisků dělený součtem ztrát. Nad 1,5 je dobré."),
+         ("Expectancy", "Kolik průměrně vyděláš nebo prodělaš na jednom obchodu."), ("Drawdown", "Největší propad od vrcholu tvého účtu."), ("FOMO", "Strach, že ti něco uteče. Vede k pozdním a špatným vstupům.")]
+    d = "".join(f'<div class="gl"><b>{escape(a)}</b><span>{escape(b)}</span></div>' for a, b in G)
+    def L(h, t): return f'<a href="{h}">{t}</a>'
+    stages = [("Zprávy a fundament", [L("zpravy.html", "Zprávy") + " a " + L("sentiment.html", "Sentiment"), L("kalendar.html", "Kalendář") + ": kdy jsou velké zprávy (červené a oranžové)", L("fundament.html", "Fundament") + ": čísla a hodnocení trhu"]),
+              ("Bias a předpověď", [L("bias.html", "Bias") + ": směr dne", L("predikce.html", "Predikce zpráv") + ": co udělá lepší nebo horší číslo", L("tyden.html", "Týdenní výhled") + " a " + L("premarket.html", "Pre-market akcí")]),
+              ("Příprava před 15:00", [L("ritual.html", "Pre-session rituál") + " a " + L("mindset.html", "Mindset"), L("mentor.html", "Plán od mentora") + ": nahraj fotku, video nebo screenshot od mentora z Discordu, opiš ceny zón, kde čeká odraz, a jeho směr dne", L("plan.html", "Plán dne") + ": limity, max 1 % risk, max 1 stop loss", "Řekni si, proč to děláš", "Přečti si pravidla vstupního modelu (jen si je projdi v hlavě, nic nezapisuješ)", "Během obchodu nic nevyplňuješ. Jen se držíš plánu"]),
+              ("Po obchodu", [L("journal.html", "Deník") + " → + Přidat obchod. Zapiš vstup, stop, strategii a typ vstupu podle toho, jak to opravdu proběhlo", "Vyplň Vstupní model (podmínky + konfluence Pro a Proti), výsledek a kolik kontraktů vyšlo na TP1", "Vlož 4 screenshoty (timeframe, 1, 5, 15 minut)", "Chyby, emoce, poznámka a hodnocení"]),
+              ("Večer a týden", [L("evening.html", "Uzavření dne") + ": seznam, tři otázky, já versus já včera", "Jednou týdně Disciplína → Rozbor týdne", "Stáhni zálohu deníku"])]
+    flow = "".join(f'<div class="fs"><span class="no">{i}</span><h3>{h}</h3><ul>' + "".join(f"<li>{x}</li>" for x in it) + "</ul></div>" for i, (h, it) in enumerate(stages, 1))
+    return ('<div class="head"><div class="tabs" role="tablist"><button role="tab" data-pt="flow" aria-selected="true">Postup dne</button><button role="tab" data-pt="glos" aria-selected="false">Slovníček</button><button role="tab" data-pt="how" aria-selected="false">Rozbor</button></div></div>'
+            f'<div id="pt-flow"><section><h2>Jak postupovat celý den</h2><p class="hint">Jdi shora dolů. Během samotného obchodu nic nevyplňuješ.</p><div class="flow">{flow}</div></section></div>'
+            f'<div id="pt-glos" hidden><section><h2>Slovníček</h2><div class="glos">{d}</div></section></div>'
+            '<div id="pt-how" hidden><section><h2>Rozbor v Deníku</h2><p>Hodnocení v záložce Analýza počítají pravidla přímo v prohlížeči. Hlubší rozbor získáš tlačítkem „Zkopírovat data pro Claude“ a vložením do chatu.</p></section></div>')
+
+
+PRI_JS = """
+document.querySelectorAll("[data-pt]").forEach(b => b.onclick = () => { document.querySelectorAll("[data-pt]").forEach(x => x.setAttribute("aria-selected", x === b));
+  ["flow", "glos", "how"].forEach(k => document.getElementById("pt-" + k).hidden = k !== b.dataset.pt); });
+"""
+
+
+UX_HEAD = ('window.TDux=function(){try{var u=JSON.parse(localStorage.getItem("ux")||"{}"),c="",'
+           'F={sys:"-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif",read:"Atkinson Hyperlegible,Verdana,sans-serif",serif:"Newsreader,Georgia,serif",'
+           'round:"Nunito,Arial Rounded MT Bold,sans-serif",mono:"JetBrains Mono,Menlo,Consolas,monospace"},'
+           'G={read:"Atkinson+Hyperlegible:wght@400;700",round:"Nunito:wght@400;600;700;800",mono:"JetBrains+Mono:wght@400;600;700"};'
+           'if(F[u.f]){c+="body,body *{font-family:"+F[u.f]+"!important}";if(G[u.f]&&!document.getElementById("uxf-"+u.f)){var l=document.createElement("link");l.id="uxf-"+u.f;l.rel="stylesheet";'
+           'l.href="https://fonts.googleapis.com/css2?family="+G[u.f]+"&display=swap";document.head.appendChild(l)}}'
+           'if(u.z&&u.z!=1)c+="html{zoom:"+u.z+"}";'
+           'var A={blue:["#38BDF8","#6366F1"],green:["#2EE6A6","#0EA5E9"],orange:["#FFB547","#FF6B8A"],pink:["#F472B6","#8B7CFF"],gold:["#E8C26A","#B9812C"],red:["#FF6B8A","#B91C1C"]};'
+           'if(A[u.a])c+=":root{--acc:"+A[u.a][0]+"!important}button{background-image:linear-gradient(135deg,"+A[u.a][0]+","+A[u.a][1]+")}h2::before,.side a.on,.side a[aria-current]{border-color:"+A[u.a][0]+"!important}";'
+           'if(u.bg===0)c+="body::before,body::after{background-image:none!important;opacity:0!important}";'
+           'if(u.an===0)c+="*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}";'
+           'if(u.lh)c+="p,li,td,.hint,.facts li{line-height:1.8!important}";'
+           'if(u.b)c+="body{font-weight:500}b,strong,h1,h2,h3{font-weight:800!important}";'
+           'var s=document.getElementById("uxs")||document.createElement("style");s.id="uxs";s.textContent=c;document.head.appendChild(s)}catch(e){}};'
+           'TDux();document.addEventListener("DOMContentLoaded",TDux);')
+
+
+def ux_section():
+    return ('<section id="ux"><h2>🎨 Vzhled aplikace</h2><p class="hint">Uprav si aplikaci podle sebe. Změna se projeví hned a platí na všech stránkách v tomto prohlížeči '
+            '(na mobilu si to nastav zvlášť). Světlý a tmavý režim přepínáš dole v levém menu.</p>'
+            '<div class="row"><label style="flex:1;min-width:220px">Písmo<select id="ux-f"><option value="">Výchozí</option><option value="sys">Systémové (jako v Macu)</option>'
+            '<option value="read">Nejčitelnější (Atkinson Hyperlegible)</option><option value="round">Kulaté a přátelské (Nunito)</option><option value="serif">Patkové (jako kniha)</option>'
+            '<option value="mono">Strojové (jako terminál)</option></select></label>'
+            '<label style="flex:1;min-width:220px">Velikost všeho<select id="ux-z"><option value="0.9">Menší (90 %)</option><option value="1">Normální (100 %)</option>'
+            '<option value="1.1">Větší (110 %)</option><option value="1.2">Velká (120 %)</option><option value="1.35">Hodně velká (135 %)</option></select></label></div>'
+            '<p class="hint" style="margin-top:16px">Barva tlačítek a zvýraznění</p><div id="ux-a" style="display:flex;flex-wrap:wrap;gap:10px"></div>'
+            '<div style="display:flex;flex-wrap:wrap;gap:10px 22px;margin-top:16px">'
+            '<label style="display:flex;gap:8px;align-items:center;font-size:16px;color:var(--ink)"><input type="checkbox" id="ux-bg" style="width:22px;height:22px;margin:0"> Obrázky na pozadí</label>'
+            '<label style="display:flex;gap:8px;align-items:center;font-size:16px;color:var(--ink)"><input type="checkbox" id="ux-an" style="width:22px;height:22px;margin:0"> Animace</label>'
+            '<label style="display:flex;gap:8px;align-items:center;font-size:16px;color:var(--ink)"><input type="checkbox" id="ux-lh" style="width:22px;height:22px;margin:0"> Větší řádkování</label>'
+            '<label style="display:flex;gap:8px;align-items:center;font-size:16px;color:var(--ink)"><input type="checkbox" id="ux-b" style="width:22px;height:22px;margin:0"> Tučnější text</label></div>'
+            '<div style="margin-top:18px;padding:16px 18px;border:1px dashed var(--rule);border-radius:14px"><p class="empty" style="margin:0 0 6px">Ukázka</p>'
+            '<p style="margin:0 0 10px">Bias dnes: <b>Mírně bullish</b>. Čekám na svůj setup, riziko 250 $, stop 30 bodů. Jeden obchod nic neznamená.</p>'
+            '<button type="button">Tlačítko</button> <button type="button" class="ghost">Vedlejší tlačítko</button></div>'
+            '<div class="row"><button type="button" class="ghost" id="ux-reset">Vrátit původní vzhled</button></div><p class="hint" id="ux-msg"></p></section>')
+
+
+UX_JS = r"""
+(function(){
+  const E = id => document.getElementById(id); if (!E("ux-f")) return;
+  let u = {}; try { u = JSON.parse(localStorage.getItem("ux") || "{}"); } catch (e) {}
+  const A = [["", "Fialová (výchozí)", "#8B7CFF", "#38BDF8"], ["blue", "Modrá", "#38BDF8", "#6366F1"], ["green", "Zelená", "#2EE6A6", "#0EA5E9"], ["orange", "Oranžová", "#FFB547", "#FF6B8A"],
+             ["pink", "Růžová", "#F472B6", "#8B7CFF"], ["gold", "Zlatá", "#E8C26A", "#B9812C"], ["red", "Červená", "#FF6B8A", "#B91C1C"]];
+  const save = () => { try { localStorage.setItem("ux", JSON.stringify(u)); } catch (e) {} if (window.TDux) TDux(); E("ux-msg").textContent = "Uloženo ✓ Platí na všech stránkách."; };
+  const draw = () => {
+    E("ux-f").value = u.f || ""; E("ux-z").value = String(u.z || 1);
+    E("ux-bg").checked = u.bg !== 0; E("ux-an").checked = u.an !== 0; E("ux-lh").checked = !!u.lh; E("ux-b").checked = !!u.b;
+    E("ux-a").innerHTML = A.map(a => '<button type="button" class="ghost" data-a="' + a[0] + '" style="display:flex;align-items:center;gap:8px;' + ((u.a || "") === a[0] ? "outline:2px solid " + a[2] + ";" : "") + '">'
+      + '<span style="width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,' + a[2] + "," + a[3] + ')"></span>' + a[1] + "</button>").join("");
+    E("ux-a").querySelectorAll("[data-a]").forEach(b => b.onclick = () => { u.a = b.dataset.a || undefined; save(); draw(); });
+  };
+  E("ux-f").onchange = () => { u.f = E("ux-f").value || undefined; save(); };
+  E("ux-z").onchange = () => { u.z = +E("ux-z").value; if (u.z === 1) delete u.z; save(); };
+  E("ux-bg").onchange = () => { if (E("ux-bg").checked) delete u.bg; else u.bg = 0; save(); };
+  E("ux-an").onchange = () => { if (E("ux-an").checked) delete u.an; else u.an = 0; save(); };
+  E("ux-lh").onchange = () => { u.lh = E("ux-lh").checked ? 1 : undefined; save(); };
+  E("ux-b").onchange = () => { u.b = E("ux-b").checked ? 1 : undefined; save(); };
+  E("ux-reset").onclick = () => { u = {}; save(); draw(); E("ux-msg").textContent = "Vzhled je zase původní."; };
+  draw();
+})();
+"""
+
+
+DIR_JS = r"""
+(async function(){
+  const b = document.getElementById("bk-dir"), m = document.getElementById("bk-dirmsg"); if (!b) return;
+  const show = async () => { const n = window.TDfolderName ? await TDfolderName() : null;
+    if (!window.showDirectoryPicker) { b.hidden = true; m.innerHTML = "📁 Tenhle prohlížeč (Safari) ukládá zálohy do <b>Stažených souborů</b>. Aby byly všechny v jedné složce: v Safari otevři <b>Nastavení → Obecné → Umístění stažených souborů</b> a vyber složku, nebo zálohy občas přesuň do jedné složky ve Finderu. Všechny mají název <b>kompas-zaloha-…</b>, takže je snadno najdeš."; return; }
+    m.innerHTML = n ? "📁 Zálohy se ukládají rovnou do složky <b>" + n + "</b>. Prohlížeč se jednou za čas může zeptat na povolení." : "📁 Vyber si složku a všechny zálohy se budou ukládat rovnou do ní, bez ptaní.";
+    b.textContent = n ? "📁 Změnit složku pro zálohy" : "📁 Vybrat složku pro zálohy"; };
+  b.onclick = async () => { await TDpickFolder(); show(); };
+  show();
+})();
+"""
+
+
+def nastaveni_body():
+    return (ux_section() + '<section><h2>Moje výchozí hodnoty</h2><p class="hint">Používá je Plán dne (kalkulačka) a Deník. Ukládá se v tomto prohlížeči.</p><div class="grid">'
+            '<label>Velikost účtu ($)<input id="s-acc" type="number" value="50000"></label><label>Riziko na obchod (%)<input id="s-risk" type="number" step="any" value="1"></label>'
+            '<label>Výchozí vzdálenost stopu (body)<input id="s-stop" type="number" step="any" value="35"></label><label>Pauza po ztrátě (minuty)<input id="s-pause" type="number" min="1" value="15"></label></div><div class="row" style="margin-top:12px"><button id="s-save">Uložit</button><span id="s-msg" class="empty"></span></div></section>'
+            '<section><h2>Odkaz na Discord</h2><p class="hint">Vlož pozvánku na svůj Discord server (začíná https://discord.gg/ nebo https://discord.com/). Tlačítko Discord v levém menu pak otevře ji. Když nic nevložíš, otevře se Discord v prohlížeči.</p>'
+            '<div class="row"><input id="dc-url" type="url" placeholder="https://discord.gg/…" style="flex:1;min-width:240px"><button id="dc-save" type="button">Uložit</button></div><p id="dc-msg" class="hint"></p>'
+            '<script>(function(){var i=document.getElementById("dc-url"),b=document.getElementById("dc-save"),m=document.getElementById("dc-msg"),re=/^https:\\/\\/(discord\\.gg|discord\\.com|discordapp\\.com)\\//;try{i.value=localStorage.getItem("discordUrl")||""}catch(e){}'
+            'b.onclick=function(){var v=i.value.trim();if(v&&!re.test(v)){m.textContent="Odkaz musí začínat https://discord.gg/ nebo https://discord.com/";return}try{if(v)localStorage.setItem("discordUrl",v);else localStorage.removeItem("discordUrl")}catch(e){}var a=document.getElementById("dsc");if(a)a.href=v||"https://discord.com/app";m.textContent=v?"Uloženo.":"Odkaz smazán."}})();</script></section>'
+            '<section><h2>💾 Záloha celé aplikace</h2><p class="hint">Všechno, co je jen v tomto prohlížeči (Deník, Backtest, dny bez obchodu, plány od mentora s fotkami, historie robota, rituály, knihy a nastavení), se uloží do <b>jednoho souboru</b> <code>kompas-zaloha-RRRR-MM-DD.json</code>. Stejnou zálohu udělá i tlačítko v Deníku a v týdenním upozornění. Obnovení nic nesmaže ani nepřepíše, jen doplní, co chybí.</p>'
+            '<p class="hint" id="bk-dirmsg"></p>'
+            '<div class="row"><button id="bk-exp">💾 Zálohovat celou aplikaci</button> <button type="button" class="ghost" id="bk-dir">📁 Vybrat složku pro zálohy</button> <label class="btn">Nahrát zálohu<input id="bk-imp" type="file" accept=".json" hidden></label></div><p id="bk-msg" class="hint"></p></section>'
+            '<section><h2>Jak se mění akcie a zdroje</h2><p>Seznam akcií, zdrojů zpráv a účtů na X je v nejnovějším souboru <b>briefing_v…py</b> (ten s nejvyšším číslem) nahoře v části CONFIG. Uprav ho na GitHubu tužkou a ulož (Commit changes).</p></section>'
+            '<section><h2>Světlý a tmavý režim</h2><p class="hint">Přepínač je dole v levém menu, hned pod Nastavením. Zapamatuje si, co sis vybral.</p></section>'
+            '<section><h2>Jako aplikace na telefonu</h2><p class="hint">Není to z App Storu ani z Google Play, ale chová se to jako aplikace: ikona na ploše a celá obrazovka bez adresního řádku.</p>'
+            '<ol class="steps"><li><b>iPhone:</b> otevři stránku v Safari, klepni na Sdílet (čtverec se šipkou), potom Přidat na plochu a Přidat.</li>'
+            '<li><b>Android:</b> otevři stránku v Chrome, klepni na tři tečky vpravo nahoře, potom Přidat na plochu nebo Nainstalovat aplikaci.</li>'
+            '<li><b>Počítač (Chrome):</b> v adresním řádku vpravo klikni na ikonu instalace a dej Nainstalovat.</li></ol>'
+            '<p class="empty">Adresa stránky: https://dv7kjkk6kd-star.github.io/1/ . Deník se ukládá zvlášť v každém zařízení. Mezi telefonem a počítačem ho přenášej přes zálohu v Deníku.</p></section>')
+
+
+SET_JS = """
+(function () { if (!$("bk-exp")) return;
+  const openDb = (n, st = "trades") => new Promise(r => { try { const q = indexedDB.open(n, 1); q.onupgradeneeded = () => q.result.createObjectStore(st, {keyPath: "id", autoIncrement: true}); q.onsuccess = () => r(q.result); q.onerror = () => r(null); } catch (e) { r(null); } });
+  const all = (db, st = "trades") => new Promise(r => { if (!db) return r([]); try { const q = db.transaction(st).objectStore(st).getAll(); q.onsuccess = () => r(q.result); q.onerror = () => r([]); } catch (e) { r([]); } });
+  const toUrl = b => new Promise(r => { const f = new FileReader(); f.onload = () => r(f.result); f.readAsDataURL(b); });
+  const ser = async v => v instanceof Blob ? await toUrl(v) : Array.isArray(v) ? Promise.all(v.map(ser)) : v && typeof v === "object" ? Object.fromEntries(await Promise.all(Object.entries(v).map(async ([k, x]) => [k, await ser(x)]))) : v;
+  const deser = async v => typeof v === "string" && v.startsWith("data:") ? await (await fetch(v)).blob() : Array.isArray(v) ? Promise.all(v.map(deser)) : v && typeof v === "object" ? Object.fromEntries(await Promise.all(Object.entries(v).map(async ([k, x]) => [k, await deser(x)]))) : v;
+  const key = t => [t.opened || t.date, t.inst || t.created, t.dir, t.entry, t.exit].join("|");
+  $("bk-exp").onclick = async () => { const ls = {}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); ls[k] = localStorage.getItem(k); }
+    const idb = {}; for (const n of ["journal", "backtest"]) idb[n] = await ser(await all(await openDb(n))); idb.backtest_skips = await ser(await all(await openDb("backtest_skips", "days"), "days")); idb.journal_skips = await ser(await all(await openDb("journal_skips", "days"), "days")); idb.mentor = await ser(await all(await openDb("mentor", "plans"), "plans"));
+    const b = new Blob([JSON.stringify({v: 3, ls, idb})], {type: "application/json"}), a = document.createElement("a");
+    a.href = URL.createObjectURL(b); a.download = "zaloha-vse-" + new Date().toISOString().slice(0, 10) + ".json"; a.click();
+    try { localStorage.setItem("lastFullBackup", String(Date.now())); } catch (e) {}
+    $("bk-msg").textContent = "Záloha stažena: " + Object.keys(ls).length + " položek, obchodů " + idb.journal.length + " + " + idb.backtest.length + "."; };
+  $("bk-imp").onchange = async e => { const f = e.target.files[0]; if (!f) return; let d; try { d = JSON.parse(await f.text()); } catch (x) { $("bk-msg").textContent = "Soubor nejde přečíst."; return; }
+    let nk = 0, nt = 0; if (d.ls) for (const k in d.ls) { try { if (localStorage.getItem(k) == null) { localStorage.setItem(k, d.ls[k]); nk++; } } catch (x) {} }
+    for (const n in (d.idb || {})) { const st = n === "backtest_skips" || n === "journal_skips" ? "days" : n === "mentor" ? "plans" : "trades", db = await openDb(n, st); if (!db) continue; const have = new Set((await all(db, st)).map(key));
+      for (let t of d.idb[n]) { if (have.has(key(t))) continue; t = await deser(t); delete t.id; await new Promise(r => { const q = db.transaction(st, "readwrite"); q.objectStore(st).add(t); q.oncomplete = r; q.onerror = r; }); nt++; } }
+    $("bk-msg").textContent = "Hotovo. Doplněno položek: " + nk + ", obchodů: " + nt + ". Nic nebylo přepsáno."; };
+  try { const l = +localStorage.getItem("lastFullBackup") || 0, dd = l ? Math.floor((Date.now() - l) / 864e5) : null; if (dd == null || dd >= 7) $("bk-msg").textContent = dd == null ? "Zálohu jsi ještě nestahoval." : "Poslední záloha je stará " + dd + " dní."; } catch (e) {}
+})();
+if ($("s-save")) { let S = {}; try { S = JSON.parse(localStorage.getItem("settings")) || {}; } catch (e) {}
+  $("s-acc").value = S.acc || 50000; $("s-risk").value = S.risk || 1; $("s-stop").value = S.stop || 35; try { $("s-pause").value = JSON.parse(localStorage.getItem("pauseMin")) || 15; } catch (e) { $("s-pause").value = 15; }
+  $("s-save").onclick = () => { S = {acc: +$("s-acc").value, risk: +$("s-risk").value, stop: +$("s-stop").value};
+    try { localStorage.setItem("settings", JSON.stringify(S)); localStorage.setItem("defStop35", JSON.stringify(String(S.stop))); localStorage.setItem("pauseMin", JSON.stringify(+$("s-pause").value || 15)); $("s-msg").textContent = "Uloženo."; } catch (e) { $("s-msg").textContent = "Uložení se nepovedlo."; } }; }
+"""
+
+
+PAT_LINES = ["Stačí si počkat na ten můj obchod.", "Trh nezajímá, co chci. Proti ničemu nebojuji, jen čekám.", "Žádné emoce, pouze trpělivost.",
+             "Moje práce není být každý den aktivní a vynucovat nové obchody.", "Moje práce je čekat na příležitosti, kdy vím, že jsem silný.",
+             "Den, kdy sedím u grafu, nic neobchoduju a umím se ovládnout, je moje výhra.", "Trpělivé čekání ukáže, jestli na to mám.", "Snažím se být nejlepší verzí sebe sama.",
+             "Vím, že na to mám. Když vše dodržím, stane se to.", "Když tomu dám všechno na maximum, přijde to.", "Nemám FOMO. Další příležitost přijde vždycky.",
+             "Nemám revenge. Po ztrátě vstanu od grafu.", "Z malých timeframeů nevstupuji. Počkám si na větší.", "Nejdřív větší timeframe pro směr, potom menší pro vstup.",
+             "Neobchoduji, abych něco dokázal, ale proto, že vidím svůj setup.", "Jeden dobrý obchod je víc než deset nucených.", "Čekání je také pozice.",
+             "Nejlepší obchod dne je často ten, který jsem neudělal.", "Dodržet plán je úspěch, i když obchod skončí ztrátou.", "Trh tu bude i zítra.", "Je to boj jen se sebou samým.", "Myslím na to, co mohu ovlivnit: sám sebe. Výsledek neovlivním nikdy, takže je zbytečné na něj myslet.", "S nikým se neporovnávám. Jen já versus já včera."]
+
+
+def trpelivost_body():
+    return ('<section class="hero"><div><p class="empty" style="margin:0 0 8px">Věta dne</p><p class="lede" id="pday" style="font-size:clamp(24px,3.6vw,38px)"></p>'
+            '<div class="xptop"><b id="lvl"></b><span class="empty" id="xptxt"></span></div><div class="xpbar"><i id="xpfill"></i></div></div>'
+            '<div class="ringbox"><div class="ring" id="qring"><b id="qpct">0 %</b></div><span class="empty">denní úkoly</span></div></section>'
+            '<div class="pills" id="ptabs"><button data-t="dnes">Dnes</button><button class="pill-off" data-t="nutkani">Nutkání obchodovat</button>'
+            '<button class="pill-off" data-t="trenink">Zkouška klidné ruky</button><button class="pill-off" data-t="kviz">Kvíz</button><button class="pill-off" data-t="odznaky">Odznaky</button></div>'
+            # ---- DNES
+            '<div id="tab-dnes">'
+            '<section><h2>Denní úkoly</h2><p class="hint">Za každý splněný úkol dostaneš body. Některé se odškrtnou samy, jak plníš trénink.</p><div class="chips" id="pquests"></div></section>'
+            '<section><h2>Jak dopadl dnešek?</h2><p class="hint">Zapiš to pravdivě. Vyber jedno. Počítá se do série, kalendáře a bodů.</p>'
+            '<div class="pills" id="pst"><button data-s="wait">Seděl jsem u grafu, neobchodoval a ovládl se (+30 bodů)</button><button class="pill-off" data-s="setup">Obchodoval jsem jen svůj setup (+20 bodů)</button>'
+            '<button class="pill-off" data-s="broke">Porušil jsem pravidla</button></div><div class="kpis" id="pk"></div></section>'
+            '<section><h2>Posledních 28 dní</h2><div class="cal" id="pcal"></div><p class="empty">Zelená = ovládl jsem se. Červená = porušil jsem pravidla. Prázdné = nezapsáno.</p></section>'
+            '<section><h2>Než vstoupím: 6 otázek</h2><p class="hint">Odškrtni všechny otázky, na které odpovídáš ano. Obchod bereš jen když jsou odškrtnuté všechny.</p><div class="chips" id="pq"></div><p id="pqres" class="lede" style="font-size:22px;margin-top:12px"></p></section>'
+            '<section><h2>Moje pravidla trpělivosti</h2><ol class="steps" id="plist"></ol></section>'
+            '<section><h2>Nenutím obchody</h2><ul class="facts"><li>Moje práce není být každý den aktivní a stále vynucovat nové obchody.</li>'
+            '<li>Počkám si na to, co mám a kde jsem silný. Trh nezajímá, co chci, takže proti ničemu nebojuji, jen čekám.</li>'
+            '<li>Je to boj jen se sebou samým. Myslím na to, co mohu ovlivnit, tedy na sebe, ne na výsledek. Ten neovlivním nikdy, takže je hloupost o něm přemýšlet.</li><li>S nikým se neporovnávám. Jediné srovnání je já dnes versus já včera.</li><li>Žádné emoce, pouze trpělivost. Vím, že na to mám a že když vše dodržím, stane se to. Když tomu dám všechno na maximum, přijde to.</li></ul></section>'
+            '<section><h2>Proti FOMO a revenge: vždy si počkat na větší timeframe</h2><ul class="facts"><li>Směr určuji na větším grafu (denní, 4 hodiny, hodina). Vstup hledám až na menším (15 minut, 5 minut).</li>'
+            '<li>Z grafu 1 minuta nebo 5 minut sám směr neurčuji. Malý graf je šum.</li><li>Po ztrátě vstanu od grafu aspoň na 15 minut. Žádný vstup „na odpuštění“.</li>'
+            '<li>Když mi něco ujelo, nehoním to. Počkám na návrat k úrovni nebo na další setup.</li><li>Když cítím nutkání „něco udělat“, zmáčknu tlačítko v záložce Nutkání obchodovat.</li></ul></section>'
+            '<section><h2>Večerní zápis</h2><label>Co jsem dnes udělal pro svou trpělivost?<textarea id="pnote" rows="3"></textarea></label><p class="empty">Ukládá se v tomto prohlížeči.</p></section></div>'
+            # ---- NUTKANI
+            '<div id="tab-nutkani" hidden><section><h2>Cítím nutkání obchodovat</h2><p class="hint">Zmáčkni tlačítko dřív, než klikneš na jakýkoli obchod. Zabere to jednu minutu. Za každé odolané nutkání dostaneš 5 bodů.</p>'
+            '<div class="kpis" id="ik"></div><div class="center2"><button class="bigbtn" id="ibtn">Cítím nutkání obchodovat</button></div>'
+            '<div id="iflow" hidden><div class="orb2" id="iorb"></div><p class="lede" id="itime" style="text-align:center;font-size:44px"></p><p class="empty" id="iph" style="text-align:center"></p>'
+            '<h3 style="margin-top:14px">Mezitím odpověz sám sobě:</h3><div class="chips" id="iq"></div>'
+            '<div class="center2" style="margin-top:16px"><button id="ino" disabled>Obchod nedělám, odolal jsem</button><button class="ghost" id="iyes" disabled>Mám platný setup a jdu podle plánu</button></div>'
+            '<p class="empty" id="ihint" style="text-align:center">Tlačítka se odemknou po konci minuty.</p></div></section></div>'
+            # ---- TRENINK
+            '<div id="tab-trenink" hidden><section><h2>Zkouška klidné ruky</h2><p class="hint">Drž tlačítko stisknuté, dokud se kruh nezaplní. Když pustíš dřív, začínáš znovu. Je to trénink čekání, bez emocí a bez klikání.</p>'
+            '<div class="pills" id="htarget"><button data-h="15">15 sekund</button><button class="pill-off" data-h="30">30 sekund</button><button class="pill-off" data-h="60">60 sekund</button></div>'
+            '<div class="center2"><div class="holdwrap"><div class="ring big" id="hring"></div><button class="holdbtn" id="hold">Drž</button></div></div>'
+            '<p class="lede" id="htxt" style="text-align:center;font-size:26px;margin-top:14px">Zmáčkni a drž</p><p class="empty" id="hbest" style="text-align:center"></p></section></div>'
+            # ---- KVIZ
+            '<div id="tab-kviz" hidden><section><h2>Co uděláš? Kvíz trpělivosti</h2><p class="hint">Šest situací, které zažívá každý trader. Vyber, co uděláš. Za nejlepší výsledek dostaneš 10 bodů za správnou odpověď.</p>'
+            '<div id="qz"></div></section></div>'
+            # ---- ODZNAKY
+            '<div id="tab-odznaky" hidden><section><h2>Odznaky</h2><p class="hint">Odemykají se samy, jak trénuješ. Zešedlé ještě nemáš.</p><div class="badges" id="pbadges"></div></section></div>')
+
+
+PAT_JS = r"""
+if ($("pday")) {
+  const L = DATA.pat, g = k => { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }, st = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+  const tk = (off = 0) => { const d = new Date(Date.now() - off * 86400000); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
+  $("pday").textContent = L[Math.floor(Date.now() / 86400000) % L.length];
+  $("plist").innerHTML = L.map(x => `<li>${x}</li>`).join("");
+  const today = tk();
+  function burst(msg) { for (let i = 0; i < 26; i++) { const s = document.createElement("span"); s.className = "conf"; s.textContent = ["✨", "🎯", "💪", "🧘", "⭐"][i % 5]; s.style.left = (10 + Math.random() * 80) + "vw"; s.style.animationDelay = (Math.random() * .4) + "s"; document.body.appendChild(s); setTimeout(() => s.remove(), 2200); }
+    if (msg) { const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 2600); } }
+  // ---- tabs
+  document.querySelectorAll("#ptabs button").forEach(b => b.onclick = () => { document.querySelectorAll("#ptabs button").forEach(x => x.classList.toggle("pill-off", x !== b));
+    ["dnes", "nutkani", "trenink", "kviz", "odznaky"].forEach(k => $("tab-" + k).hidden = k !== b.dataset.t); if (b.dataset.t === "odznaky") badges(); });
+  // ---- points, level, streak
+  function streak() { let n = 0; for (let i = 0; i < 400; i++) { const v = g("pstat:" + tk(i)); if (v && v !== "broke") n++; else if (i > 0 || v === "broke") break; } return n; }
+  function xp() { let x = 0; for (let i = 0; i < 400; i++) { const d = tk(i), v = g("pstat:" + d); if (v === "wait") x += 30; else if (v === "setup") x += 20;
+      const im = (g("pimp") || {})[d]; if (im) x += im.r * 5; const q = g("pquest:" + d); if (q) x += q.length * 5; }
+    return x + (g("pquizbest") || 0) * 10 + (g("pholdbest") || 0); }
+  const LV = [[0, "Nováček"], [100, "Pozorovatel"], [300, "Lovec setupů"], [700, "Sniper"], [1500, "Mistr trpělivosti"]];
+  function level() { const x = xp(); let i = 0; LV.forEach((l, k) => { if (x >= l[0]) i = k; }); const nx = LV[i + 1];
+    $("lvl").textContent = "Úroveň " + (i + 1) + ": " + LV[i][1]; $("xptxt").textContent = x + " bodů" + (nx ? ", do další úrovně chybí " + (nx[0] - x) : ", nejvyšší úroveň");
+    $("xpfill").style.width = (nx ? (x - LV[i][0]) / (nx[0] - LV[i][0]) * 100 : 100) + "%"; }
+  // ---- daily quests
+  const QS = ["Přečetl jsem větu dne a pravidla", "Prošel jsem 6 otázek před vstupem (všechny ano)", "Dal jsem zkoušku klidné ruky (15 s)", "Zapsal jsem večerní poznámku", "Dnes nevstupuji z grafu 1 nebo 5 minut"];
+  const qk = "pquest:" + today; let QD = g(qk) || [];
+  function quest(i, on = true) { QD = QD.filter(x => x !== i); if (on) QD.push(i); st(qk, QD); drawQ(); level(); }
+  function drawQ() { $("pquests").innerHTML = QS.map((t, i) => `<label class="chip"><input type="checkbox" data-qi="${i}" ${QD.includes(i) ? "checked" : ""}>${t}</label>`).join("");
+    document.querySelectorAll("[data-qi]").forEach(c => c.onchange = () => quest(+c.dataset.qi, c.checked));
+    const p = Math.round(QD.length / QS.length * 100); $("qpct").textContent = p + " %"; $("qring").style.background = `conic-gradient(#2EE6A6 ${p}%, rgba(255,255,255,.12) 0)`; if (p === 100 && !g("pqfull:" + today)) { st("pqfull:" + today, 1); burst("Všechny denní úkoly splněny!"); } }
+  // ---- day status + calendar
+  function drawDay() { const cur = g("pstat:" + today); document.querySelectorAll("#pst button").forEach(b => b.classList.toggle("pill-off", b.dataset.s !== cur));
+    let h = "", ok = 0, bad = 0; for (let i = 27; i >= 0; i--) { const k = tk(i), v = g("pstat:" + k);
+      h += `<div class="day ${v === "broke" ? "down" : v ? "up" : ""}"><span>${+k.slice(8)}</span>${v === "wait" ? "čekání" : v === "setup" ? "setup" : v === "broke" ? "chyba" : ""}</div>`; if (v === "broke") bad++; else if (v) ok++; }
+    $("pcal").innerHTML = h; $("pk").innerHTML = `<div class="k"><b class="up">${streak()}</b><span>dní za sebou, kdy jsem se ovládl</span></div><div class="k"><b>${ok}</b><span>zvládnutých dní za 28 dní</span></div><div class="k"><b class="${bad ? "down" : ""}">${bad}</b><span>porušených dní</span></div>`; }
+  document.querySelectorAll("#pst button").forEach(b => b.onclick = () => { st("pstat:" + today, b.dataset.s); st("patience:" + today, b.dataset.s !== "broke"); drawDay(); level();
+    if (b.dataset.s === "wait") burst("Den bez obchodu je výhra!"); else if (b.dataset.s === "setup") burst("Obchodoval jsi jen svůj setup."); });
+  // ---- questions
+  const Q = ["Vidím svůj setup, ne jen pohyb ceny?", "Sedí směr na větším timeframe?", "Mám stop a velikost spočítanou předem?", "Není za 15 minut velká zpráva?", "Nejsem naštvaný, nervózní ani znuděný?", "Obchodoval bych to i po třech ztrátách v řadě?"];
+  $("pq").innerHTML = Q.map((q, i) => `<label class="chip"><input type="checkbox" data-q="${i}">${q}</label>`).join("");
+  const pk = "pq:" + today; let Qs = g(pk) || [];
+  function qres() { const n = Qs.length; $("pqres").className = "lede " + (n === 6 ? "up" : n >= 4 ? "warn" : "down"); $("pqres").textContent = n === 6 ? "Zelená: můžeš obchodovat podle plánu." : n === 0 ? "" : "Zatím " + n + " z 6. Chybí-li něco, počkej."; }
+  document.querySelectorAll("[data-q]").forEach(c => { c.checked = Qs.includes(+c.dataset.q); c.onchange = () => { Qs = Qs.filter(x => x !== +c.dataset.q); if (c.checked) Qs.push(+c.dataset.q); st(pk, Qs); qres(); if (Qs.length === 6 && !QD.includes(1)) quest(1); }; }); qres();
+  const nk = "pnote:" + today; $("pnote").value = g(nk) || ""; $("pnote").oninput = () => { st(nk, $("pnote").value); if ($("pnote").value.trim().length > 10 && !QD.includes(3)) quest(3); };
+  // ---- impulses
+  const IM = () => (g("pimp") || {}), imAdd = (k) => { const m = IM(); m[today] = m[today] || {r: 0, t: 0}; m[today][k]++; st("pimp", m); drawIK(); level(); };
+  function drawIK() { const m = IM(), t = m[today] || {r: 0, t: 0}; let r = 0; Object.values(m).forEach(v => r += v.r);
+    $("ik").innerHTML = `<div class="k"><b class="up">${t.r}</b><span>odolaných nutkání dnes</span></div><div class="k"><b>${r}</b><span>odolaných celkem</span></div><div class="k"><b>${t.t}</b><span>obchodů podle plánu po rozmyslu dnes</span></div>`; }
+  let itm = null;
+  $("iq").innerHTML = ["Je to nutkání ze strachu, že mi něco uteče?", "Chci si vzít ztrátu zpátky?", "Nudím se?", "Vidím svůj setup na větším timeframe?"].map(q => `<label class="chip"><input type="checkbox">${q}</label>`).join("");
+  $("ibtn").onclick = () => { $("iflow").hidden = false; $("ibtn").hidden = true; $("ino").disabled = $("iyes").disabled = true; $("ihint").hidden = false; let s = 60, ph = 0;
+    const PH = ["Nádech nosem (4)", "Pomalý výdech (6)"]; clearInterval(itm);
+    const tick = () => { $("itime").textContent = "0:" + String(s).padStart(2, "0"); const c = (60 - s) % 10; $("iph").textContent = c < 4 ? PH[0] : PH[1]; $("iorb").classList.toggle("big", c < 4);
+      if (s <= 0) { clearInterval(itm); $("ino").disabled = $("iyes").disabled = false; $("ihint").hidden = true; $("itime").textContent = "Hotovo"; $("iph").textContent = "Teď se rozhodni s klidnou hlavou."; } s--; };
+    tick(); itm = setInterval(tick, 1000); };
+  const endImp = () => { $("iflow").hidden = true; $("ibtn").hidden = false; document.querySelectorAll("#iq input").forEach(c => c.checked = false); };
+  $("ino").onclick = () => { imAdd("r"); endImp(); burst("Odolal jsi. +5 bodů."); };
+  $("iyes").onclick = () => { imAdd("t"); endImp(); };
+  // ---- hold test
+  let HT = 15, hraf = null, ht0 = 0;
+  document.querySelectorAll("#htarget button").forEach(b => b.onclick = () => { HT = +b.dataset.h; document.querySelectorAll("#htarget button").forEach(x => x.classList.toggle("pill-off", x !== b)); $("htxt").textContent = "Zmáčkni a drž " + HT + " s"; });
+  const hb = () => { const b = g("pholdbest") || 0; $("hbest"). textContent = b ? "Nejdelší zvládnutá zkouška: " + b + " s" : "Zatím žádná zvládnutá zkouška."; }; hb();
+  const hstop = (done) => { cancelAnimationFrame(hraf); hraf = null; const s = (performance.now() - ht0) / 1000;
+    if (!ht0) return; ht0 = 0; $("hold").classList.remove("on");
+    if (done) { $("htxt").textContent = "Zvládl jsi to! " + HT + " sekund klidu."; if (HT > (g("pholdbest") || 0)) { st("pholdbest", HT); } hb(); burst("Klidná ruka. +" + HT + " bodů"); if (HT >= 15 && !QD.includes(2)) quest(2); level(); }
+    else { $("htxt").textContent = "Pustil jsi po " + s.toFixed(1) + " s. Zkus to znovu. Bez emocí."; $("hring").style.background = ""; } };
+  const hloop = () => { const s = (performance.now() - ht0) / 1000, p = Math.min(1, s / HT); $("hring").style.background = `conic-gradient(#8B7CFF ${p * 100}%, rgba(255,255,255,.12) 0)`; $("htxt").textContent = Math.max(0, HT - s).toFixed(1) + " s";
+    if (p >= 1) hstop(true); else hraf = requestAnimationFrame(hloop); };
+  $("hold").addEventListener("pointerdown", e => { e.preventDefault(); ht0 = performance.now(); $("hold").classList.add("on"); hloop(); });
+  ["pointerup", "pointerleave", "pointercancel"].forEach(ev => $("hold").addEventListener(ev, () => { if (ht0) hstop(false); }));
+  $("hold").addEventListener("contextmenu", e => e.preventDefault());
+  // ---- quiz
+  const QZ = [
+    {q: "Trh ti ujel o 80 bodů bez tebe. Co uděláš?", o: ["Naskočím hned, ať něco neztratím", "Nechám to být a počkám na návrat k úrovni nebo na další setup", "Vsadím dvojnásobek, ať to dohoním"], a: 1, e: "Honit ujetý trh je klasické FOMO. Další příležitost přijde vždycky."},
+    {q: "Právě jsi prodělal a cítíš nutkání to hned vrátit.", o: ["Hned otevřu další obchod", "Zdvojnásobím počet kontraktů", "Vstanu od grafu aspoň na 15 minut"], a: 2, e: "Revenge obchod z vzteku končí obvykle větší ztrátou. Pauza je nejlepší ochrana."},
+    {q: "Na minutovém grafu vidíš silný signál, ale denní graf jde opačně.", o: ["Vezmu to, signál je silný", "Počkám, až se shodne větší timeframe", "Zkusím long i short najednou"], a: 1, e: "Směr dává větší timeframe. Malý graf je plný šumu."},
+    {q: "Je 15:45, nic se neděje a ty se nudíš.", o: ["Najdu aspoň nějaký obchod", "Přepnu na jiný instrument, třeba něco najdu", "Nic neobchoduju. Čekání je moje práce"], a: 2, e: "Nuda není setup. Den bez obchodu, kdy se ovládneš, je výhra."},
+    {q: "Za 10 minut vyjde CPI.", o: ["Vstoupím před zprávou, ať stihnu pohyb", "Počkám na zprávu a na reakci trhu", "Zvětším pozici, bude to velký pohyb"], a: 1, e: "Před velkou zprávou je trh nepředvídatelný. Počkej aspoň 5 minut na reakci."},
+    {q: "Dnes jsi nic neobchodoval a ovládl ses. Jak to hodnotíš?", o: ["Zbytečný den, zítra to dohoním", "Zbytečný den, mohl jsem aspoň zkusit něco malého", "Výhra, dodržel jsem plán"], a: 2, e: "Disciplína je to, co odlišuje tradery. Výsledek přijde s trpělivostí."}];
+  let qi = 0, qsc = 0;
+  function qshow() { const b = $("qz"); if (qi >= QZ.length) { const best = Math.max(qsc, g("pquizbest") || 0); st("pquizbest", best); b.innerHTML = `<p class="lede ${qsc >= 5 ? "up" : "warn"}" style="font-size:34px">${qsc} z ${QZ.length}</p><p class="empty">Nejlepší výsledek: ${best} z ${QZ.length}.</p><button id="qre">Zkusit znovu</button>`; $("qre").onclick = () => { qi = 0; qsc = 0; qshow(); }; level(); if (qsc === QZ.length) burst("Perfektní kvíz!"); return; }
+    const q = QZ[qi]; b.innerHTML = `<p class="empty">Otázka ${qi + 1} z ${QZ.length}</p><h3 style="font-size:20px">${q.q}</h3><div class="qopts">${q.o.map((t, i) => `<button class="qopt ghost" data-i="${i}">${t}</button>`).join("")}</div><p id="qfb"></p>`;
+    b.querySelectorAll(".qopt").forEach(x => x.onclick = () => { const i = +x.dataset.i; b.querySelectorAll(".qopt").forEach(y => { y.disabled = true; if (+y.dataset.i === q.a) y.classList.add("good"); else if (y === x) y.classList.add("bad"); });
+      if (i === q.a) qsc++; $("qfb").innerHTML = `<b class="${i === q.a ? "up" : "down"}">${i === q.a ? "Správně." : "Ne tak docela."}</b> ${q.e} <br><button id="qnx" style="margin-top:12px">Další</button>`; $("qnx").onclick = () => { qi++; qshow(); }; }); }
+  qshow();
+  // ---- badges
+  const BD = [["🌱", "První zápis", "Zapsal jsi první den", () => Object.keys(localStorage).some(k => k.startsWith("pstat:"))], ["🪑", "Den bez obchodu", "Seděl jsi u grafu a ovládl se", () => Object.keys(localStorage).some(k => k.startsWith("pstat:") && g(k) === "wait")],
+    ["🔥", "3 dny v řadě", "Série 3 dny", () => streak() >= 3], ["⚡", "7 dní v řadě", "Série týden", () => streak() >= 7], ["🏔️", "14 dní v řadě", "Série dva týdny", () => streak() >= 14], ["👑", "30 dní v řadě", "Série měsíc", () => streak() >= 30],
+    ["🛑", "10 odolaných nutkání", "Zastavil ses 10krát", () => Object.values(IM()).reduce((a, v) => a + v.r, 0) >= 10], ["🧠", "50 odolaných nutkání", "Zastavil ses 50krát", () => Object.values(IM()).reduce((a, v) => a + v.r, 0) >= 50],
+    ["🧘", "Klidná ruka 30 s", "Zkouška 30 sekund", () => (g("pholdbest") || 0) >= 30], ["🗿", "Klidná ruka 60 s", "Zkouška 60 sekund", () => (g("pholdbest") || 0) >= 60],
+    ["🎓", "Kvíz bez chyby", "6 z 6", () => (g("pquizbest") || 0) >= 6], ["✅", "Všechny denní úkoly", "Dnes splněno 100 %", () => !!g("pqfull:" + today)], ["🎯", "Sniper", "Dosáhl jsi úrovně Sniper", () => xp() >= 700]];
+  function badges() { $("pbadges").innerHTML = BD.map(b => { const on = b[3](); return `<div class="bd ${on ? "on" : ""}"><span>${b[0]}</span><b>${b[1]}</b><em>${b[2]}</em></div>`; }).join(""); }
+  drawQ(); drawDay(); drawIK(); level(); badges();
+}
+"""
+
+
+def save_prices():
+    """Uloží cenu Nasdaq futures v 15:00 pražského času pro každý den (Deník s ní předvyplní vstup)."""
+    out = {"p": {}, "last": None}
+    try:
+        out = json.loads((ROOT / "docs" / "prices.json").read_text(encoding="utf-8"))
+        out.setdefault("p", {})
+    except Exception:
+        out = {"p": {}, "last": None}
+    try:
+        c = yf.download("NQ=F", period="30d", interval="5m", progress=False)["Close"].squeeze().dropna()
+        c.index = c.index.tz_convert("Europe/Prague")
+        dd, hh = c.index.strftime("%Y-%m-%d"), c.index.strftime("%H:%M")
+        for day_ in sorted(set(dd)):
+            part = c[(dd == day_) & (hh >= "15:00") & (hh <= "15:10")]
+            if len(part):
+                out["p"][day_] = round(float(part.iloc[0]), 2)
+        out["last"] = {"d": dd[-1], "t": hh[-1], "v": round(float(c.iloc[-1]), 2)}
+    except Exception as e:
+        print("Ceny v 15:00 se nepodařilo stáhnout:", e)
+    out["p"] = dict(sorted(out["p"].items())[-2500:])
+    (ROOT / "docs" / "prices.json").write_text(json.dumps(out), encoding="utf-8")
+
+
+TIPS = {
+    "Bullish": "Čekáš, že cena poroste. Hledáš long (nákup).",
+    "Bearish": "Čekáš, že cena klesne. Hledáš short (prodej).",
+    "Hawkish": "Fed mluví přísně: sazby nechá vysoko nebo je zvedne. Pro Nasdaq je to bearish.",
+    "Dovish": "Fed mluví mírně: sazby sníží nebo to naznačí. Pro Nasdaq je to bullish.",
+    "Neutrální": "Bez jasného směru. Raději počkej na reakci trhu.",
+    "VIX": "Index strachu. Když roste, investoři se bojí a akcie často klesají.",
+    "Pre-market": "Obchodování před oficiálním otevřením burzy (v 15:30 pražského času). Ukazuje náladu před startem.",
+    "Premarket": "Obchodování před oficiálním otevřením burzy (v 15:30 pražského času). Ukazuje náladu před startem.",
+    "Futures": "Kontrakty na budoucí cenu indexu. Obchodují se skoro celý den, a proto ukazují náladu před otevřením burzy.",
+    "Bias": "Tvůj nebo robotův názor na směr dne: bullish (růst), bearish (pokles) nebo neutrální.",
+    "RSI": "Číslo 0 až 100 o síle pohybu. Nad 55 převažují kupující, pod 45 prodávající. Nad 70 bývá přehřátý trh.",
+    "FOMC": "Výbor americké centrální banky (Fed), který rozhoduje o úrokových sazbách. Nejsilnější zpráva týdne.",
+    "Fed": "Americká centrální banka. Její rozhodnutí o sazbách hýbe celým trhem.",
+    "CPI": "Inflace, tedy jak rychle rostou ceny. Vyšší než čekání bývá bearish.",
+    "PPI": "Ceny u výrobců. Ukazuje, jestli se bude inflace zrychlovat.",
+    "PCE": "Další měřítko inflace, které Fed sleduje nejvíc.",
+    "NFP": "Non-Farm Payrolls: kolik nových pracovních míst vzniklo v USA. Vychází první pátek v měsíci.",
+    "Non-Farm": "Kolik nových pracovních míst vzniklo v USA. Vychází první pátek v měsíci.",
+    "GDP": "Růst ekonomiky USA. Silnější číslo bývá bullish.",
+    "ISM": "Průzkum nálady ve firmách. Nad 50 znamená růst, pod 50 zpomalení.",
+    "Sentiment": "Nálada ve zprávách. Robot počítá pozitivní a negativní slova v titulcích. Je to hrubý ukazatel.",
+    "Stop loss": "Cena, kde obchod uzavřeš se ztrátou, aby ses nezničil. Zadáváš ho vždy před vstupem.",
+    "Take profit": "Cena, kde obchod uzavřeš se ziskem.",
+    "TP1": "První cíl zisku. Poměr zisku k riziku 1:2.",
+    "TP2": "Druhý cíl zisku. Poměr zisku k riziku 1:2,5.",
+    "R:R": "Poměr zisku k riziku. 1:2 znamená, že riskuješ 1 a chceš vydělat 2.",
+    "Long": "Nákup. Vyděláš, když cena roste.",
+    "Short": "Prodej. Vyděláš, když cena klesá.",
+    "MNQ": "Mikro kontrakt na Nasdaq 100. Jeden bod je 2 $.",
+    "Profit factor": "Součet zisků dělený součtem ztrát. Nad 1,5 je dobré, pod 1 prodělávaš.",
+    "Drawdown": "Největší propad účtu od vrcholu.",
+    "Expectancy": "Kolik průměrně vyděláš nebo prodělaš na jednom obchodu.",
+    "FOMO": "Strach, že ti něco uteče. Vede k pozdním a špatným vstupům.",
+    "Revenge": "Obchod z vzteku po ztrátě. Skoro vždy končí špatně.",
+    "Tilt": "Stav, kdy emoce přebírají vládu a obchoduješ bez pravidel.",
+    "Timeframe": "Časový rámec grafu. Větší (denní, hodina) ukazuje směr, menší (5 minut) vstup.",
+    "Setup": "Tvůj opakovatelný obchodní vzor s pravidly pro vstup, stop a cíl.",
+    "Earnings": "Výsledky firem. Kolem nich bývají velké pohyby ceny akcie.",
+    "DXY": "Dolarový index, síla dolaru. Silný dolar bývá pro akcie spíš špatný.",
+    "Skóre": "Číslo od −10 do +10. Plus znamená převahu růstu, mínus převahu poklesu.",
+    "Open Bias Engine": "Výpočet směru dne z dat před otevřením: futures, šířka akcií, VIX, dolar, výnosy, trend, zprávy a sezónnost.",
+    "Hit rate": "Jak často měl bias pravdu.",
+}
+
+TIPS_JS = "const TIPS = " + json.dumps(TIPS, ensure_ascii=False) + r""";
+(function () {
+  const keys = Object.keys(TIPS).sort((a, b) => b.length - a.length), lower = {};
+  keys.forEach(k => lower[k.toLowerCase()] = TIPS[k]);
+  const src = "(?<![\\p{L}\\d])(" + keys.map(s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")(?![\\p{L}\\d])";
+  const reT = new RegExp(src, "iu"), reG = new RegExp(src, "giu"), SKIP = new Set(["SCRIPT", "STYLE", "TEXTAREA", "INPUT", "SELECT", "OPTION", "CANVAS", "BUTTON", "TITLE", "IFRAME", "H1"]);
+  let busy = false, tm = null;
+  function run(root) {
+    busy = true;
+    const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {acceptNode: n => { const p = n.parentElement;
+      return (!p || SKIP.has(p.tagName) || p.closest(".tip,.side,dialog textarea")) ? NodeFilter.FILTER_REJECT : reT.test(n.nodeValue) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT; }});
+    const nodes = []; while (w.nextNode()) nodes.push(w.currentNode);
+    const secs = new Map(), seenIn = s => { if (!secs.has(s)) { const set = new Set(); s.querySelectorAll(".tip").forEach(t => set.add(t.firstChild.textContent.toLowerCase())); secs.set(s, set); } return secs.get(s); };
+    nodes.forEach(n => { const t = n.nodeValue, frag = document.createDocumentFragment(), seen = seenIn(n.parentElement.closest("section") || document.body); let last = 0, m; reG.lastIndex = 0;
+      while ((m = reG.exec(t))) { const k = m[0].toLowerCase(); if (seen.has(k) || !lower[k]) continue; seen.add(k); frag.append(t.slice(last, m.index));
+        const s = document.createElement("span"); s.className = "tip"; s.tabIndex = 0; s.dataset.tip = lower[k]; s.textContent = m[0];
+        const q = document.createElement("sup"); q.textContent = "*"; s.append(q); frag.append(s); last = m.index + m[0].length; }
+      if (last) { frag.append(t.slice(last)); n.replaceWith(frag); } });
+    busy = false;
+  }
+  const box = document.createElement("div"); box.id = "tipbox"; try { box.setAttribute("popover", "manual"); } catch (e) {}
+  const hide = () => { try { if (box.matches(":popover-open")) box.hidePopover(); } catch (e) {} box.style.display = "none"; };
+  function show(t) { box.textContent = t.dataset.tip; box.style.display = "block"; try { box.showPopover(); } catch (e) {}
+    const r = t.getBoundingClientRect(), bw = box.offsetWidth, bh = box.offsetHeight; let x = Math.min(Math.max(8, r.left), window.innerWidth - bw - 8), y = r.bottom + 8;
+    if (y + bh > window.innerHeight - 8) y = Math.max(8, r.top - bh - 8); box.style.left = x + "px"; box.style.top = y + "px"; }
+  function start() { document.body.appendChild(box); const main = document.querySelector("main") || document.body; run(main);
+    new MutationObserver(() => { if (busy) return; clearTimeout(tm); tm = setTimeout(() => run(main), 150); }).observe(main, {childList: true, subtree: true});
+    document.addEventListener("mouseover", e => { const t = e.target.closest && e.target.closest(".tip"); if (t) show(t); });
+    document.addEventListener("mouseout", e => { const t = e.target.closest && e.target.closest(".tip"); if (t) hide(); });
+    document.addEventListener("focusin", e => { const t = e.target.closest && e.target.closest(".tip"); if (t) show(t); });
+    document.addEventListener("focusout", hide); window.addEventListener("scroll", hide, true); }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start); else start();
+})();
+
+(function () {
+  if (/nastaveni\.html/.test(location.pathname)) return;
+  const DAY = 864e5;
+  const ls = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+  const hasData = async () => {
+    try { if (Object.keys(localStorage).some(k => /^(jr|bt):/.test(k))) return true; } catch (e) {}
+    try { if (indexedDB.databases) { const d = await indexedDB.databases(); return d.some(x => /^(journal|backtest|backtest_skips|journal_skips)$/.test(x.name)); } } catch (e) {}
+    return false;
+  };
+  const go = async () => {
+    const last = +ls("lastFullBackup") || 0, snooze = +ls("bkSnooze") || 0, days = last ? Math.floor((Date.now() - last) / DAY) : null;
+    if (days != null && days < 7) return; if (Date.now() < snooze) return; if (!(await hasData())) return;
+    const bar = document.createElement("div"); bar.className = "bkbar"; bar.setAttribute("role", "alert");
+    bar.innerHTML = "<span>💾 " + (days == null ? "Ještě jsi nestáhl žádnou zálohu." : "Poslední záloha je stará " + days + " dní.") + " Všechno (deníky, fotky, plány, nastavení) je jen v tomto prohlížeči. Záloha uloží celou aplikaci do jednoho souboru.</span><a href=\"#\" class=\"bknow\">Zálohovat teď</a><button type=\"button\">Připomenout zítra</button>";
+    bar.querySelector("button").onclick = () => { try { localStorage.setItem("bkSnooze", String(Date.now() + DAY)); } catch (e) {} bar.remove(); };
+    document.body.insertBefore(bar, document.body.firstChild);
+  };
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", go); else go();
+})();
+"""
+
+
+BG = {"zpravy.html": "news", "sentiment.html": "news", "kalendar.html": "news", "predikce.html": "news", "fundament.html": "news", "premarket.html": "analysis", "statistiky.html": "analysis", "seance.html": "analysis", "mezitrhy.html": "analysis", "bias.html": "analysis", "tyden.html": "analysis", "presnost.html": "analysis", "trpelivost.html": "yinyang", "mindset.html": "buddha", "plan.html": "target",
+      "journal.html": "diary", "roadmap.html": "mountain", "prirucka.html": "book", "nastaveni.html": "sliders", "ritual.html": "buddha", "evening.html": "yinyang"}
+
+SCROLL_JS = """(function(){var s=document.querySelector(".side");if(!s)return;
+try{var y=sessionStorage.getItem("sideY");if(y!==null)s.scrollTop=+y;}catch(e){}
+var a=s.querySelector("a[aria-current]");
+if(a){var r=a.getBoundingClientRect(),sr=s.getBoundingClientRect();if(r.bottom>sr.bottom-12||r.top<sr.top+12){s.scrollTop+=r.top-sr.top-s.clientHeight/2;}}
+s.addEventListener("wheel",function(e){var up=e.deltaY<0;if((up&&s.scrollTop<=0)||(!up&&s.scrollTop+s.clientHeight>=s.scrollHeight-1)){e.preventDefault();}},{passive:false});
+var save=function(){try{sessionStorage.setItem("sideY",s.scrollTop)}catch(e){}};
+s.addEventListener("scroll",save);s.querySelectorAll("a").forEach(function(l){l.addEventListener("click",save)});})();"""
+
+
+def gauge_box(avg, val, mx, cap):
+    cls = "up" if val > mx * 0.05 else "down" if val < -mx * 0.05 else ""
+    word = "Bullish" if val > mx * 0.05 else "Bearish" if val < -mx * 0.05 else "Neutral"
+    return f'<div class="gbox">{gauge(avg)}<div class="gnum {cls}">{sgn(val)}<span> z {mx}</span></div><div class="gword {cls}">{word}</div><div class="gcap">{cap}</div></div>'
+
+
+def gb(val, mx, cap):
+    val = max(-mx, min(mx, val))
+    return gauge_box(val / mx * 1.5, val, mx, cap)
+
+
+def inject_gauge(body, box, title, text):
+    if body.lstrip().startswith('<section class="hero">'):
+        return body.replace("</div></section>", "</div>" + box + "</section>", 1)
+    return (f'<section class="hero"><div><p class="empty" style="margin:0 0 8px">{title}</p><ul class="facts"><li>{text}</li></ul></div>{box}</section>' + body)
+
+
+def acc_box(h):
+    done = [x for x in h if hit(x) is not None]
+    if not done:
+        return None
+    acc = sum(hit(x) for x in done) / len(done) * 100
+    cls = "up" if acc >= 55 else "down" if acc < 45 else ""
+    word = "Dobrá přesnost" if acc >= 55 else "Slabá přesnost" if acc < 45 else "Průměrná přesnost"
+    avg = max(-1.0, min(1.0, (acc - 50) / 25)) * 1.5
+    return f'<div class="gbox">{gauge(avg)}<div class="gnum {cls}">{acc:.0f}<span> %</span></div><div class="gword {cls}">{word}</div><div class="gcap">trefených dní</div></div>'
+
+
+def make_icon(size):
+    import math, struct, zlib
+    bg = (8, 12, 26)
+    rows = []
+    cx = cy = size / 2
+    aa = 1.6 / size
+
+    def cov(d):
+        return max(0.0, min(1.0, 0.5 - d / aa))
+
+    for yy in range(size):
+        row = bytearray([0])
+        for xx in range(size):
+            x = (xx + .5) / size - .5
+            y = (yy + .5) / size - .5
+            r = math.hypot(x, y)
+            col = list(bg)
+            glow = max(0.0, 1 - r / .62) ** 2 * .35
+            col = [col[0] + 139 * glow, col[1] + 124 * glow, col[2] + 255 * glow]
+            ang = (math.atan2(y, x) + math.pi) / (2 * math.pi)
+            rc = (139 + (56 - 139) * ang, 124 + (189 - 124) * ang, 255 + (248 - 255) * ang)
+            a = cov(abs(r - .34) - .028)
+            col = [col[i] * (1 - a) + rc[i] * a for i in range(3)]
+            # jehla kompasu: svislý kosočtverec
+            ax, ay = abs(x), y
+            half = .075 * (1 - abs(ay) / .27) if abs(ay) < .27 else -1
+            if half > 0 and ax < half:
+                d = min(half - ax, .27 - abs(ay))
+                a2 = max(0.0, min(1.0, d / aa))
+                tc = (255, 107, 138) if ay < 0 else (238, 241, 250)
+                col = [col[i] * (1 - a2) + tc[i] * a2 for i in range(3)]
+            a3 = cov(r - .02)
+            col = [col[i] * (1 - a3) + 8 * a3 for i in range(3)]
+            row += bytes(int(max(0, min(255, c))) for c in col)
+        rows.append(bytes(row))
+    raw = b"".join(rows)
+
+    def chunk(t, d):
+        c = struct.pack(">I", len(d)) + t + d
+        return c + struct.pack(">I", zlib.crc32(t + d) & 0xffffffff)
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", size, size, 8, 2, 0, 0, 0)) +
+            chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b""))
+
+
+MANIFEST = json.dumps({"name": "Kompas klidu", "short_name": "Kompas", "description": "Trénink trpělivosti a ovládnutí sebe sama",
+                       "start_url": "index.html", "scope": "./", "display": "standalone", "background_color": "#080C1A", "theme_color": "#080C1A", "lang": "cs",
+                       "icons": [{"src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+                                 {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"}]}, ensure_ascii=False)
+
+SW_JS = """const C = "kompas-v24";
+self.addEventListener("install", e => { self.skipWaiting(); });
+self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(k => Promise.all(k.filter(x => x !== C).map(x => caches.delete(x)))).then(() => self.clients.claim())); });
+self.addEventListener("fetch", e => {
+  if (e.request.method !== "GET") return;
+  const u = new URL(e.request.url); if (u.origin !== location.origin) return;
+  e.respondWith(fetch(e.request).then(r => { const c = r.clone(); caches.open(C).then(x => x.put(e.request, c)); return r; }).catch(() => caches.match(e.request)));
+});
+"""
+
+
+def ritual_body(label, total):
+    steps = [("Pár minut dýchání, uklidni mysl", "mindset.html", "Mindset"), ("Přečti si větu dne a řekni ji nahlas", None, None),
+             ("Podívej se na bias a fundament dne", "bias.html", "Bias"), ("Zjisti důležité zprávy dneška a jejich čas (červené a oranžové)", "kalendar.html", "Kalendář"),
+             ("Nakresli klíčové úrovně na větším timeframe (denní, 4 hodiny, hodina)", None, None),
+             ("Vyber 1 až 3 setupy z playbooku, které dnes hledáš", "journal.html", "Deník, záložka Disciplína"), ("Zkontroluj limity: max. počet obchodů a max. ztráta", "plan.html", "Plán dne"),
+             ("Řekni si: je to boj jen se mnou, výsledek neovlivním, jen já versus já včera", None, None)]
+    st = "".join(f'<label class="rstep" data-i="{i}"><input type="checkbox"><span><b>{i + 1}. {escape(t)}</b>' + (f'<a href="{h}">{n} →</a>' if h else "") + '</span></label>' for i, (t, h, n) in enumerate(steps))
+    return (f'<section class="hero"><div><p class="empty" style="margin:0 0 8px">Čas do začátku session (15:00 pražského času)</p><p class="lede" id="rcd">–</p>'
+            f'<ul class="facts"><li id="rcdt">Začni asi 30 minut předem.</li><li>Dnešní bias: {escape(label)}.</li></ul></div>{gauge_box(total * 0.15, total, 10, "bias dnes")}</section>'
+            '<section><h2>Věta dne</h2><p class="lede" id="rday" style="font-size:clamp(22px,3vw,32px)"></p></section>'
+            f'<section><h2>Postup <span class="empty" id="rprog"></span></h2><p class="hint">Odškrtni každý krok, až ho opravdu uděláš. Stav se ukládá na dnešek.</p>{st}</section>'
+            '<section><h2>Moje limity dnes</h2><div id="rlim"></div></section>'
+            '<section><h2>Moje setupy</h2><div id="rpb"></div></section>'
+            '<section><button type="button" class="bigok" id="rok">Jsem připraven čekat na svůj setup</button><p class="okline" id="rmsg"></p></section>')
+
+
+_rb0 = ritual_body
+
+
+def ritual_body(label, total):
+    return _rb0(label, total) + WHY_HTML
+
+
+RITUAL_JS = """
+(function () {
+  const T = TD, key = "rit:" + T.today(); let R = T.ls(key, {c: [], ok: false}); if (!R.c) R.c = [];
+  const N = document.querySelectorAll(".rstep").length, L = DATA.pat || [];
+  $("rday").textContent = L.length ? L[Math.floor(Date.now() / 864e5) % L.length] : "";
+  const paint = () => { document.querySelectorAll(".rstep").forEach(el => { const i = +el.dataset.i, on = R.c.includes(i); el.classList.toggle("on", on); el.querySelector("input").checked = on; });
+    $("rprog").textContent = R.c.length + " z " + N; $("rmsg").textContent = R.ok ? "Připraven. Teď jen čekej. Nic nenutím." : ""; $("rok").textContent = R.ok ? "Hotovo, jsem připraven" : "Jsem připraven čekat na svůj setup"; };
+  document.querySelectorAll(".rstep").forEach(el => el.querySelector("input").addEventListener("change", e => { const i = +el.dataset.i; R.c = R.c.filter(x => x !== i); if (e.target.checked) R.c.push(i); T.lset(key, R); paint(); }));
+  $("rok").onclick = () => { R.ok = true; if (R.c.length < N) R.c = [...Array(N).keys()]; T.lset(key, R); paint(); };
+  const P = T.ls("plan:" + T.today(), {}) || {}, mt = P.maxTrades, ml = P.maxLoss;
+  $("rlim").innerHTML = (mt || ml) ? `<div class="kpis"><div class="k"><b>${mt || "–"}</b><span>max. obchodů</span></div><div class="k"><b>${ml ? ml + " $" : "–"}</b><span>max. denní ztráta</span></div><div class="k"><b>${T.ls("pauseMin", 15)} min</b><span>pauza po ztrátě</span></div></div>`
+    : `<p class="empty">Limity zatím nejsou nastavené. Nastav je v <a href="plan.html">Plánu dne</a>. Po dosažení limitu se nahoře ukáže červený pruh Dnes končíš.</p>`;
+  const pb = T.ls("jr:pb", []);
+  $("rpb").innerHTML = pb.length ? `<ul class="facts">${pb.map(p => `<li><b>${T.esc(p.name)}</b>: ${T.esc(p.rules || p.desc || "")}</li>`).join("")}</ul>` : `<p class="empty">Playbook je zatím prázdný. Přidej své setupy v Deníku, záložka Disciplína.</p>`;
+  const pr = () => { const f = new Date().toLocaleString("en-US", {timeZone: "Europe/Prague", hour12: false}), d = new Date(f), sec = d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds(), left = 15 * 3600 - sec;
+    if (left > 0) { const h = Math.floor(left / 3600), m = Math.floor(left % 3600 / 60), s = left % 60; $("rcd").textContent = String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0"); $("rcdt").textContent = left > 1800 ? "Ještě je čas. Rituál začni asi 30 minut před 15:00." : "Je čas na rituál. Postupuj klidně, bez spěchu."; }
+    else { $("rcd").textContent = "Session běží"; $("rcdt").textContent = "Pokud jsi rituál nestihl, udělej ho teď a čekej na svůj setup."; } };
+  pr(); setInterval(pr, 1000); paint();
+})();
+"""
+
+
+WHY_HTML = ('<section class="why" style="margin-top:18px"><h2>Proč to všechno dělám</h2>'
+            '<p class="lede" style="margin:0">Dělám to pro sebe, a dělají to všichni úspěšní tradeři. A chci být jako oni, tak dělám to, co dělají oni.</p></section>')
+
+POST_HTML = ('<section><h2>Po obchodu: co udělat</h2><p class="hint">Odškrtni si, co už máš hotové. Ukládá se samo.</p><ul class="facts" id="post-l" style="list-style:none;padding:0">'
+             + "".join(f'<li><label class="chip" style="display:flex"><input type="checkbox" data-pc="{i}">{t}</label></li>' for i, t in enumerate([
+                 "V deníku jsem obchod uzavřel: výsledek, a když byly dva cíle, kolik kontraktů vyšlo na TP1",
+                 "Vložil jsem screenshoty: timeframe obchodu, 1 minuta, 5 minut a 15 minut",
+                 "Označil jsem chyby (třeba chybějící korelaci s ES) a emoce (FOMO, revenge...)",
+                 "Zaškrtl jsem, jestli jsem dodržel plán, a dal obchodu hodnocení 1 až 5",
+                 "Napsal jsem do poznámky, co jsem udělal dobře a co příště udělám jinak",
+                 "Zkontroloval jsem denní limity: max 1 % risk a max 1 stop loss za den",
+                 "Zavřel jsem grafy a odešel od obrazovky. Zbytek dne už neobchoduji"]))
+             + '</ul></section>')
+
+
+def evening_body():
+    return ('<section class="hero"><div><p class="empty" style="margin:0 0 8px">Dnes v deníku</p><p class="lede" id="edn">–</p><ul class="facts"><li id="edt">Načítám…</li></ul></div></section>'
+            + POST_HTML + '<section><h2>Tři otázky</h2><label>1. Dodržel jsem dnes svůj plán?<select id="e-plan"><option value="">–</option><option value="ano">Ano, celý</option><option value="castecne">Částečně</option><option value="ne">Ne</option></select></label>'
+            '<label style="margin-top:12px">2. Co jsem se dnes naučil?<textarea id="e-learn" rows="3"></textarea></label>'
+            '<label style="margin-top:12px">3. Jak moc jsem na sebe dnes pyšný? <b id="e-pv"></b> z 5<input type="range" id="e-pride" min="1" max="5" value="3"></label>'
+            '<p class="empty" id="e-msg">Ukládá se samo.</p></section>'
+            '<section><h2>Já dnes versus já včera</h2><div id="me-box"></div></section>'
+            '<section><h2>Posledních 7 dní</h2><div id="e-hist"></div></section>' + WHY_HTML)
+
+
+EVENING_JS = """
+(function () {
+  const T = TD, key = "eve:" + T.today(); let E = T.ls(key, {}) || {};
+  $("e-plan").value = E.plan || ""; $("e-learn").value = E.learn || ""; $("e-pride").value = E.pride || 3; $("e-pv").textContent = E.pride || 3;
+  const save = () => { E = {plan: $("e-plan").value, learn: $("e-learn").value, pride: +$("e-pride").value}; T.lset(key, E); $("e-pv").textContent = E.pride; $("e-msg").textContent = "Uloženo."; draw(); };
+  ["e-plan", "e-learn", "e-pride"].forEach(i => $(i).addEventListener("input", save));
+  const draw = () => { const j = T.ls("jr:day:" + T.today(), null);
+    $("edn").textContent = j ? j.n + " obchodů, " + (j.net >= 0 ? "+" : "\\u2212") + Math.abs(j.net) + " $" : "Zatím bez dat";
+    $("edt").textContent = j ? (j.n === 0 ? "Dnes bez obchodu. Čekání je výhra, pokud jsi nebyl u grafu s nutkáním." : "Podle plánu " + j.ano + "×, mimo plán " + j.ne + "×.") : "Otevři Deník obchodů, ať se dnešní data načtou.";
+    $("me-box").innerHTML = TDme();
+    const rows = []; for (let i = 0; i < 7; i++) { const d = new Date(); d.setDate(d.getDate() - i); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); const k = d.toISOString().slice(0, 10), e = T.ls("eve:" + k, null), s = TDscore(k);
+      rows.push(`<tr><td>${k}</td><td>${e && e.plan ? ({ano: "Ano", castecne: "Částečně", ne: "Ne"})[e.plan] : "–"}</td><td class="n">${e && e.pride ? e.pride + " z 5" : "–"}</td><td class="n">${s == null ? "–" : s + " %"}</td></tr>`); }
+    $("e-hist").innerHTML = `<div class="wrap"><table><thead><tr><th>Den</th><th>Plán</th><th class="n">Pýcha na sebe</th><th class="n">Skóre dne</th></tr></thead><tbody>${rows.join("")}</tbody></table></div>`; };
+  document.addEventListener("tdday", draw); draw();
+})();
+"""
+
+POST_JS = """
+(function () {
+  const k = "post:" + TD.today(), P = TD.ls(k, {}) || {};
+  document.querySelectorAll("[data-pc]").forEach(c => { c.checked = !!P[c.dataset.pc]; c.addEventListener("change", () => { P[c.dataset.pc] = c.checked; TD.lset(k, P); }); });
+})();
+"""
+EVENING_JS = EVENING_JS + POST_JS
+
+ME_INIT_JS = """if ($("me-box")) { $("me-box").innerHTML = TDme(); document.addEventListener("tdday", () => { $("me-box").innerHTML = TDme(); }); }
+"""
+
+
+FULLBK_JS = r"""
+;(function(){
+  // ===== JEDNA ZÁLOHA CELÉ APLIKACE: všechna data z prohlížeče do jednoho souboru =====
+  var KNOWN = {journal: "trades", backtest: "trades", backtest_skips: "days", journal_skips: "days", mentor: "plans"};
+  var toUrl = function (b) { return new Promise(function (r) { var f = new FileReader(); f.onload = function () { r(f.result); }; f.readAsDataURL(b); }); };
+  async function ser(v) { if (v instanceof Blob) return await toUrl(v); if (Array.isArray(v)) return Promise.all(v.map(ser));
+    if (v && typeof v === "object") { var o = {}; for (var k in v) o[k] = await ser(v[k]); return o; } return v; }
+  async function deser(v) { if (typeof v === "string" && v.indexOf("data:") === 0) return await (await fetch(v)).blob(); if (Array.isArray(v)) return Promise.all(v.map(deser));
+    if (v && typeof v === "object") { var o = {}; for (var k in v) o[k] = await deser(v[k]); return o; } return v; }
+  var req = function (q) { return new Promise(function (r, j) { q.onsuccess = function () { r(q.result); }; q.onerror = function () { j(q.error); }; }); };
+  async function names() {
+    try { if (indexedDB.databases) { var d = await indexedDB.databases(); return d.map(function (x) { return x.name; }).filter(function (n) { return n && n !== "kompas_meta"; }); } } catch (e) {}
+    return Object.keys(KNOWN);
+  }
+  function openDb(n, stores) { return new Promise(function (r) { try { var q = indexedDB.open(n);
+    q.onupgradeneeded = function () { (stores || [KNOWN[n] || "trades"]).forEach(function (s) { if (!q.result.objectStoreNames.contains(s)) q.result.createObjectStore(s, {keyPath: "id", autoIncrement: true}); }); };
+    q.onsuccess = function () { r(q.result); }; q.onerror = function () { r(null); }; } catch (e) { r(null); } }); }
+  async function collect() {
+    var ls = {}; try { for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); ls[k] = localStorage.getItem(k); } } catch (e) {}
+    var idb = {}, n = await names();
+    for (var a = 0; a < n.length; a++) { var db = await openDb(n[a]); if (!db) continue; idb[n[a]] = {};
+      for (var b = 0; b < db.objectStoreNames.length; b++) { var s = db.objectStoreNames[b];
+        try { idb[n[a]][s] = await ser(await req(db.transaction(s).objectStore(s).getAll())); } catch (e) {} }
+      db.close(); }
+    return {app: "Kompas klidu", v: 4, created: new Date().toISOString(), ls: ls, idb: idb};
+  }
+  function day() { return new Date().toLocaleDateString("sv-SE", {timeZone: "Europe/Prague"}); }
+  function toast(t, ok) { var d = document.createElement("div"); d.textContent = t;
+    d.style.cssText = "position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:999999;max-width:min(560px,92vw);padding:14px 20px;border-radius:14px;font-size:16px;font-weight:600;color:#fff;box-shadow:0 10px 40px rgba(0,0,0,.4);background:" + (ok === false ? "#B91C1C" : "#0E8F6A");
+    document.body.appendChild(d); setTimeout(function () { d.remove(); }, 5000); }
+  // složka pro zálohy (jen Chrome/Edge na počítači; Safari ukládá do Stažených souborů)
+  async function meta() { return await openDb("kompas_meta", ["h"]); }
+  async function getDir() { try { var db = await meta(); var x = await req(db.transaction("h").objectStore("h").get(1)); return x && x.dir; } catch (e) { return null; } }
+  window.TDpickFolder = async function () {
+    if (!window.showDirectoryPicker) { toast("Tenhle prohlížeč neumí vybrat složku. Zálohy se uloží do Stažených souborů.", false); return false; }
+    try { var dir = await window.showDirectoryPicker({id: "kompas-zalohy", mode: "readwrite"}); var db = await meta();
+      await new Promise(function (r) { var t = db.transaction("h", "readwrite"); t.objectStore("h").put({id: 1, dir: dir}); t.oncomplete = r; t.onerror = r; });
+      toast("Zálohy se budou ukládat do složky „" + dir.name + "“."); return dir.name; } catch (e) { return false; }
+  };
+  window.TDfolderName = async function () { var d = await getDir(); return d ? d.name : null; };
+  window.TDbackup = async function () {
+    try {
+      var data = await collect(), name = "kompas-zaloha-" + day() + ".json", blob = new Blob([JSON.stringify(data)], {type: "application/json"}), where = null;
+      var dir = await getDir();
+      if (dir) { try { var p = await dir.queryPermission({mode: "readwrite"}); if (p !== "granted") p = await dir.requestPermission({mode: "readwrite"});
+        if (p === "granted") { var fh = await dir.getFileHandle(name, {create: true}), w = await fh.createWritable(); await w.write(blob); await w.close(); where = "do složky „" + dir.name + "“"; } } catch (e) {} }
+      if (!where) { var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); where = "do Stažených souborů"; }
+      var now = String(Date.now()); try { ["lastFullBackup", "jr:lastbk", "bt:lastbk"].forEach(function (k) { localStorage.setItem(k, now); }); } catch (e) {}
+      var nd = 0; for (var n in data.idb) for (var s in data.idb[n]) nd += data.idb[n][s].length;
+      toast("✓ Záloha celé aplikace uložena " + where + ": " + name + " (" + nd + " záznamů, " + Object.keys(data.ls).length + " nastavení).");
+      var m = document.getElementById("bk-msg"); if (m) m.textContent = "Záloha uložena " + where + ": " + name + ".";
+      document.querySelectorAll(".bkbar").forEach(function (b) { b.remove(); });
+      return true;
+    } catch (e) { toast("Záloha se nepovedla: " + (e && e.message || e), false); return false; }
+  };
+  var KEY = function (t) { return JSON.stringify([t.opened || t.date, t.inst || t.created || t.saved, t.dir, t.entry, t.exit]); };
+  window.TDrestore = async function (file) {
+    try {
+      var d = JSON.parse(await file.text()), nk = 0, nt = 0;
+      if (Array.isArray(d)) { toast("Tohle je stará záloha jen deníku. Nahraj ji v Deníku přes Obnovit ze zálohy ve staré verzi, nebo použij celou zálohu aplikace.", false); return false; }
+      if (d.ls) for (var k in d.ls) { try { if (localStorage.getItem(k) == null) { localStorage.setItem(k, d.ls[k]); nk++; } } catch (e) {} }
+      for (var n in (d.idb || {})) {
+        var stores = Array.isArray(d.idb[n]) ? (function () { var o = {}; o[KNOWN[n] || "trades"] = d.idb[n]; return o; })() : d.idb[n];
+        var db = await openDb(n, Object.keys(stores)); if (!db) continue;
+        for (var s in stores) { if (!db.objectStoreNames.contains(s)) continue;
+          var have = new Set((await req(db.transaction(s).objectStore(s).getAll())).map(KEY));
+          for (var i = 0; i < stores[s].length; i++) { var t = stores[s][i]; if (have.has(KEY(t))) continue; t = await deser(t); delete t.id;
+            await new Promise(function (r) { var x = db.transaction(s, "readwrite"); x.objectStore(s).add(t); x.oncomplete = r; x.onerror = r; }); nt++; } }
+        db.close();
+      }
+      toast("✓ Obnoveno: " + nt + " záznamů a " + nk + " nastavení. Nic nebylo přepsáno. Stránka se teď obnoví.");
+      setTimeout(function () { location.reload(); }, 2200); return true;
+    } catch (e) { toast("Zálohu se nepodařilo načíst: " + (e && e.message || e), false); return false; }
+  };
+  // všechna tlačítka „Zálohovat“ a „Obnovit“ na webu vedou na jednu zálohu celé aplikace
+  document.addEventListener("click", function (e) { var b = e.target.closest && e.target.closest("#exp,#bk-exp,.bknow"); if (!b) return;
+    e.preventDefault(); e.stopPropagation(); window.TDbackup(); }, true);
+  document.addEventListener("change", function (e) { var t = e.target; if (!t || !/^(impf|bk-imp)$/.test(t.id) || !t.files || !t.files[0]) return;
+    e.stopPropagation(); window.TDrestore(t.files[0]); t.value = ""; }, true);
+})();
+"""
+
+COMMON_JS = r"""(function(){
+var D=document,H=D.documentElement;
+function ls(k,d){try{var v=JSON.parse(localStorage.getItem(k));return v==null?d:v}catch(e){return d}}
+function lset(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+function today(){var d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,10)}
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]})}
+window.TD={ls:ls,lset:lset,today:today,esc:esc};
+/* přepínač světlého a tmavého režimu */
+var tb=D.getElementById("themebtn");
+function lab(){if(!tb)return;var l=H.getAttribute("data-theme")==="light";tb.innerHTML="<span>"+(l?"🌙":"☀️")+"</span>"+(l?"Tmavý režim":"Světlý režim")}
+if(tb){lab();tb.onclick=function(){var n=H.getAttribute("data-theme")==="light"?"dark":"light";H.setAttribute("data-theme",n);try{localStorage.setItem("theme",n)}catch(e){}lab();if(window.Chart)location.reload()}}
+/* mobilní menu */
+var side=D.querySelector(".side");
+if(side){var nb=D.createElement("button");nb.id="navbtn";nb.type="button";nb.setAttribute("aria-label","Menu");nb.textContent="☰";nb.style.display="none";D.body.appendChild(nb);
+var ov=D.createElement("div");ov.id="navov";ov.style.display="none";D.body.appendChild(ov);
+var tg=function(o){side.classList.toggle("open",o);ov.classList.toggle("on",o)};
+nb.onclick=function(){tg(!side.classList.contains("open"))};ov.onclick=function(){tg(false)};
+side.addEventListener("click",function(e){if(e.target.closest&&e.target.closest("a"))tg(false)})}
+/* instalace jako aplikace */
+if("serviceWorker" in navigator){try{navigator.serviceWorker.register("sw.js").catch(function(){})}catch(e){}}
+/* pauza po ztrátě a denní limity */
+var PV={NQ:20,MNQ:2,ES:50,MES:5,YM:5,MYM:0.5};
+function pnl(t){if(t.exit==null)return null;var d=t.dir==="short"?-1:1;return (t.exit-t.entry)*d*(t.size||1)*(t.pv||PV[t.inst]||1)-(t.fee||0)}
+function dayOf(t){return (t.opened||(t.date+"T00:00")).slice(0,10)}
+var gEl=null,gTimer=null;
+function banner(html,kind){
+  var c=D.querySelector(".content");if(!c)return;
+  if(!gEl){gEl=D.createElement("div");gEl.id="guard";c.insertBefore(gEl,c.firstChild)}
+  if(!html){gEl.style.display="none";return}
+  gEl.style.display="block";gEl.className="guard "+kind;gEl.innerHTML=html}
+function evalGuard(trades){
+  var td=today(),n=0,net=0,ano=0,ne=0,last=null;
+  trades.forEach(function(t){
+    if(dayOf(t)===td){n++;var p=pnl(t);if(p!==null)net+=p;if(t.plan==="ano")ano++;if(t.plan==="ne")ne++}
+    var p2=pnl(t);if(p2!==null&&t.closed&&(p2<0||t.plan==="ne")){var ct=new Date(t.closed).getTime();if(!last||ct>last.ct)last={ct:ct,p:p2}}
+  });
+  lset("jr:day:"+td,{n:n,net:Math.round(net),ano:ano,ne:ne});
+  try{D.dispatchEvent(new Event("tdday"))}catch(e){}
+  var P=ls("plan:"+td,{})||{},mt=+P.maxTrades||0,ml=+P.maxLoss||0;
+  var limit=(mt>0&&n>=mt)?"Dnes jsi otevřel "+n+" z "+mt+" povolených obchodů.":(ml>0&&net<=-ml)?"Dnešní ztráta "+Math.round(net)+" $ dosáhla limitu "+ml+" $.":"";
+  clearInterval(gTimer);
+  if(limit){banner("<b>Dnes končíš.</b> "+esc(limit)+" Vstaň od grafu. Dodržet limit je dnešní výhra.","stop");return}
+  var pm=+ls("pauseMin",15)||15;
+  if(last){
+    var tick=function(){var left=last.ct+pm*60000-Date.now();
+      if(left<=0){clearInterval(gTimer);banner("","");return}
+      var m=Math.floor(left/60000),s=Math.floor(left%60000/1000);
+      banner("<b>Pauza po ztrátě: "+m+":"+String(s).padStart(2,"0")+"</b> Vstaň od grafu, dýchej a nic neotvírej. Další obchod počká.","pause")};
+    tick();gTimer=setInterval(tick,1000);return}
+  banner("","")}
+function runGuard(){
+  try{var rq=indexedDB.open("journal",1);
+    rq.onupgradeneeded=function(){rq.result.createObjectStore("trades",{keyPath:"id",autoIncrement:true})};
+    rq.onsuccess=function(){try{var db=rq.result,r=db.transaction("trades","readonly").objectStore("trades").getAll();r.onsuccess=function(){db.close();evalGuard(r.result||[])}}catch(e){}};
+  }catch(e){}}
+window.TDguard=runGuard;runGuard();
+/* já dnes versus já včera */
+function dayScore(d){
+  var parts=[],r=ls("rit:"+d,null),m=ls("mood:"+d,null),e=ls("eve:"+d,null),j=ls("jr:day:"+d,null);
+  if(r&&r.c)parts.push(Math.min(100,r.c.length/8*100));
+  if(m&&m.calm)parts.push(((+m.calm)+(+m.focus))/10*100);
+  if(e&&e.pride)parts.push(+e.pride/5*100);
+  if(e&&e.plan)parts.push(e.plan==="ano"?100:e.plan==="castecne"?50:0);
+  if(j&&(j.ano+j.ne)>0)parts.push(j.ano/(j.ano+j.ne)*100);
+  return parts.length?Math.round(parts.reduce(function(a,b){return a+b},0)/parts.length):null}
+function yest(){var d=new Date();d.setDate(d.getDate()-1);d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,10)}
+window.TDscore=dayScore;
+window.TDme=function(){
+  var a=dayScore(today()),b=dayScore(yest());
+  var bar=function(l,v,c){return "<div class=\"mebar\"><span>"+l+"</span><i><u style=\"width:"+(v==null?0:v)+"%;background:"+c+"\"></u></i><b>"+(v==null?"–":v+" %")+"</b></div>"};
+  var msg=(a==null)?"Dnes ještě nemám z čeho počítat. Dokonči pre-session rituál, zapiš náladu nebo večerní uzavření dne."
+    :(b==null)?"Včerejšek chybí. Od zítřka uvidíš, jestli jsi lepší než včera."
+    :a>b?"Dnes jsi o "+(a-b)+" bodů lepší než včera. Jen tak dál."
+    :a<b?"Dnes jsi o "+(b-a)+" bodů pod včerejškem. Žádný stres, zítra znovu."
+    :"Dnes stejně jako včera. Stabilita je dobrý základ.";
+  return bar("Já dnes",a,"linear-gradient(90deg,#8B7CFF,#38BDF8)")+bar("Já včera",b,"rgba(150,160,190,.7)")+"<p class=\"hint\">"+msg+" Skóre se skládá z rituálu, nálady, večerního uzavření a dodržení plánu v obchodech. S nikým jiným se neporovnávám.</p>"};
+})();
+"""
+COMMON_JS += FULLBK_JS
+DROP_JS = '/* ===== Univerzální přetažení / vložení souborů (v87) ===== */\n(() => {\n  const st = document.createElement("style");\n  st.textContent = ".dz-on{outline:2px dashed #8B7CFF!important;outline-offset:4px;background-color:rgba(139,124,255,.08)!important}";\n  document.head.appendChild(st);\n  const ok = (f, inp) => { const a = (inp.getAttribute("accept") || "").toLowerCase().split(",").map(x => x.trim()).filter(Boolean);\n    if (!a.length) return true; const n = (f.name || "").toLowerCase(), t = (f.type || "").toLowerCase();\n    return a.some(x => x[0] === "." ? n.endsWith(x) : x.endsWith("/*") ? t.startsWith(x.slice(0, -1)) : t === x); };\n  const vis = el => !el.closest("dialog:not([open])");\n  const inputsIn = (root, files) => [...root.querySelectorAll(\'input[type="file"]\')].filter(i => vis(i) && !i.disabled && files.some(f => ok(f, i)));\n  const BIG = el => !el || el === document.body || el === document.documentElement || el.tagName === "MAIN";\n  function pick(start, files) {\n    const dlg = [...document.querySelectorAll("dialog[open]")].pop();\n    for (let el = start && start.nodeType === 1 ? start : null; el && el !== document; el = el.parentElement) {\n      if (dlg && !dlg.contains(el)) break;\n      const c = inputsIn(el, files); if (c.length) return {inp: c[0], zone: el};\n    }\n    if (dlg) { const c = inputsIn(dlg, files); return c.length ? {inp: c[0], zone: dlg} : null; }\n    const c = inputsIn(document, files); return c.length ? {inp: c[0], zone: null} : null;\n  }\n  function give(inp, files) {\n    let fs = files.filter(f => ok(f, inp)).sort((a, b) => (a.lastModified || 0) - (b.lastModified || 0));\n    if (!fs.length) return false;\n    if (inp.dataset.sf && typeof window.putSlot === "function") { fs.forEach(f => window.putSlot(f)); return true; }\n    if (!inp.multiple) fs = fs.slice(0, 1);\n    try { const dt = new DataTransfer(); fs.forEach(f => dt.items.add(f)); inp.files = dt.files; } catch (x) { return false; }\n    inp.dispatchEvent(new Event("change", {bubbles: true})); inp.dispatchEvent(new Event("input", {bubbles: true}));\n    return true;\n  }\n  let hl = null, hlT = 0;\n  const unhl = () => { if (hl) hl.classList.remove("dz-on"); hl = null; };\n  const hasFiles = e => [...(e.dataTransfer?.types || [])].includes("Files");\n  window.addEventListener("dragover", e => {\n    if (!hasFiles(e)) return; e.preventDefault();\n    const dlg = [...document.querySelectorAll("dialog[open]")].pop();\n    let z = null; for (let el = e.target; el && el.nodeType === 1; el = el.parentElement) { if (dlg && !dlg.contains(el)) break; if (el.querySelector(\'input[type="file"]\')) { z = el; break; } }\n    if (!z && dlg) z = dlg;\n    if (BIG(z)) z = null;\n    if (z !== hl) { unhl(); if (z) { hl = z; z.classList.add("dz-on"); } }\n    clearTimeout(hlT); hlT = setTimeout(unhl, 400);\n  });\n  const late = fn => { if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", fn); else setTimeout(fn, 0); };\n  late(() => window.addEventListener("drop", e => {\n    unhl(); if (!hasFiles(e)) return; const pre = e.defaultPrevented; e.preventDefault();\n    if (pre) return;\n    const files = [...e.dataTransfer.files]; if (!files.length) return;\n    const p = pick(e.target, files);\n    if (p) give(p.inp, files); else if (window.toast) toast("Tenhle typ souboru se sem nedá nahrát.");\n  }));\n  let lastEl = null;\n  document.addEventListener("pointerdown", e => { lastEl = e.target; }, true);\n  document.addEventListener("pointermove", e => { lastEl = e.target; }, {passive: true, capture: true});\n  late(() => window.addEventListener("paste", e => {\n    if (e.defaultPrevented) return;\n    const files = [...(e.clipboardData?.items || [])].filter(x => x.kind === "file").map(x => x.getAsFile()).filter(Boolean);\n    if (!files.length) return;\n    const ae = document.activeElement;\n    if (ae && (ae.tagName === "TEXTAREA" || (ae.tagName === "INPUT" && /^(text|search|url|number|)$/.test(ae.type)) || ae.isContentEditable) && (e.clipboardData.types || []).includes("text/plain")) return;\n    const dlg = [...document.querySelectorAll("dialog[open]")].pop();\n    let p = pick(dlg && lastEl && !dlg.contains(lastEl) ? dlg : (lastEl || document.activeElement), files);\n    if (!p) return;\n    if (!dlg && !p.zone) { const all = inputsIn(document, files); if (all.length > 1) p = {inp: all[0]}; }\n    e.preventDefault(); give(p.inp, files);\n  }));\n})();\n'
+COMMON_JS += DROP_JS
+
+
+
+def main():
+    cfg = CONFIG
+    docs = ROOT / "docs"
+    docs.mkdir(exist_ok=True)
+    (docs / "style.css").write_text(STYLE_CSS, encoding="utf-8")
+    (docs / "manifest.webmanifest").write_text(MANIFEST, encoding="utf-8")
+    (docs / "sw.js").write_text(SW_JS, encoding="utf-8")
+    for nm, sz in (("icon-192.png", 192), ("icon-512.png", 512), ("apple-touch-icon.png", 180)):
+        (docs / nm).write_bytes(make_icon(sz))
+    sb = lambda f: sidebar(f)
+    (docs / "journal.html").write_text(JOURNAL_HTML.replace("@@SIDEBAR@@", sb("journal.html")), encoding="utf-8")
+    (docs / "backtest.html").write_text(BACKTEST_HTML.replace("@@SIDEBAR@@", sb("backtest.html")), encoding="utf-8")
+    (docs / "plan.html").write_text(PLAN_HTML.replace("@@SIDEBAR@@", sb("plan.html")), encoding="utf-8")
+    (docs / "mindset.html").write_text(MINDSET_HTML.replace("@@SIDEBAR@@", sb("mindset.html")), encoding="utf-8")
+
+    q, (pre, live), cal, week = quotes(cfg), premarket(cfg), calendar(), week_events()
+    ptitle = "Největší akcie v pre-marketu" if live else "Největší akcie: změna za poslední obchodní den"
+    sent = news_sentiment(cfg)
+    nq = nq_series()
+    try:
+        nqc = nq_candles()
+    except Exception as e:
+        print("Svíčky:", e)
+        nqc = None
+    sea, sea_data = seasonality()
+    n5 = None
+    try:
+        n5 = nq5m()
+    except Exception as e:
+        print("NQ data:", e)
+    arch_ = {}
+    for nm_, fn_ in (("trh", lambda: update_market(n5)), ("seance", lambda: update_sessions(n5)), ("hodiny", update_hours), ("mezitrhy", update_mezitrhy)):
+        try:
+            arch_[nm_] = fn_()
+        except Exception as e:
+            print("Archiv", nm_, "selhal:", e)
+            arch_[nm_] = []
+    mkt, ses, mzt = arch_["trh"], arch_["seance"], arch_["mezitrhy"]
+    try:
+        hrs = hour_stats(arch_["hodiny"])
+    except Exception as e:
+        print("Hodiny:", e)
+        hrs = None
+    ton = today_night(n5)
+    try:
+        sv_ = stat_verdict(mkt, mzt)
+    except Exception as e:
+        print("Statistický verdikt:", e)
+        sv_ = None
+    learn = learn_weights(load_hist_ro())
+    label, total, comp = bias_engine(q, pre, nq, sent, sea_data, sv_, learn)
+    tot0 = sum(c["s"] * c["w0"] for c in comp) / max(1e-9, sum(2 * c["w0"] for c in comp)) * 10 if comp else 0.0
+    vix = next((r for r in q if r["sym"] == "^VIX"), None)
+    facts_l = [f"Skóre trhu je {sgn(total)} z 10. Plus znamená převahu růstu, mínus převahu poklesu."] if comp else []
+    if vix:
+        facts_l.append(f"Strach na trhu (VIX) je {num(vix['last'])} ({pc(vix['chg'])}) a " +
+                       ("roste, což bývá špatné pro akcie." if vix["chg"] > 5 else "klesá, což akciím pomáhá." if vix["chg"] < -5 else "téměř se nemění."))
+    up = 0
+    if pre:
+        up = sum(1 for r in pre if r["chg"] >= 0)
+        facts_l.append(f"V pre-marketu je v plusu {up} z {len(pre)} největších akcií." if live
+                       else f"Za poslední obchodní den skončilo v plusu {up} z {len(pre)} největších akcií.")
+        facts_l.append(scenario(label, up / len(pre)))
+    if sea:
+        facts_l.append(sea)
+    if cal:
+        facts_l.append(f"Důležité zprávy z USA dnes: {len(cal)}.")
+    data = {"mac": [{"n": r["name"], "c": round(r["chg"], 2), "inv": r["sym"] in ("^VIX", "DX-Y.NYB", "^TNX")} for r in q], "nq": nq, "nqc": nqc, "sea": sea_data, "cal": week, "sent": sent if sent.get("status") == "ok" else None,
+            "pre": [{"s": r["sym"], "n": r["name"], "c": round(r["chg"], 2)} for r in pre]}
+
+    low = label.lower()
+    lede_cls = "up" if "bullish" in low else "down" if "bearish" in low else ""
+    facts = "".join(f"<li>{escape(t)}</li>" for t in facts_l)
+    hm = datetime.now(PRAGUE).strftime("%H:%M")
+    nxt = next((e for e in (cal or []) if e["time"] >= hm), None)
+    smood = {"bullish": "Bullish", "bearish": "Bearish", "neutral": "Neutrální"}.get(sent.get("overall", {}).get("bias"), "–")
+    kp = ('<div class="kpis">'
+          f'<div class="k"><b>{escape(nxt["time"]) if nxt else "–"}</b><span>{escape(nxt["title"]) if nxt else "Žádná další důležitá zpráva dnes"}</span></div>'
+          f'<div class="k"><b>{f"{up} z {len(pre)}" if pre else "–"}</b><span>největších akcií v plusu</span></div>'
+          f'<div class="k"><b>{smood}</b><span>nálada ve zprávách (viz Sentiment)</span></div></div>')
+    steps = ('<section><h2>Tvůj ranní postup</h2><div class="steps-row">' + "".join(
+        f'<a class="step" href="{h}"><span class="num">{i}</span><b>{t}</b><span>{d}</span></a>' for i, (h, t, d) in enumerate(
+            [("fundament.html", "Zprávy a riziko dne", "Víš, co přijde a kdy?"), ("premarket.html", "Tvoje akcie", "Jak se hýbou před otevřením?"),
+             ("mindset.html", "Klid", "3 minuty dýchání"), ("plan.html", "Plán dne", "Limity a checklist")], 1)) + '</div></section>')
+    dash = (f'<section class="hero"><div><p class="lede {lede_cls}">{escape(label)}</p><ul class="facts">{facts}</ul></div>{gauge_box(total * 0.15, total, 10, "skóre trhu")}</section><section><h2>Já dnes versus já včera</h2><div id="me-box"></div></section>{kp}'
+            + steps + comp_html(comp)
+            + ('<section><h2>Nasdaq futures</h2><div class="pills"><button data-r="24">Poslední den</button><button class="pill-off" data-r="72">3 dny</button>'
+               '<button class="pill-off" data-r="0">5 dní</button></div><div class="pills" id="nqtype"><button data-ty="line">Liniový graf</button><button class="pill-off" data-ty="candle">Svíčkový graf</button></div>'
+               '<div class="chartbox"><canvas id="c-nq"></canvas><canvas id="c-nqc" style="display:none"></canvas></div><p class="empty" id="nqtf"></p></section>' if nq else ""))
+
+    pm = ""
+    if pre:
+        pm += (f'<section><h2>{ptitle}</h2><div class="tiles">{"".join(tile(r) for r in pre)}</div></section>'
+               '<section><div class="split"><div><h2>Kolik akcií roste</h2><div class="chartbox" style="height:240px"><canvas id="c-br"></canvas></div></div>'
+               '<div><h2>Změna podle akcie (najeď myší)</h2><div class="chartbox tall"><canvas id="c-pre"></canvas></div></div></div></section>')
+    else:
+        pm += '<section><p class="empty">Data o akciích se nepodařilo stáhnout.</p></section>'
+    if sea_data:
+        pm += '<section><h2>Sezónnost Nasdaq 100: průměr podle měsíců</h2><div class="chartbox"><canvas id="c-sea"></canvas></div></section>'
+    pm += quote_table(ptitle + " (tabulka)", pre, "Data nejsou k dispozici.")
+
+    fd = fundament_body(q, week, sent, cfg)
+    kal = ('<section class="hero"><div><p class="lede" id="cd">–</p><ul class="facts"><li id="cdt">Načítám…</li></ul></div></section>'
+           '<section><div class="pills"><button data-i="">Všechny</button><button class="pill-off" data-i="vysoký">Vysoký dopad</button>'
+           '<button class="pill-off" data-i="střední">Střední dopad</button></div><div class="row"><label style="max-width:240px">Týden<select id="cal-wk"><option value="">Tento i příští</option><option value="0">Tento týden</option><option value="1">Příští týden</option></select></label><label style="max-width:240px">Den<select id="cal-day"></select></label></div>'
+           '<div id="cal-t" style="margin-top:12px"></div></section>') if week else \
+          '<section><div class="note">Kalendář se nepodařilo stáhnout. Otevři si <a href="https://www.forexfactory.com/calendar">Forex Factory</a>.</div></section>'
+
+    (docs / "tips.js").write_text(TIPS_JS, encoding="utf-8")
+    save_prices()
+    cats20 = categories(q, week, sent)
+    tilt = sum(c["s"] for c in cats20[:3])
+    now_ms0 = datetime.now(PRAGUE).timestamp() * 1000
+    hist = update_history(label, total, {"tilt": tilt, "cats": {c["n"]: c["s"] for c in cats20}, "comp": {c["n"]: c["s"] for c in comp}, "label0": blabel(tot0), "score0": round(tot0, 1),
+        "ev": [{"t": e["title"], "f": e["forecast"], "p": e["previous"], "d": e["day"]} for e in (week or []) if e["day"] == datetime.now(PRAGUE).strftime("%Y-%m-%d")]})
+    evarch = update_events(week)
+    def safe_(fn_, *a_):
+        try:
+            return fn_(*a_)
+        except Exception as e:
+            print("Stránka se statistikou selhala:", e)
+            return '<section><p class="empty">Statistiku se tentokrát nepodařilo spočítat. Zkusí se to znovu při dalším běhu robota.</p></section>'
+    rs = intraday_rsi()
+    wkd = weekly()
+    days = {}
+    for e in (week or []):
+        d = days.setdefault(e["day"], {"dn": e["dn"], "h": 0, "m": 0})
+        d["h" if e["impact"] == "vysoký" else "m"] += 1
+    ks = sorted(days)
+    data.update({"news": (sent.get("all") or []) if sent.get("status") == "ok" else [], "hist": hist[-400:], "robot": ROBOT_URL, "pat": PAT_LINES,
+                 "wk": {"d": [days[k]["dn"] for k in ks], "h": [days[k]["h"] for k in ks], "m": [days[k]["m"] for k in ks]}})
+    fscore = round(sum(c["s"] for c in cats20) / max(1, len(cats20)) * 5, 1)
+    if week:
+        bx = gb(tilt, 6, "naklonění zpráv")
+        kal = inject_gauge(kal, bx, "Zprávy z USA", "Jak by zprávy tento týden mohly zatlačit na trh.")
+        pred = inject_gauge(predikce_body(week, hist, evarch), bx, "Predikce zpráv", "Celkové naklonění ze všech zpráv, které se blíží.")
+    else:
+        pred = predikce_body(week)
+    fd = inject_gauge(fd, gb(fscore, 10, "skóre fundamentu"), "Fundament", "Souhrn hodnocení oblastí.")
+    if pre:
+        pavg = sum(r["chg"] for r in pre) / len(pre)
+        pm = inject_gauge(pm, gb(round(pavg * 3, 1), 10, "skóre akcií"), "Akcie před otevřením", f"Průměrná změna sledovaných akcií je {pc(pavg)}.")
+    tyd = tyden_body(wkd, week, label)
+    if wkd:
+        tyd = inject_gauge(tyd, gb(round(wkd["wk"] * 2, 1), 10, "skóre týdne"), "Týdenní výhled", "Směr podle posledních pěti dní.")
+    prs = presnost_body(hist)
+    try:
+        prs += learn_html(hist, learn_weights(hist), comp)
+    except Exception as e:
+        print("Učení:", e)
+    ab = acc_box(hist)
+    if ab:
+        prs = inject_gauge(prs, ab, "Přesnost biasu", "Jak často měl bias pravdu.")
+    pages = {"index.html": (dash, ME_INIT_JS), "premarket.html": (pm, ""), "fundament.html": (fd, FUND_JS), "kalendar.html": (vysvetlivky() + kal, ""), "sentiment.html": (sentiment_body(sent, cfg), ""),
+             "zpravy.html": (zpravy_body(q, sent), NEWS_JS), "predikce.html": (pred, ""), "bias.html": (bias_body(label, total, comp, rs, q, week), BIAS_JS),
+             "tyden.html": (tyd, WK_JS), "presnost.html": (prs, ACC_JS), "statistiky.html": (safe_(market_body, mkt, hist, mzt), ""), "seance.html": (safe_(seance_body, mkt, ses, hrs, ton), ""), "mezitrhy.html": (safe_(mezitrhy_body, mkt, mzt), ""), "robot.html": (robot_body(mkt, mzt, ses, ton), ROBOT_JS), "mentor.html": (mentor_body(), MENTOR_JS), "knihy.html": (books_body(), BOOKS_JS), "ai.html": (ai_body(), AI_JS), "roadmap.html": (roadmap_body(), ROAD_JS),
+             "prirucka.html": (prirucka_body(), PRI_JS), "nastaveni.html": (nastaveni_body(), SET_JS + UX_JS + DIR_JS), "trpelivost.html": (trpelivost_body(), PAT_JS), "ritual.html": (ritual_body(label, total), RITUAL_JS), "evening.html": (evening_body(), EVENING_JS)}
+    try:
+        (docs / "ai.txt").write_text(ai_context(label, total, comp, sent, week, hist, sv_, mkt, ses, hrs, mzt), encoding="utf-8")
+    except Exception as e:
+        print("AI kontext:", e)
+    for f, (body, js) in pages.items():
+        (docs / f).write_text(shell(f, body, data, js), encoding="utf-8")
+    print("Hotovo:", label, f"{total:+.1f}", "| zprávy:", sent.get("status"))
+
+
+# ===== NASTAVENÍ: sem můžeš přidat akcie, zdroje zpráv nebo účty z X =====
+CONFIG = {
+    "futures": {
+        "NQ=F": "Nasdaq 100 futures",
+        "ES=F": "S&P 500 futures"
+    },
+    "macro": {
+        "^VIX": "VIX (strach na trhu)",
+        "DX-Y.NYB": "Dolarový index",
+        "^TNX": "Výnos 10letých dluhopisů USA"
+    },
+    "stocks": {
+        "AAPL": "Apple",
+        "MSFT": "Microsoft",
+        "NVDA": "Nvidia",
+        "AMZN": "Amazon",
+        "GOOG": "Alphabet",
+        "PLTR": "Palantir",
+        "BABA": "Alibaba",
+        "ORCL": "Oracle",
+        "META": "Meta",
+        "TSLA": "Tesla",
+        "AVGO": "Broadcom",
+        "COST": "Costco",
+        "NFLX": "Netflix",
+        "AMD": "AMD",
+        "ADBE": "Adobe",
+        "PEP": "PepsiCo",
+        "CSCO": "Cisco",
+        "TMUS": "T-Mobile",
+        "QCOM": "Qualcomm",
+        "INTU": "Intuit",
+        "AMGN": "Amgen",
+        "TXN": "Texas Instruments",
+        "ISRG": "Intuitive Surgical"
+    },
+    "priority": ["NVDA", "TSLA", "AAPL", "META", "PLTR", "AMZN", "GOOG", "BABA", "MSFT", "ORCL"],
+    "x_accounts": [
+        "elonmusk",
+        "unusual_whales",
+        "business",
+        "CNBC",
+        "realDonaldTrump"
+    ],
+    "feeds": {
+        "CNBC": "https://www.cnbc.com/id/100003114/device/rss/rss.html",
+        "CNBC Economy": "https://www.cnbc.com/id/20910258/device/rss/rss.html",
+        "CNBC Investing": "https://www.cnbc.com/id/15839069/device/rss/rss.html",
+        "CNBC Finance": "https://www.cnbc.com/id/10000664/device/rss/rss.html",
+        "MarketWatch": "https://feeds.marketwatch.com/marketwatch/topstories/",
+        "MarketWatch Live": "https://feeds.marketwatch.com/marketwatch/realtimeheadlines/",
+        "Yahoo Finance": "https://finance.yahoo.com/news/rssindex",
+        "Federal Reserve": "https://www.federalreserve.gov/feeds/press_all.xml",
+        "Bloomberg Markets": "https://feeds.bloomberg.com/markets/news.rss",
+        "Wall Street Journal": "https://feeds.a.dowjones.com/rss/RSSMarketsMain.xml",
+        "Nasdaq.com": "https://www.nasdaq.com/feed/rssoutbound?category=Markets",
+        "FXStreet": "https://www.fxstreet.com/rss/news",
+        "Investing.com": "https://www.investing.com/rss/news_25.rss",
+        "Seeking Alpha": "https://seekingalpha.com/market_currents.xml",
+        "Benzinga": "https://www.benzinga.com/feed",
+        "BBC Business": "https://feeds.bbci.co.uk/news/business/rss.xml",
+        "The Guardian Business": "https://www.theguardian.com/business/rss"
+    },
+    "topics": {
+        "Téma: Nasdaq": "Nasdaq 100",
+        "Téma: Fed": "Federal Reserve OR Powell",
+        "Téma: inflace": "inflation OR CPI",
+        "Téma: práce": "jobs report OR payrolls",
+        "Téma: cla": "tariffs OR trade war",
+        "Téma: AI akcie": "Nvidia OR semiconductors"
+    },
+    "people": {
+        "Elon Musk": "Elon Musk",
+        "Donald Trump": "Donald Trump (tariffs OR Fed OR stocks OR economy)",
+        "Unusual Whales": "Unusual Whales"
+    }
+}
+
+# ===== Stránky (nech být) =====
+STYLE_CSS = ':root{--bg:#080C1A;--ink:#EEF1FA;--muted:#C9D1E8;--rule:rgba(255,255,255,.09);--up:#2EE6A6;--down:#FF6B8A;--acc:#8B7CFF;--glass:rgba(255,255,255,.045);--field:rgba(255,255,255,.06);color-scheme:dark}\n*{box-sizing:border-box}\nbody{margin:0;min-height:100vh;color:var(--ink);font:15px/1.55 "IBM Plex Sans",system-ui,sans-serif;background:radial-gradient(1100px 560px at 12% -8%,rgba(139,124,255,.30),transparent 60%),radial-gradient(900px 520px at 95% 4%,rgba(46,230,166,.14),transparent 60%),var(--bg) fixed}\nmain{max-width:1000px;margin:0 auto;padding:28px 18px 72px}\nnav.top{display:flex;gap:8px;margin-bottom:26px}nav.top a{color:var(--muted);text-decoration:none;padding:7px 16px;border-radius:99px;border:1px solid transparent}\nnav.top a[aria-current]{background:var(--glass);color:var(--ink);border-color:var(--rule)}\nsection,.k{background:var(--glass);border:1px solid var(--rule);border-radius:18px;backdrop-filter:blur(10px)}\nsection{padding:20px 22px;margin-bottom:20px}[hidden]{display:none!important}\nh2{font-size:16px;font-weight:600;margin:0 0 14px}h3{font-size:14px;font-weight:600;margin:0 0 8px}\n.hero{display:flex;gap:24px;align-items:center;flex-wrap:wrap;border-color:rgba(139,124,255,.4);box-shadow:0 0 70px -24px rgba(139,124,255,.6)}.hero>div{flex:1 1 320px}\n.lede{font-size:clamp(34px,6vw,56px);font-weight:700;line-height:1.05;letter-spacing:-.02em;margin:0 0 14px}\n.lede.up{text-shadow:0 0 40px rgba(46,230,166,.4)}.lede.down{text-shadow:0 0 40px rgba(255,107,138,.4)}\n.facts{margin:0;padding-left:18px;color:var(--muted)}.facts li{margin:5px 0}.gauge{width:230px;max-width:100%}\n.chartbox{position:relative;height:280px}.chartbox.tall{height:480px}\n.xgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}\n.up{color:var(--up)}.down{color:var(--down)}.empty{color:var(--muted)}.n{text-align:right}.chg{font-weight:600}\n.wrap{overflow-x:auto}table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:14px}\nth,td{padding:10px 8px;border-bottom:1px solid var(--rule);text-align:left;white-space:nowrap;font-weight:400}\nthead th{color:var(--muted);font-size:13px}tbody th{font-weight:500}tbody tr:last-child>*{border-bottom:0}\nfooter{color:var(--muted);font-size:13px;max-width:64ch}a{color:inherit}\n:focus-visible{outline:2px solid var(--acc);outline-offset:2px}\n.head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:20px}\n.tabs{display:flex;gap:4px;padding:4px;background:var(--glass);border:1px solid var(--rule);border-radius:12px}\n.tabs button{background:transparent;color:var(--muted);box-shadow:none}.tabs button[aria-selected=true]{background:var(--acc);color:#fff}\n.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:20px}\n.k{padding:16px 18px}.k b{display:block;font-size:30px;font-weight:700;line-height:1.15;font-variant-numeric:tabular-nums}.k span{color:var(--muted);font-size:13px}\nsection .kpis{margin-bottom:0}\n.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}.cal .dow{color:var(--muted);font-size:12px;font-weight:400;text-align:center}\n.day{min-height:56px;padding:5px 7px;border:1px solid var(--rule);border-radius:10px;font-size:12px;font-variant-numeric:tabular-nums}\n.day span{display:block;color:var(--muted)}.day.up{background:rgba(46,230,166,.16)}.day.down{background:rgba(255,107,138,.16)}\n.calhead{display:flex;align-items:center;gap:12px;margin-bottom:12px}.calhead b{min-width:130px;text-align:center;font-weight:500}\n.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}\nlabel{display:block;font-size:13px;color:var(--muted)}\ninput,select,textarea,button{font:inherit;color:var(--ink)}\ninput,select,textarea{width:100%;margin-top:4px;padding:9px 11px;background:var(--field);border:1px solid var(--rule);border-radius:10px}\nselect option{background:#0C1124}\nbutton{padding:9px 16px;background:linear-gradient(135deg,#8B7CFF,#38BDF8);color:#fff;border:0;border-radius:10px;cursor:pointer;font-weight:600}\nbutton.ghost{background:transparent;color:var(--ink);border:1px solid var(--rule)}button.sm{padding:4px 10px;font-size:13px}\n.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.chip{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border:1px solid var(--rule);border-radius:99px;font-size:13px;color:var(--ink);cursor:pointer}\n.chip input{width:auto;margin:0}.chip:has(input:checked){background:var(--acc);border-color:var(--acc);color:#fff}\n.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:28px;margin-top:24px}\n.bar{display:grid;grid-template-columns:70px 1fr auto;gap:10px;align-items:center;font-size:13px;margin:6px 0;font-variant-numeric:tabular-nums}\n.bar span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.track{height:8px;background:var(--glass);border-radius:4px}.track i{display:block;height:100%;border-radius:4px;background:currentColor}\n.bar em{color:var(--muted);font-style:normal;font-weight:400}\ndialog{width:min(660px,94vw);max-height:92vh;overflow:auto;background:#0C1124;color:var(--ink);border:1px solid var(--rule);border-radius:18px;padding:24px}\ndialog::backdrop{background:rgba(0,0,0,.65)}.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}\n#view img{max-width:100%;margin-top:10px;border-radius:10px}#view p{white-space:pre-wrap}\n@media (max-width:560px){.hide{display:none}}\n\nmain{padding-top:20px}\n.app{display:flex;min-height:100vh}\n.side{position:sticky;top:0;align-self:flex-start;height:100vh;width:236px;flex:none;padding:22px 14px;border-right:1px solid var(--rule);background:rgba(7,11,20,.6);backdrop-filter:blur(12px)}\n.brand{font-weight:700;font-size:16px;padding:0 12px 20px;background:linear-gradient(90deg,#fff,#B3A9FF);-webkit-background-clip:text;background-clip:text;color:transparent}\n.side nav{display:flex;flex-direction:column;gap:4px}\n.side a{display:flex;gap:10px;align-items:center;padding:11px 12px;border-radius:12px;color:var(--muted);text-decoration:none;border:1px solid transparent;transition:.15s}\n.side a:hover{background:var(--glass);color:var(--ink)}\n.side a[aria-current]{background:linear-gradient(135deg,rgba(139,124,255,.38),rgba(56,189,248,.18));color:#fff;border-color:rgba(139,124,255,.5)}\n.content{flex:1;min-width:0}\n.pagehead{max-width:1000px;margin:0 auto;padding:30px 18px 0}.pagehead h1{margin:0;font-size:clamp(28px,4vw,40px);font-weight:700;letter-spacing:-.02em}.pagehead p{margin:4px 0 0;color:var(--muted)}\n.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}\n.tile{padding:12px 14px;border-radius:14px;border:1px solid var(--rule);transition:transform .15s,box-shadow .15s}\n.tile:hover{transform:translateY(-4px) scale(1.04);box-shadow:0 12px 30px -10px rgba(0,0,0,.7)}\n.tile b{display:block;font-size:15px}.tile span{display:block;font-size:12px;color:rgba(255,255,255,.7);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tile em{display:block;font-style:normal;font-weight:700;font-size:20px;margin-top:6px}\n.pills{display:flex;gap:6px;margin-bottom:12px}.pills button{padding:6px 14px;font-size:13px}.pill-off{background:transparent!important;border:1px solid var(--rule)!important;color:var(--muted)!important}\n.badge{display:inline-block;padding:3px 10px;border-radius:99px;font-size:12px;font-weight:700}.badge.up{background:rgba(46,230,166,.18)}.badge.down{background:rgba(255,107,138,.18)}.badge.warn{background:rgba(255,196,87,.22)}.bar.hr{grid-template-columns:104px 1fr auto}.wrap1 td:first-child{white-space:normal;min-width:170px}tr.now>td{background:rgba(139,124,255,.13)}.badge.now{background:rgba(139,124,255,.35);margin-left:6px}.bookbar{position:sticky;top:0;z-index:5;padding:10px 0 14px;margin-bottom:6px;background:linear-gradient(var(--bg) 75%,transparent)}.bookbar .tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.bookbar .tabs button{font-size:16px;padding:10px 12px;white-space:normal;line-height:1.25;text-align:center}@media(max-width:760px){.bookbar{position:static!important}.bookbar .tabs{grid-template-columns:1fr 1fr}.bookbar .tabs button{font-size:14px;padding:9px 8px}}.bkgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}.bkcard{border:1px solid var(--rule);border-radius:16px;padding:16px 18px;background:var(--glass)}.bkcard h3{margin:0 0 8px;font-size:18px}.bkcard ul{margin:0;padding-left:20px;line-height:1.6}.bkcard li{margin:5px 0}.badge.flat{background:var(--glass);color:var(--muted)}\n.xcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}.xc{padding:16px;border:1px solid var(--rule);border-radius:16px;background:var(--glass)}.xc p{margin:0 0 8px}\n.split{display:grid;grid-template-columns:260px 1fr;gap:24px;align-items:start}\n.note{padding:16px 18px;border-radius:14px;background:rgba(139,124,255,.12);border:1px solid rgba(139,124,255,.35)}\n@media (max-width:760px){.app{flex-direction:column}.side{position:static;height:auto;width:100%;padding:10px;border-right:0;border-bottom:1px solid var(--rule)}.brand{display:none}.side nav{flex-direction:row;overflow-x:auto}.side a{white-space:nowrap;padding:8px 12px}.split{grid-template-columns:1fr}}\n\n.bar{grid-template-columns:120px 1fr auto}.bar.wide{grid-template-columns:130px 140px 1fr}.bar.wide em{display:inline}\n.lede#cd{font-variant-numeric:tabular-nums}\n\n/* v8 */\n:root{--warn:#FFB454;--acc2:#38BDF8}\nbody{background:radial-gradient(1000px 520px at 10% -12%,rgba(139,124,255,.30),transparent 62%),radial-gradient(800px 480px at 96% 2%,rgba(56,189,248,.16),transparent 60%),radial-gradient(700px 500px at 50% 112%,rgba(244,114,182,.10),transparent 60%),var(--bg) fixed}\nsection,.k,.step{background:linear-gradient(160deg,rgba(255,255,255,.07),rgba(255,255,255,.025));border:1px solid rgba(255,255,255,.10);border-radius:20px;box-shadow:0 24px 50px -34px rgba(0,0,0,.9)}\nsection{padding:24px 26px;margin-bottom:22px}\nh2{font-size:17px;font-weight:600;margin:0 0 6px}.hint{color:var(--muted);margin:0 0 16px;font-size:14px;max-width:70ch}\nsection>h2:only-child{margin-bottom:14px}\n.hero{background:linear-gradient(135deg,rgba(139,124,255,.24),rgba(56,189,248,.08));border-color:rgba(139,124,255,.5);box-shadow:0 0 80px -28px rgba(139,124,255,.7)}\n.side{display:flex;flex-direction:column}.side nav{flex:1}\n.grp{margin:16px 0 4px;padding:0 12px;font-size:12px;color:var(--muted);opacity:.75}\n.clock{margin-top:14px;padding:14px;border-radius:16px;background:var(--glass);border:1px solid var(--rule);font-size:13px;color:var(--muted)}\n.clock b{display:block;margin:2px 0;font-size:24px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}\n.steps-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}\n.step{display:block;padding:16px 18px;text-decoration:none;color:var(--ink);transition:transform .15s,border-color .15s}\n.step:hover{transform:translateY(-3px);border-color:rgba(139,124,255,.7)}\n.step .num{display:inline-flex;width:26px;height:26px;border-radius:50%;align-items:center;justify-content:center;font-size:13px;font-weight:700;background:linear-gradient(135deg,#8B7CFF,#38BDF8);margin-bottom:8px}\n.step b{display:block;font-size:16px}.step span:last-child{color:var(--muted);font-size:13px}\na.tile{display:block;text-decoration:none;color:var(--ink);cursor:pointer}\n.k b{font-size:32px}\n.pagehead h1{background:linear-gradient(90deg,#fff,#C9C2FF);-webkit-background-clip:text;background-clip:text;color:transparent}\n.note{border-radius:16px}\n@media (max-width:760px){.clock{display:none}.grp{display:none}section{padding:18px}}\n\nhtml:not([data-theme=light]){--muted:#E4E9F8}\n.hint{font-size:15.5px}.empty{font-size:15px}.gl{padding:14px 16px}.gl b{font-size:17px;margin-bottom:3px}.gl span{font-size:15.5px;line-height:1.5;color:var(--ink)}\nbody::after{content:\'\';position:fixed;inset:0;z-index:-1;pointer-events:none;background:var(--bg);opacity:.38}\n.flow{display:grid;grid-template-columns:1fr;gap:12px}\n.fs{border:1px solid var(--rule);border-radius:14px;padding:14px 18px;background:var(--glass);display:grid;grid-template-columns:40px 1fr;column-gap:14px;align-items:start}\n.fs .no{display:inline-flex;width:34px;height:34px;border-radius:50%;background:var(--acc);color:#fff;font-weight:700;align-items:center;justify-content:center;grid-row:span 2}\n.fs h3{margin:0 0 4px;font-size:18px}.fs ul{margin:0;padding-left:20px;font-size:16px;line-height:1.55}.fs li{margin:4px 0}\n\nbody{font-size:16px}\nmain,.pagehead{max-width:1180px}\nsection{padding:26px 30px;margin-bottom:24px;border-radius:20px}.k{border-radius:20px}\nh2{font-size:19px;margin-bottom:16px}h3{font-size:15.5px}\n.kpis{grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px}.k{padding:20px 22px}\nth,td{padding:13px 10px;font-size:15px}thead th{font-size:13.5px}\nbutton{padding:11px 20px;font-size:15px}\n.side a{padding:12px 14px;font-size:15px}\n.pagehead h1{font-size:clamp(30px,4.2vw,44px)}\n@media(max-width:760px){section{padding:20px 18px}h2{font-size:18px}}\n.stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin:12px 0}.stat div{border:1px solid var(--line,#2a3350);border-radius:16px;padding:14px 16px}.stat b{display:block;font-size:26px}.stat span{opacity:.8;font-size:14px}\n#d-pb textarea{width:100%;min-height:90px}#d-pb label:not(.chip):not(.chk){display:block;margin-top:12px}#d-pb input[type=checkbox]{width:auto}.chk{display:flex;gap:8px;align-items:center;margin-top:12px}.pbpick{margin-top:14px;border:1px solid var(--line,#2a3350);border-radius:16px;padding:12px 16px}.pbpick summary{cursor:pointer;font-weight:700}.cfg b{display:block;margin-bottom:6px}\n.lb{border:0;background:#05070d;padding:12px 16px;max-width:98vw;max-height:98vh;width:98vw;height:98vh;color:#fff;box-sizing:border-box}.lb::backdrop{background:rgba(0,0,0,.92)}.lb img{display:block;margin:10px auto 0;max-width:100%;max-height:calc(98vh - 80px);object-fit:contain;cursor:zoom-out}.lbn{display:flex;justify-content:space-between;align-items:center;gap:12px}#vbody img,#slots img{cursor:zoom-in}\n.day.skipd{background:rgba(255,255,255,.05)}.skm{font-size:15px;opacity:.9}.skc{border:1px solid var(--rule,#2a3350);border-radius:16px;padding:14px 16px;margin:12px 0}.skc .slots{margin-top:8px}#sk-imgs .slot{position:relative}.skr{display:inline-block;padding:3px 10px;border-radius:999px;background:rgba(255,107,138,.18);color:#FF9DB0;font-size:13px;font-weight:700}\n.skc img,#sk-imgs img{cursor:zoom-in}\ndialog:not(.lb){width:min(1040px,96vw);max-height:94vh;padding:30px 34px;font-size:17px}dialog:not(.lb) label{font-size:16px}dialog:not(.lb) input,dialog:not(.lb) select,dialog:not(.lb) textarea{font-size:17px;padding:12px 14px}dialog:not(.lb) h2{font-size:26px}dialog:not(.lb) h3{font-size:19px}dialog:not(.lb) button{font-size:16px;padding:11px 18px}#skadd{font-size:16px;padding:12px 18px;border:1px solid var(--acc,#8b7cff)}\ndialog:not(.lb) select{font-size:17px!important;min-height:52px;padding:12px 14px!important;border-radius:12px}dialog:not(.lb) input:not([type=checkbox]):not([type=radio]){min-height:52px;box-sizing:border-box}dialog:not(.lb) p,dialog:not(.lb) li,dialog:not(.lb) .empty{font-size:17px;line-height:1.5}dialog:not(.lb) input[type=checkbox],dialog:not(.lb) input[type=radio]{width:22px;height:22px}.dp{position:fixed;z-index:2147483000;width:min(380px,94vw);background:#0C1124;color:#eef1ff;border:1px solid #3a4470;border-radius:18px;padding:16px;box-shadow:0 18px 50px rgba(0,0,0,.65);font-size:18px}.dp .dph{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}.dp .dph b{font-size:20px}.dp button{font:inherit;cursor:pointer;border:1px solid #3a4470;background:#161d3a;color:#eef1ff;border-radius:12px;padding:8px 14px;min-height:46px}.dp button:hover{background:#232c55}.dp .dpg{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}.dp .dpw{text-align:center;font-size:15px;color:#9aa4d0;padding:4px 0}.dp .dpd{padding:0;min-height:48px;font-size:18px;border-radius:12px}.dp .dpd.o{opacity:.35}.dp .dpd.t{border-color:#8b7cff}.dp .dpd.s{background:linear-gradient(135deg,#8b7cff,#2bb4ff);color:#fff;border-color:transparent;font-weight:700}.dp .dpf{display:flex;justify-content:space-between;margin-top:10px}\n.moreb{display:block;width:100%;margin:10px 0 0;padding:14px;font-size:17px;font-weight:700;border:1px dashed var(--rule,#3a4470);background:rgba(139,124,255,.08);color:inherit;border-radius:14px;cursor:pointer}.moreb:hover{background:rgba(139,124,255,.18)}tr[hidden]{display:none}\n.selw{position:relative}.selb{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;box-sizing:border-box;min-height:52px;padding:12px 14px;font:inherit;font-size:17px;text-align:left;color:inherit;background:rgba(255,255,255,.06);border:1px solid var(--rule,#3a4470);border-radius:12px;cursor:pointer}.selb:disabled{opacity:.5}.selb:hover{border-color:#8b7cff}.selm{position:fixed;z-index:2147483000;max-height:min(60vh,520px);overflow:auto;background:#0C1124;color:#eef1ff;border:1px solid #3a4470;border-radius:16px;padding:8px;box-shadow:0 18px 50px rgba(0,0,0,.65)}.selm button{display:block;width:100%;text-align:left;font:inherit;font-size:18px;padding:14px 16px;min-height:52px;border:0;border-radius:12px;background:transparent;color:inherit;cursor:pointer}.selm button:hover{background:#232c55}.selm button.on{background:linear-gradient(135deg,#8b7cff,#2bb4ff);color:#fff;font-weight:700}.selm .selg{padding:10px 16px 4px;font-size:14px;color:#9aa4d0;text-transform:uppercase;letter-spacing:.05em}.bkbar{position:sticky;top:0;z-index:5000;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:12px;padding:12px 16px;background:#5a3a12;color:#fff3dc;font-size:17px;border-bottom:1px solid #b9812c}.bkbar a,.bkbar button{font:inherit;font-weight:700;color:#fff;background:#b9812c;border:0;border-radius:10px;padding:8px 16px;text-decoration:none;cursor:pointer}.bkbar button{background:transparent;border:1px solid #d7a54f}\n.dayc{cursor:pointer}.dayc:hover,.dayc:focus-visible{border-color:#8b7cff;background:rgba(139,124,255,.14);outline:0}.dl{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px;border:1px solid var(--rule,#2a3350);border-radius:14px;margin:10px 0;font-size:17px}\n.vact{display:flex;flex-wrap:nowrap;gap:12px;align-items:stretch;margin-top:18px}.vact button{flex:1;min-height:58px;font-size:17px;margin:0}.vact .vdel{flex:2;border-color:#FF6B8A;color:#FF9DB0}.vact .vdel:hover{background:rgba(255,107,138,.18)}.vact .vback{flex:1}dialog#view:has(.vact)>.row{display:none}\n.vact .vdel{flex:1}.vact [data-vclose]{flex:2}\n.langbtn{margin-top:10px}.langmenu{position:fixed;z-index:2147483000;min-width:300px;width:244px;overflow:auto;background:#0C1124;color:#eef1ff;border:1px solid #3a4470;border-radius:16px;padding:8px;box-shadow:0 18px 50px rgba(0,0,0,.65)}.langmenu[hidden]{display:none}.langmenu button{display:flex;align-items:center;gap:10px;width:100%;text-align:left;font:inherit;font-size:16px;padding:12px 14px;min-height:50px;border:0;border-radius:12px;background:transparent;color:inherit;cursor:pointer}.langmenu button:hover{background:#232c55}.langmenu button.on{background:linear-gradient(135deg,#8b7cff,#2bb4ff);color:#fff;font-weight:700}.langmenu small{opacity:.7;font-weight:400;font-size:13px}.skiptranslate>iframe,.goog-te-banner-frame,#goog-gt-tt,.goog-te-balloon-frame{display:none!important}body{top:0!important}.goog-text-highlight{background:none!important;box-shadow:none!important}\n'
+
+STYLE_CSS += ".tile.mine{border-color:rgba(139,124,255,.8);box-shadow:inset 0 0 0 1px rgba(139,124,255,.4)}"
+
+JOURNAL_HTML = '<!doctype html>\n<html lang="cs"><head><meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n<title>Deník obchodů</title>\n<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">\n<link rel="stylesheet" href="style.css?v=89"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}window.TDux=function(){try{var u=JSON.parse(localStorage.getItem("ux")||"{}"),c="",F={sys:"-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif",read:"Atkinson Hyperlegible,Verdana,sans-serif",serif:"Newsreader,Georgia,serif",round:"Nunito,Arial Rounded MT Bold,sans-serif",mono:"JetBrains Mono,Menlo,Consolas,monospace"},G={read:"Atkinson+Hyperlegible:wght@400;700",round:"Nunito:wght@400;600;700;800",mono:"JetBrains+Mono:wght@400;600;700"};if(F[u.f]){c+="body,body *{font-family:"+F[u.f]+"!important}";if(G[u.f]&&!document.getElementById("uxf-"+u.f)){var l=document.createElement("link");l.id="uxf-"+u.f;l.rel="stylesheet";l.href="https://fonts.googleapis.com/css2?family="+G[u.f]+"&display=swap";document.head.appendChild(l)}}if(u.z&&u.z!=1)c+="html{zoom:"+u.z+"}";var A={blue:["#38BDF8","#6366F1"],green:["#2EE6A6","#0EA5E9"],orange:["#FFB547","#FF6B8A"],pink:["#F472B6","#8B7CFF"],gold:["#E8C26A","#B9812C"],red:["#FF6B8A","#B91C1C"]};if(A[u.a])c+=":root{--acc:"+A[u.a][0]+"!important}button{background-image:linear-gradient(135deg,"+A[u.a][0]+","+A[u.a][1]+")}h2::before,.side a.on,.side a[aria-current]{border-color:"+A[u.a][0]+"!important}";if(u.bg===0)c+="body::before,body::after{background-image:none!important;opacity:0!important}";if(u.an===0)c+="*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}";if(u.lh)c+="p,li,td,.hint,.facts li{line-height:1.8!important}";if(u.b)c+="body{font-weight:500}b,strong,h1,h2,h3{font-weight:800!important}";var s=document.getElementById("uxs")||document.createElement("style");s.id="uxs";s.textContent=c;document.head.appendChild(s)}catch(e){}};TDux();document.addEventListener("DOMContentLoaded",TDux);</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><style>\n#f .grid{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}#f .grid>label{min-width:0}#f select,#f input{width:100%;min-width:0;text-overflow:ellipsis}#f input[type=checkbox]{width:auto;flex:none;margin:0}#f .chip{white-space:nowrap;display:inline-flex}\n#f .sec{margin:20px 0 8px;padding-top:12px;border-top:1px solid var(--rule);font-size:16px}#f .sec:first-of-type{border-top:0;margin-top:6px;padding-top:0}\n#f label em{font-style:normal;color:var(--acc);font-weight:600}\n.mdl{margin-top:14px;border:1px solid var(--rule);border-radius:14px;padding:10px 14px}.mdl summary{cursor:pointer;font-weight:600}.mdl h4{margin:14px 0 6px;font-size:14px}\n.qt{margin:10px 0;padding:8px 12px;border-left:3px solid var(--acc);color:var(--muted);font-style:italic}\n.cfgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}.cfg{border:1px solid var(--rule);border-radius:12px;padding:8px 10px}.cfg b{display:block;margin-bottom:4px;font-size:13px}\n.cfr{display:flex;align-items:center;gap:6px;justify-content:space-between;padding:3px 0;font-size:13px}.cfr>span{flex:1;min-width:0}.cfr .chip{padding:2px 9px}\n.slots{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}.slot{border:2px dashed var(--rule);border-radius:12px;padding:8px;min-height:130px;display:flex;flex-direction:column;gap:6px;font-size:13px;outline:0}\n.slot.on{border-color:var(--acc);background:rgba(139,124,255,.08)}.slot img{max-width:100%;max-height:150px;object-fit:contain;border-radius:8px}.slot input{font-size:12px}\n.tt td{white-space:nowrap}.tt td.act{white-space:normal;min-width:190px}.tt td.act div{display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end}.tt td{vertical-align:middle}@media(max-width:900px){.tt td.act{position:sticky;right:0;background:#0C1124;min-width:150px}html[data-theme=light] .tt td.act{background:#fff}}\n.guide{margin:0 0 14px;border:1px solid var(--rule);border-radius:14px;padding:12px 16px;background:var(--glass)}.guide summary{cursor:pointer;font-weight:600}.guide h3{margin:14px 0 4px;font-size:15px}.guide ol,.guide ul{margin:4px 0 0;padding-left:22px}.guide li{margin:3px 0}\n</style>\n<style>.cal{grid-template-columns:repeat(5,1fr) 1.3fr}.day b{display:block;font-size:13px;font-weight:600;white-space:nowrap}.day.wk{background:rgba(139,124,255,.14);border-color:rgba(139,124,255,.45)}.day.wk em{font-style:normal;font-size:12px;color:var(--muted)}.day.wk.up b{color:var(--up)}.day.wk.down b{color:var(--down)}@media(max-width:560px){.day b{font-size:11px}.cal{gap:3px}}</style>\n<style>\n.tz main{font-size:16px}.tz .p{padding:26px 28px;border-radius:20px}.tz .p h2{font-size:19px;margin-bottom:12px}\n.tz .tabs button{padding:11px 20px;font-size:15px}.tz #add{padding:13px 24px;font-size:16px;border-radius:14px}\n.dash{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin-bottom:18px}\n.tile{border:1px solid var(--rule);border-radius:20px;padding:20px 22px;background:var(--glass);display:flex;flex-direction:column;gap:6px;min-height:150px}\n.tile h3{margin:0;font-size:13px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600}\n.tile .big{font-size:36px;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums}.tile .sub{font-size:14px;color:var(--muted)}\n.tile .rw{display:flex;align-items:center;gap:16px}.tile svg.ring{width:92px;height:92px;flex:none}.ring text{fill:var(--ink);font:700 22px "IBM Plex Sans",sans-serif}\n.tile .badges2{display:flex;gap:6px;flex-wrap:wrap}.bdg{padding:3px 10px;border-radius:99px;font-size:13px;font-weight:600}.bdg.up{background:rgba(46,230,166,.16)}.bdg.down{background:rgba(255,107,138,.16)}.bdg.n{background:rgba(255,255,255,.1);text-align:left}\n.hb{height:12px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden;margin:3px 0}.hb i{display:block;height:100%;border-radius:99px}\n.dgrid{display:grid;grid-template-columns:1.45fr 1fr;gap:18px}.dgrid .chartbox{height:290px!important}@media(max-width:1100px){.dgrid{grid-template-columns:1fr}}\n.day{min-height:84px;padding:9px 11px;font-size:14px;border-radius:12px}.day b{font-size:15px!important}.cal{gap:8px}\n.tt td,.tt th{padding:15px 10px;font-size:15px}.tt tr.rowlink{cursor:pointer}.tt tr.rowlink:hover td{background:rgba(255,255,255,.05)}.tt tr.win td:first-child{box-shadow:inset 4px 0 var(--up)}.tt tr.loss td:first-child{box-shadow:inset 4px 0 var(--down)}\n.tt .pl{font-weight:700;font-size:16px}.tt input[type=checkbox]{width:18px;height:18px}\n.bulk{display:none;gap:10px;align-items:center;flex-wrap:wrap;padding:12px 16px;margin-bottom:12px;border:1px solid var(--acc);border-radius:14px;background:rgba(139,124,255,.12)}\n#view{width:min(1040px,96vw)}#view .vh{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:flex-start;margin-bottom:14px}#view .vh h2{font-size:24px;margin:0 0 4px}\n#view .vpl{font-size:34px;font-weight:700;text-align:right}#view .vpl small{display:block;font-size:15px;font-weight:500;color:var(--muted)}\n#view .tags{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}#view .shots{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:14px}#view .shots img{width:100%;border-radius:12px;border:1px solid var(--rule)}#view .shots h3{margin:0 0 6px;font-size:14px;color:var(--muted)}\n#view .dash{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}#view .dash .tile{min-height:0;padding:12px 14px}#view .dash .big{font-size:22px}#view .k{padding:12px 14px}#view .k b{font-size:20px;line-height:1.2}\n@media(max-width:700px){#view .shots{grid-template-columns:1fr}.tile .big{font-size:30px}}\n</style>\n</head>\n<body class="bg-diary tz"><div class="app">@@SIDEBAR@@<div class="content"><header class="pagehead"><h1>Deník obchodů</h1><p>Tvoje obchody, statistiky a poučení</p></header><main>\n<div class="head"><div class="tabs" role="tablist">\n<button role="tab" data-tab="over" aria-selected="true">Přehled</button><button role="tab" data-tab="trades" aria-selected="false">Obchody</button><button role="tab" data-tab="rep" aria-selected="false">Reporty</button><button role="tab" data-tab="ai" aria-selected="false">Analýza</button><button role="tab" data-tab="disc" aria-selected="false">Disciplína</button></div>\n<div class="row" style="margin:0"><button id="skadd" type="button" class="ghost">🚫 Den bez obchodu</button><button id="add" type="button">+ Přidat obchod</button></div></div>\n\n<div id="t-over"><section class="p why"><h2>Proč to všechno dělám</h2><p style="margin:0;font-size:16px">Dělám to pro sebe, a dělají to všichni úspěšní tradeři. A chci být jako oni, tak dělám to, co dělají oni.</p></section>\n<div id="bk"></div><div class="dash" id="kpis"></div>\n<div class="dgrid"><section class="p"><h2>Vývoj zisku</h2><div id="curve"></div></section>\n<section class="p"><h2>Výsledek po dnech</h2><div class="chartbox"><canvas id="c-day"></canvas></div></section></div>\n<section class="p" id="sk-sec"><h2>Dny bez obchodu</h2><p class="hint">Dny, kdy jsi obchod nevzal, protože podmínky nebyly dobré. U každého je fotka grafu.</p><div id="sk-stats"></div><div id="sk-list"></div></section>\n<section class="p"><div class="calhead"><button class="ghost sm" onclick="mv(-1)" aria-label="Předchozí měsíc">‹</button><b id="calt"></b><button class="ghost sm" onclick="mv(1)" aria-label="Další měsíc">›</button><span id="calsum"></span></div><div class="cal" id="cal"></div></section></div>\n\n<div id="t-trades" hidden><section class="p"><h2>Otevřené pozice</h2><div id="open"></div></section>\n<section class="p"><h2>Všechny obchody</h2><div class="bulk" id="bulk">Vybráno: <b id="bn">0</b><select id="bstrat"></select><button type="button" id="bapply">Nastavit strategii</button><button type="button" class="ghost" id="bdel">Smazat vybrané</button></div><div id="list"></div>\n<div class="row"><button class="ghost" id="exp" type="button">Zálohovat do souboru</button><button class="ghost" id="imp" type="button">Obnovit ze zálohy</button><input id="impf" type="file" accept="application/json" hidden></div>\n<p class="empty">Obchody se ukládají jen v tomto prohlížeči na tomto zařízení. Zálohuj je pravidelně.</p></section></div>\n\n<div id="t-rep" hidden><section class="p"><h2>Filtry</h2><div class="grid" id="flt">\n<label>Od<input type="date" id="f-from"></label><label>Do<input type="date" id="f-to"></label>\n<label>Symbol<select id="f-sym"></select></label><label>Směr<select id="f-dir"><option value="">Oba</option><option value="long">Long</option><option value="short">Short</option></select></label>\n<label>Výsledek<select id="f-res"><option value="">Všechny</option><option value="w">Výhry</option><option value="l">Prohry</option></select></label><label>Strategie<select id="f-str"></select></label></div>\n<div class="chips" id="f-emo"></div><div class="row"><button class="ghost sm" id="f-reset" type="button">Reset</button></div></section>\n<section class="p"><h2>Souhrn filtrovaných obchodů</h2><div class="kpis" id="rsum"></div>\n<div class="two" id="rbars"></div></section></div>\n<div id="t-ai" hidden>\n<section class="p"><h2>Hodnocení tvého obchodování</h2><p class="hint">Hodnotí pravidla v prohlížeči zdarma, bez umělé inteligence. Pro hlubší rozbor zmáčkni tlačítko dole a vlož data do chatu s Claudem.</p><div id="coach"></div></section>\n<section class="p"><div class="two"><div><h2>Skóre tradera</h2><div class="chartbox" style="height:300px"><canvas id="c-radar"></canvas></div></div>\n<div><h2>S trendem a proti trendu</h2><div id="trendbars"></div><h2 style="margin-top:18px">S fundamentem a proti němu</h2><p class="hint">Porovnává tvůj směr s ranním biasem, který robot uložil ten den.</p><div id="alignbars"></div></div></div></section>\n<section class="p"><h2>Roční přehled</h2><div class="chartbox" style="height:240px"><canvas id="c-year"></canvas></div><div id="yeartab" style="margin-top:12px"></div></section>\n<section class="p"><h2>Účty</h2><div id="accbars"></div></section>\n<section class="p"><h2>Import a data pro Claude</h2><div class="row"><button class="ghost" id="csvb" type="button">Importovat obchody z CSV</button><input id="csvf" type="file" accept=".csv,text/csv" hidden><button id="cp" type="button">Zkopírovat data pro Claude</button></div>\n<p class="empty">CSV musí mít hlavičku se sloupci: datum, symbol, smer, kontrakty, vstup, vystup, stop (stop je nepovinný). Zkopírovaná data vlož do chatu na claude.ai a napiš: „Rozeber mi můj deník.“</p><p id="cpmsg" class="empty"></p></section></div>\n<div id="t-disc" hidden><section class="p"><h2>Tiltmeter: křivka účtu a dodržování plánu</h2><div id="d-tilt"></div></section><section class="p"><h2>Cena obchodů mimo plán</h2><div id="d-leak"></div></section><section class="p"><h2>Emoce a chyby v penězích</h2><div id="d-emoc"></div></section><section class="p"><h2>Zmeškané obchody (čekání je taky výsledek)</h2><div id="d-miss"></div></section><section class="p"><h2>Rozbor týdne</h2><div id="d-rev"></div></section><section class="p"><h2>Strategie a konfluence</h2><div id="d-pb"></div></section></div>\n</main></div></div>\n\n<dialog id="dlg"><form id="f"><h2 id="dt">Nový obchod</h2><input type="hidden" name="id">\n<h3 class="sec">1. Zápis obchodu: vstup</h3>\n<div class="grid">\n<label>Otevřeno: den<input name="od" type="date" required></label><label>Otevřeno: čas<input name="ot" type="time" required></label>\n<label>Instrument<input name="inst" value="MNQ" required></label><label>Směr<select name="dir"><option value="long">Long</option><option value="short">Short</option></select></label>\n<label>Počet mikro kontraktů<input name="size" type="number" step="1" min="1" value="1"></label><label>Vzdálenost stopu (body)<input id="sd" type="number" step="any" value="35"></label><input name="pv" type="hidden">\n<label id="tfw">Timeframe vstupu<select name="tfm"><option value="">–</option><option value="1m">1 minuta</option><option value="2m">2 minuty</option><option value="3m">3 minuty</option><option value="5m">5 minut</option><option value="15m">15 minut</option></select></label>\n<label>Typ vstupu<select name="otype"><option value="">–</option><option value="market">Market</option><option value="limit">Limit</option><option value="stop">Stop (průraz)</option></select></label><label>Vstup (cena)<input name="entry" type="number" step="any" required></label>\n<label>Stop loss<input name="stop" type="number" step="any" required></label>\n<label>Take profit 1 <em id="r1"></em><input name="target" type="number" step="any" required></label><label>Take profit 2 <em id="r2"></em><input name="target2" type="number" step="any"></label>\n<label>Strategie<select name="strat" id="strat"></select></label><label>Trend dne<select name="trend"><option value="">–</option><option value="with">S trendem</option><option value="against">Proti trendu</option></select></label><label>Účet<input name="acc" value="Hlavní" list="accs"></label></div>\n<p class="empty" id="tfnote" style="margin:6px 0 0;display:none">Nejnižší timeframe je 1 minuta. Timeframey 15 s a 30 s tu nejsou, protože v minulosti je TradingView nezobrazí.</p><p class="empty" id="pbnote" style="margin:6px 0 0"></p><p class="empty" style="margin:4px 0 0">Strategii i s jejími podmínkami a konfluencemi si nastavíš v záložce Disciplína → Strategie. Po jejím výběru se checklist vyplní sám.</p><datalist id="accs"></datalist>\n<p class="empty" id="entrynote" style="margin:8px 0 0"></p><div class="note" id="rr" style="margin-top:12px">Zadej vstupní cenu a stop loss i oba take profity se doplní samy.</div>\n<details class="mdl" open><summary>Vstupní model: checklist (co platilo při vstupu)</summary>\n<blockquote class="qt">Každý vstup musí být v souladu s tvojí celkovou obchodní strategií a pravidly řízení rizika. Bez výjimek!</blockquote>\n<h4>Podmínky pro vstup</h4><div class="chips" id="d-cond"></div>\n<h4>Konfluence: u každého bodu vyber Pro nebo Proti</h4><div class="cfgrid" id="d-conf"></div><div class="note" id="cfsum"></div></details>\n<h3 class="sec">2. Výsledek obchodu</h3>\n<div class="grid">\n<label>Výsledek obchodu<select name="outc"><option value="">Zatím otevřeno</option><option value="sl">Stop loss</option><option value="be">Break even</option><option value="tp1">Celá pozice na TP1</option><option value="tp1be">TP1 + break even</option><option value="tp1tp2">TP1 + TP2</option><option value="tp1trail">TP1 + TP2 trail</option><option value="other">Jiný výstup (zadám cenu)</option></select></label>\n<label id="n1w" style="display:none">Kolik kontraktů vyšlo na TP1<input name="n1" type="number" step="1" min="1"></label>\n<label id="trw" style="display:none">Kde skončil zbytek (cena trailing stopu)<input name="trp" type="number" step="any"></label>\n<label id="exw" style="display:none">Výstupní cena<input name="exit" type="number" step="any"></label>\n<label>Zavřeno: den<input name="cd" type="date"></label><label>Zavřeno: čas<input name="ct" type="time"></label></div>\n<div class="note" id="outnote" style="margin-top:10px;display:none"></div>\n<div class="grid" style="margin-top:12px"><label>Dodržel jsem plán?<select name="plan"><option value="">–</option><option value="ano">Ano</option><option value="ne">Ne</option></select></label><label>Hodnocení obchodu<select name="rate"><option value="">–</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></label></div><label style="margin-top:12px">Chyby</label><div class="chips" id="d-mis"></div>\n<label style="margin-top:12px">Emoce</label><div class="chips" id="d-emo"></div>\n<label style="margin-top:12px">Poznámky<textarea name="notes" rows="3"></textarea></label>\n<h3 class="sec">3. Screenshoty</h3>\n<p class="empty" style="margin:0 0 8px">Klikni na rámeček a vlož obrázek přes Ctrl+V (nebo ⌘V), přetáhni soubor, nebo vyber soubor.</p>\n<div class="slots" id="slots"></div>\n<div class="row"><button type="button" class="ghost sm" id="ocr">🔍 Vyčíst ceny ze screenshotu (experiment)</button></div>\n<p class="empty" id="shotinfo"></p>\n<div class="row"><button type="submit">Uložit</button><button type="button" class="ghost" id="cancel">Zrušit</button></div></form></dialog>\n<dialog id="skd"><form id="skf"><h2 id="skh">Den bez obchodu</h2>\n<p class="empty" id="skp">Obchod jsi nevzal, protože podmínky byly špatné. Fotka grafu je povinná: uvidíš, že price action opravdu byla špatná.</p>\n<div class="grid"><label>Den<input name="date" type="date" required></label><label>Důvod<select name="reason" id="skr"></select></label></div>\n<div id="nbw" style="display:none"><p class="note" style="margin:0 0 10px">⏳ <b>Nenabralo</b> = setup byl dobrý, ale cena nedošla na tvůj vstup. Když jsi ten den pak vzal jiný obchod, zapiš ho normálně přes „+ Přidat obchod“. V kalendáři uvidíš obojí.</p><div class="grid"><label>Kolik bodů chybělo do vstupu<input name="miss" type="number" step="any" min="0" placeholder="např. 3"></label><label>Směr<select name="nbdir"><option value="long">Long</option><option value="short">Short</option></select></label><label>Výsledek (co by obchod udělal)<select name="would"><option value="">Nevím</option><option value="tp">TP</option><option value="sl">SL</option><option value="be">BE</option></select></label><label>Čas (nepovinný)<input name="nbt" type="time"></label></div></div>\n<label>Poznámka (nepovinná)<textarea name="note" rows="2" placeholder="např. celý den úzký rozsah, žádný CISD"></textarea></label>\n<h3 class="sec">Fotky grafu (aspoň jedna, nejvíc 4)</h3>\n<p class="empty" style="margin:0 0 8px">Vlož přes Ctrl+V (⌘V), přetáhni soubor, nebo vyber soubory.</p>\n<div class="slots" id="sk-imgs"></div>\n<div class="row"><label class="ghost sm" style="cursor:pointer;padding:9px 14px;border:1px solid var(--rule,#2a3350);border-radius:12px">📎 Vybrat fotky<input type="file" id="sk-file" accept="image/*" multiple hidden></label></div>\n<p class="empty" id="sk-msg" style="color:#FF9DB0"></p>\n<div class="row"><button type="submit">Uložit</button><button type="button" class="ghost" id="skcancel">Zrušit</button></div></form></dialog>\n<dialog id="view"><div id="vbody"></div><div class="row"><button class="ghost" onclick="this.closest(\'dialog\').close()">Zavřít</button></div></dialog>\n\n<script>\nif (window.Chart) { const LIGHT = document.documentElement.getAttribute("data-theme") === "light"; Chart.defaults.color = LIGHT ? "#3B4668" : "#C9D1E8"; Chart.defaults.borderColor = LIGHT ? "rgba(20,30,70,.12)" : "rgba(255,255,255,.07)"; Chart.defaults.font.family = \'"IBM Plex Sans",system-ui,sans-serif\'; }\nif (window.Chart) Chart.register({id: "cross", afterDraw(c) { if (c.config.type === "line" && c.tooltip && c.tooltip._active && c.tooltip._active.length) { const x = c.tooltip._active[0].element.x, a = c.chartArea, g = c.ctx; g.save(); g.beginPath(); g.moveTo(x, a.top); g.lineTo(x, a.bottom); g.lineWidth = 1; g.strokeStyle = "rgba(255,255,255,.28)"; g.setLineDash([4, 4]); g.stroke(); g.restore(); } }});\nconst BT = false; let calSet = false;\nconst S = "trades", EMO = [["😌","Klid"],["💪","Sebevědomí"],["🏃","FOMO"],["🤑","Chamtivost"],["😨","Strach"],["😡","Revenge"],["⏱️","Netrpělivost"],["😕","Nejistota"],["🤯","Tilt"],["😴","Nuda"]];\nconst MIS = ["Brzký vstup","Pozdní vstup","Přesunutý stop","Předčasný výstup","Přeobchodování","Bez setupu","Bez korelace s ES","Uzavřel skrz BE","Vstup mezi 18. a 19. hodinou","FOMO","Revenge obchod","Moc velká pozice"];\nconst lsGet = k => { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } };\nconst PV = {NQ:20, MNQ:2, ES:50, MES:5, YM:5, MYM:0.5};\nlet touched = {}, dist = null, dayc = null, eq = null, db, shots = [], calD = new Date(), E = Object.create(null);\nconst $ = id => document.getElementById(id), sum = a => a.reduce((x, y) => x + y, 0);\nconst esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",\'"\':"&quot;"}[c]));\nconst nf = (x, d = 0) => x.toLocaleString("cs-CZ", {maximumFractionDigits: d});\nconst sg = (x, d = 0) => (x >= 0 ? "+" : "\\u2212") + nf(Math.abs(x), d), usd = x => sg(x) + "\\u00a0$", cl = x => x >= 0 ? "up" : "down";\nconst localNow = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); };\n\nconst open = () => new Promise((res, rej) => { const r = indexedDB.open("journal", 1);\n  r.onupgradeneeded = () => r.result.createObjectStore(S, {keyPath: "id", autoIncrement: true}); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });\nconst tx = (m, f) => new Promise((res, rej) => { const t = db.transaction(S, m), o = f(t.objectStore(S)); t.oncomplete = () => res(o && o.result); t.onerror = () => rej(t.error); });\n\nconst dir = t => t.dir === "short" ? -1 : 1, when = t => t.opened || t.date + "T00:00", day = t => when(t).slice(0, 10);\nconst imgs = t => [...Object.values(t.slots || {}).filter(Boolean), ...(t.shots || (t.shot ? [t.shot] : []))];\nconst pnl = t => t.exit == null ? null : (t.exit - t.entry) * dir(t) * (t.size || 1) * (t.pv || PV[t.inst] || 1) - (t.fee || 0);\nconst risk = t => Math.abs(t.entry - t.stop);\nconst real = t => (t.exit != null && risk(t)) ? (t.exit - t.entry) * dir(t) / risk(t) : null;\nconst plan = t => risk(t) ? Math.abs(t.target - t.entry) / risk(t) : null;\n\nfunction st(list) {\n  const d = list.filter(t => pnl(t) !== null).sort((a, b) => when(a).localeCompare(when(b))), p = d.map(pnl);\n  const w = p.filter(x => x > 0), l = p.filter(x => x < 0), net = sum(p);\n  let c = 0, pk = 0, dd = 0, ws = 0, ls = 0, mw = 0, ml = 0;\n  p.forEach(x => { c += x; pk = Math.max(pk, c); dd = Math.min(dd, c - pk);\n    if (x > 0) { ws++; ls = 0; } else if (x < 0) { ls++; ws = 0; } else ws = ls = 0; mw = Math.max(mw, ws); ml = Math.max(ml, ls); });\n  const days = {}, dayN = {}; d.forEach(t => { days[day(t)] = (days[day(t)] || 0) + pnl(t); dayN[day(t)] = (dayN[day(t)] || 0) + 1; }); Object.defineProperty(days, "_n", {value: dayN, enumerable: false});\n  const dv = Object.values(days), rs = d.map(real).filter(x => x !== null);\n  const hs = d.filter(t => t.closed && t.opened).map(t => (new Date(t.closed) - new Date(t.opened)) / 60000);\n  return {d, p, n: d.length, net, win: w.length, loss: l.length, be: p.length - w.length - l.length, days,\n    wr: d.length ? w.length / d.length * 100 : null, pf: l.length ? sum(w) / Math.abs(sum(l)) : null,\n    avgW: w.length ? sum(w) / w.length : 0, avgL: l.length ? sum(l) / l.length : 0, exp: d.length ? net / d.length : 0,\n    avgR: rs.length ? sum(rs) / rs.length : null, best: p.length ? Math.max(...p) : 0, worst: p.length ? Math.min(...p) : 0,\n    dd, mw, ml, dayWin: dv.length ? dv.filter(x => x > 0).length / dv.length * 100 : null, hold: hs.length ? sum(hs) / hs.length : null};\n}\nconst K = (v, l) => `<div class="k"><b>${v}</b><span>${l}</span></div>`;\nconst dash = "–";\n\nfunction over(trades) {\nfunction dg(el,v,big,sub,word,cls,cap){var a=Math.max(-1,Math.min(1,v))*80;el.innerHTML=`<div class="gbox"><svg class="gauge" viewBox="0 0 200 110"><defs><linearGradient id="gd"><stop offset="0" stop-color="#FF6B8A"/><stop offset=".5" stop-color="#C9D1E8"/><stop offset="1" stop-color="#2EE6A6"/></linearGradient></defs><path d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke="url(#gd)" stroke-width="14" stroke-linecap="round"/><g transform="rotate(${a} 100 100)"><line x1="100" y1="100" x2="100" y2="34" stroke="#EEF1FA" stroke-width="3" stroke-linecap="round"/></g><circle cx="100" cy="100" r="6" fill="#EEF1FA"/></svg><div class="gnum ${cls}">${big}<span> ${sub}</span></div><div class="gword ${cls}">${word}</div><div class="gcap">${cap}</div></div>`;}  const s = st(trades);\n  const ring = (pct, col, mid) => { const p = Math.max(0, Math.min(100, pct || 0)), C = 2 * Math.PI * 44; return `<svg class="ring" viewBox="0 0 110 110"><circle cx="55" cy="55" r="44" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="11"/><circle cx="55" cy="55" r="44" fill="none" stroke="${col}" stroke-width="11" stroke-linecap="round" stroke-dasharray="${C * p / 100} ${C}" transform="rotate(-90 55 55)"/><text x="55" y="63" text-anchor="middle">${mid}</text></svg>`; };\n  const aw = s.avgW, al = Math.abs(s.avgL), mxw = Math.max(aw, al, 1), sc3 = s.n >= 3 ? grade(score(s, s.d)) : null;\n  $("kpis").innerHTML =\n    `<div class="tile"><h3>Čistý výsledek</h3><div class="big ${cl(s.net)}">${usd(s.net)}</div><div class="sub">${s.n} obchodů celkem</div><div class="badges2"><span class="bdg up">${s.win} výher</span><span class="bdg down">${s.loss} proher</span><span class="bdg n">${s.be} BE</span></div></div>` +\n    `<div class="tile"><h3>Úspěšnost</h3><div class="rw">${ring(s.wr, "#2EE6A6", s.wr == null ? dash : nf(s.wr, 0) + "%")}<div class="sub">výhry z uzavřených obchodů<br>Série výher ${s.mw}, proher ${s.ml}</div></div></div>` +\n    `<div class="tile"><h3>Profit factor</h3><div class="rw">${ring(s.pf == null ? 0 : s.pf / 3 * 100, "#8B7CFF", s.pf == null ? dash : nf(s.pf, 2))}<div class="sub">součet zisků ÷ součet ztrát<br>Nad 1,5 je dobré</div></div></div>` +\n    `<div class="tile"><h3>Ø výhra a ztráta</h3><div class="sub">Výhra <b class="up">${usd(aw)}</b></div><div class="hb"><i style="width:${aw / mxw * 100}%;background:var(--up)"></i></div><div class="sub">Ztráta <b class="down">${usd(-al)}</b></div><div class="hb"><i style="width:${al / mxw * 100}%;background:var(--down)"></i></div></div>` +\n    `<div class="tile"><h3>Ziskové dny</h3><div class="rw">${ring(s.dayWin, "#38BDF8", s.dayWin == null ? dash : nf(s.dayWin, 0) + "%")}<div class="sub">dnů v plusu<br>Průměrné R: ${s.avgR == null ? dash : sg(s.avgR, 2)}</div></div></div>` +\n    `<div class="tile"><h3>Maximální drawdown</h3><div class="big down">${usd(s.dd)}</div><div class="sub">Nejlepší ${usd(s.best)}<br>Nejhorší ${usd(s.worst)}</div></div>` +\n    `<div class="tile"><h3>Skóre tradera</h3>${sc3 ? `<div class="rw">${ring(sc3[1], "#FBBF24", sc3[0])}<div class="sub">${nf(sc3[1], 0)} ze 100<br>Detail v záložce Analýza</div></div>` : \'<div class="sub">Přidej aspoň 3 uzavřené obchody.</div>\'}</div>`;\n  if (eq) { eq.destroy(); eq = null; }\n  $("curve").innerHTML = s.n < 2 ? \'<p class="empty">Graf se zobrazí od dvou uzavřených obchodů.</p>\' : \'<div class="chartbox"><canvas id="c-eq"></canvas></div>\';\n  if (s.n >= 2 && window.Chart) { let c = 0; const cum = s.p.map(x => c += x);\n    eq = new Chart($("c-eq"), {type: "line", data: {labels: s.d.map(t => day(t)), datasets: [{data: cum, borderColor: "#8B7CFF", borderWidth: 2, tension: .3, fill: true, pointRadius: 0, pointHoverRadius: 5,\n      backgroundColor: x => { const g = x.chart.ctx.createLinearGradient(0, 0, 0, x.chart.height); g.addColorStop(0, "rgba(139,124,255,.35)"); g.addColorStop(1, "rgba(139,124,255,0)"); return g; }}]},\n      options: {maintainAspectRatio: false, interaction: {mode: "index", intersect: false}, plugins: {legend: {display: false}, tooltip: {callbacks: {label: x => "Celkem " + usd(x.parsed.y), afterLabel: x => "Tento obchod: " + usd(s.p[x.dataIndex])}}},\n      scales: {x: {ticks: {maxTicksLimit: 6}, grid: {display: false}}, y: {ticks: {callback: v => nf(v) + " $"}}}}}); }\n  dayChart(s);\n  const y = calD.getFullYear(), m = calD.getMonth(), pre = `${y}-${String(m + 1).padStart(2, "0")}`, off = (new Date(y, m, 1).getDay() + 6) % 7;\n  let h = ["Po","Út","St","Čt","Pá"].map(d => `<b class="dow">${d}</b>`).join("") + \'<b class="dow">Týden</b>\' + "<i></i>".repeat(off < 5 ? off : 0), tot = 0, nd = new Date(y, m + 1, 0).getDate();\n  const val = d => s.days[`${pre}-${String(d).padStart(2, "0")}`];\n  for (let d = 1; d <= nd; d++) { const v = val(d), dow = (off + d - 1) % 7; if (v != null) tot += v;\n    if (dow > 4) continue;\n    const ds_ = `${pre}-${String(d).padStart(2, "0")}`, nb_ = (typeof SK !== "undefined" ? SK : []).filter(r => r.date === ds_ && r.reason === "Nenabralo").length, sk_ = v == null && SKD.has(ds_); h += `<div class="day${(v != null || sk_) ? " dayc" : ""} ${v == null ? (sk_ ? "skipd" : "") : cl(v)}"${(v != null || sk_) ? ` data-day="${pre}-${String(d).padStart(2, "0")}" tabindex="0" title="Klikni a otevři obchod"` : ""}><span>${d}</span>${v == null ? (sk_ ? (nb_ && !(typeof SK !== "undefined" ? SK : []).some(r => r.date === ds_ && r.reason !== "Nenabralo") ? \'<b class="skm" title="Nenabralo">⏳</b><em>nenabralo\' + (nb_ > 1 ? " " + nb_ + "×" : "") + \'</em>\' : \'<b class="skm" title="Den bez obchodu">🚫</b>\') : "") : "<b>" + usd(v) + "</b>" + ((n_ => n_ ? "<em>" + n_ + (n_ === 1 ? " obchod" : n_ < 5 ? " obchody" : " obchodů") + "</em>" : "")((s.days._n || {})[`${pre}-${String(d).padStart(2, "0")}`]) + (nb_ ? "<em style=\'display:block;color:#F5B94A\'>⏳ nenabralo" + (nb_ > 1 ? " " + nb_ + "×" : "") + "</em>" : ""))}</div>`;\n    if (dow === 4 || d === nd) { if (dow < 4) h += "<i></i>".repeat(4 - dow); let ws = 0, wn = 0;\n      for (let k = Math.max(1, d - dow); k <= Math.min(nd, d - dow + 6); k++) { const x = val(k); if (x != null) { ws += x; wn++; } }\n      h += `<div class="day wk ${wn ? cl(ws) : ""}"><span>Týden</span>${wn ? "<b>" + usd(ws) + "</b><em>" + wn + (wn === 1 ? " den" : wn < 5 ? " dny" : " dní") + "</em>" : ""}</div>`; } }\n  $("cal").innerHTML = h; $("calt").textContent = calD.toLocaleString("cs-CZ", {month: "long", year: "numeric"});\n  $("calsum").innerHTML = `<span class="${cl(tot)}">${usd(tot)}</span>`;\n}\nfunction dayChart(s) {\n  if (dayc) { dayc.destroy(); dayc = null; }\n  const k = Object.keys(s.days).sort();\n  if (!window.Chart || !$("c-day") || !k.length) return;\n  dayc = new Chart($("c-day"), {type: "bar", data: {labels: k, datasets: [{data: k.map(d => s.days[d]), borderRadius: 6, hoverBackgroundColor: "#8B7CFF", backgroundColor: k.map(d => s.days[d] >= 0 ? "#2EE6A6" : "#FF6B8A")}]},\n    options: {maintainAspectRatio: false, plugins: {legend: {display: false}, tooltip: {callbacks: {label: x => usd(x.parsed.y)}}}, scales: {x: {ticks: {maxTicksLimit: 8}, grid: {display: false}}, y: {ticks: {callback: v => nf(v) + " $"}}}}});\n}\nconst mv = n => { calD = new Date(calD.getFullYear(), calD.getMonth() + n, 1); render(); };\n\nconst emoStr = t => (t.emo || []).map(e => (EMO.find(x => x[1] === e) || [""])[0]).join("");\nconst OUTL = {sl: "Stop loss", be: "Break even", tp1: "TP1", tp1be: "TP1 + BE", tp1tp2: "TP1 + TP2", tp1trail: "TP1 + TP2 trail", other: "Vlastní výstup"};\nfunction table(rows, isOpen) {\n  if (!rows.length) return `<p class="empty">${isOpen ? "Žádná otevřená pozice." : "Zatím žádný obchod. Přidej první tlačítkem nahoře."}</p>`;\n  const head = isOpen ? ["Otevřeno", "Obchod", "Vstup", "Stop", "TP1", "TP2"] : ["Otevřeno", "Obchod", "Vstup", "Výstup", "Net P&amp;L", "R"], ck = isOpen ? "" : \'<th><input type="checkbox" data-selall></th>\';\n  return `<div class="wrap"><table class="tt"><thead><tr>${ck}${head.map((h, i) => `<th${i > 1 ? \' class="n"\' : ""}>${h}</th>`).join("")}<th></th></tr></thead><tbody>` +\n  rows.map(t => { const p = pnl(t), r = real(t);\n    const who = `${esc(t.inst)} ${t.dir === "short" ? "Short" : "Long"} ×${nf(t.size || 1, 0)}` + (t.tfm ? ` <span class="empty">${t.tfm}</span>` : "") + (!isOpen && t.outc ? ` <span class="empty">${OUTL[t.outc] || ""}</span>` : "") + (!isOpen && (t.emo || t.strat) ? `<br><span class="empty">${emoStr(t)} ${esc(t.strat || "")}</span>` : "");\n    return `<tr class="rowlink ${isOpen ? "" : p > 0 ? "win" : p < 0 ? "loss" : ""}" data-a="view" data-id="${t.id}">${isOpen ? "" : `<td><input type="checkbox" data-sel="${t.id}"></td>`}<td>${esc(when(t).slice(0, 10))}<br><span class="empty">${esc(when(t).slice(11, 16))}</span></td><td>${who}</td><td class="n">${nf(t.entry, 2)}</td>` +\n    (isOpen ? `<td class="n">${nf(t.stop, 2)}</td><td class="n">${nf(t.target, 2)} <span class="empty">(1:${nf(plan(t) || 0, 1)})</span></td><td class="n">${t.target2 != null ? nf(t.target2, 2) + \' <span class="empty">(1:\' + nf(Math.abs(t.target2 - t.entry) / (risk(t) || 1), 1) + ")</span>" : dash}</td>`\n      : `<td class="n">${nf(t.exit, 2)}</td><td class="n ${cl(p)}"><span class="pl">${usd(p)}</span></td><td class="n">${r == null ? dash : sg(r, 2) + "R"}</td>`) +\n    `<td class="act"><div><button class="ghost sm" data-a="view" data-id="${t.id}">${imgs(t).length ? "📷 " + imgs(t).length : "Detail"}</button>` +\n    `<button class="ghost sm" data-a="edit" data-id="${t.id}">Upravit</button>` +\n    (isOpen ? `<button class="sm" data-a="close" data-id="${t.id}">Uzavřít</button>` : "") +\n    `<button class="ghost sm" data-a="del" data-id="${t.id}">Smazat</button></div></td></tr>`; }).join("") + "</tbody></table></div>";\n}\n\nfunction bars(title, groups) {\n  const rows = groups.map(([k, ts]) => { const s = st(ts); return {k, net: s.net, n: s.n, wr: s.wr}; }).filter(r => r.n);\n  const mx = Math.max(1, ...rows.map(r => Math.abs(r.net)));\n  return `<div><h3>${title}</h3>` + (rows.length ? rows.map(r => `<div class="bar"><span>${esc(r.k)}</span><div class="track ${cl(r.net)}"><i style="width:${Math.abs(r.net) / mx * 100}%"></i></div><b class="${cl(r.net)}">${usd(r.net)} <em>${r.n}× · ${nf(r.wr)} %</em></b></div>`).join("") : \'<p class="empty">Žádná data.</p>\') + "</div>";\n}\nfunction reports() {\n  const g = id => $(id).value, em = [...document.querySelectorAll("#f-emo input:checked")].map(i => i.value);\n  const list = ALL.filter(t => pnl(t) !== null && (!g("f-from") || day(t) >= g("f-from")) && (!g("f-to") || day(t) <= g("f-to")) &&\n    (!g("f-sym") || t.inst === g("f-sym")) && (!g("f-dir") || t.dir === g("f-dir")) && (!g("f-str") || t.strat === g("f-str")) &&\n    (!g("f-res") || (g("f-res") === "w" ? pnl(t) > 0 : pnl(t) < 0)) && em.every(e => (t.emo || []).includes(e)));\n  const s = st(list);\n  $("rsum").innerHTML = K(`<span class="${cl(s.net)}">${usd(s.net)}</span>`, "Net P&L") + K(s.n, "Obchody") + K(s.wr == null ? dash : nf(s.wr, 1) + "\\u00a0%", "Úspěšnost") +\n    K(s.pf == null ? dash : nf(s.pf, 2), "Profit factor") + K(s.avgR == null ? dash : sg(s.avgR, 2) + "R", "Průměrné R") + K(usd(s.exp), "Expectancy na obchod") +\n    K(usd(s.best), "Nejlepší") + K(usd(s.worst), "Nejhorší") + K(s.mw, "Série výher") + K(s.ml, "Série proher") + K(nf(s.avgW) + " $", "Prům. výhra") + K(s.hold == null ? dash : nf(s.hold, 0) + " min", "Prům. délka");\n  const hr = t => new Date(when(t)).getHours(), wd = t => (new Date(when(t)).getDay() + 6) % 7;\n  $("rbars").innerHTML = bars("Podle hodiny otevření", [...Array(24).keys()].map(h => [String(h).padStart(2, "0") + ":00", list.filter(t => hr(t) === h)])) +\n    bars("Podle dne v týdnu", ["Po","Út","St","Čt","Pá","So","Ne"].map((n, i) => [n, list.filter(t => wd(t) === i)])) +\n    bars("Podle emoce", EMO.map(([i, n]) => [i + " " + n, list.filter(t => (t.emo || []).includes(n))])) +\n    bars("Podle strategie", [...new Set(list.map(t => t.strat).filter(Boolean))].map(n => [n, list.filter(t => t.strat === n)])) +\n    bars("Podle dodržení plánu", [["Dodržel plán", list.filter(t => t.plan === "ano")], ["Nedodržel plán", list.filter(t => t.plan === "ne")]]) +\n    bars("Podle chyby", MIS.map(n => [n, list.filter(t => (t.mis || []).includes(n))]));\n}\n\nlet ALL = [];\nasync function render() {\n  ALL = await tx("readonly", s => s.getAll());\n  if (BT && !calSet && ALL.length) { const l = [...ALL].map(day).sort().pop(); calD = new Date(+l.slice(0, 4), +l.slice(5, 7) - 1, 1); calSet = true; }\n  const rows = [...ALL].sort((a, b) => when(b).localeCompare(when(a)));\n  over(ALL);\n  $("open").innerHTML = table(rows.filter(t => t.exit == null), true);\n  $("list").innerHTML = table(rows.filter(t => t.exit != null), false);\n  const keep = [$("f-sym").value, $("f-str").value], opt = (a, all) => `<option value="">${all}</option>` + a.map(x => `<option>${esc(x)}</option>`).join("");\n  const strs = [...new Set(ALL.map(t => t.strat).filter(Boolean))];\n  $("f-sym").innerHTML = opt([...new Set(ALL.map(t => t.inst))], "Všechny"); $("f-str").innerHTML = opt(strs, "Všechny");\n  $("f-sym").value = keep[0]; $("f-str").value = keep[1];\n  $("accs").innerHTML = [...new Set(ALL.map(t => t.acc).filter(Boolean))].map(s => `<option value="${esc(s)}">`).join("");\n  reports();\n}\n\nconst chips = (box, name) => $(box).innerHTML = EMO.map(([i, n]) => `<label class="chip"><input type="checkbox" ${name ? `name="${name}"` : ""} value="${n}">${i} ${n}</label>`).join("");\nchips("d-emo", "emo"); $("d-mis").innerHTML = MIS.map(n => `<label class="chip"><input type="checkbox" name="mis" value="${n}">${n}</label>`).join(""); chips("f-emo");\ndocument.querySelectorAll(".tabs button").forEach(b => b.onclick = () => {\n  document.querySelectorAll(".tabs button").forEach(x => x.setAttribute("aria-selected", x === b));\n  ["over", "trades", "rep", "ai", "disc"].forEach(k => $("t-" + k).hidden = k !== b.dataset.tab); if (b.dataset.tab === "ai") analysis(); });\n$("flt").addEventListener("input", reports); $("f-emo").addEventListener("input", reports);\n$("f-reset").onclick = () => { document.querySelectorAll("#flt input,#flt select").forEach(i => i.value = ""); document.querySelectorAll("#f-emo input").forEach(i => i.checked = false); reports(); };\n\nconst SLOTS = [["tf", "Timeframe, na kterém jsem obchod vzal"], ["m1", "1 minuta"], ["m5", "5 minut"], ["m15", "15 minut"]];\nconst ENTRY = [["Základní", ["ES divergence", "wOpen", "dOpen", "Trend", "Stocks"]], ["Indikátory", ["VWAP", "RSI – cross / div"]], ["HTF – 1H", ["OB", "FVG / iFVG / BPR", "VRVP / SVP"]], ["LTF – 1/3/5min", ["FVG / iFVG / BPR", "CISD"]]];\nconst CONDS = ["Killzone – NY seance", "Max 1 % risk", "Max. 1 SL tento den"];\nlet slotsD = {}, curSlot = null, slotUrls = [];\nlet curConds = CONDS;\nconst stratOf = n => LS.get("jr:pb", []).find(p => p.name.toLowerCase() === String(n || "").trim().toLowerCase());\nfunction buildList(name, conf, cond, saved) {\n  const p = stratOf(name), cs_ = p && p.conds && p.conds.length ? [...p.conds] : [...CONDS];\n  const gr = (p && p.groups && p.groups.length ? p.groups : ENTRY).map(([g, a]) => [g, a.map(n => [g + "|" + n, n])]);\n  (cond || []).forEach(c => { if (!cs_.includes(c)) cs_.push(c); });\n  const known = new Set(); gr.forEach(([g, a]) => a.forEach(x => known.add(x[0])));\n  const extra = Object.keys(conf || {}).filter(k => !known.has(k));\n  if (extra.length) gr.push(["Dříve zapsané", extra.map(k => [k, k.split("|").slice(1).join("|") || k])]);\n  curConds = cs_;\n  $("d-cond").innerHTML = cs_.map(n => `<label class="chip"><input type="checkbox" name="cond" value="${esc(n)}">${esc(n)}</label>`).join("");\n  $("d-conf").innerHTML = gr.map(([g, a]) => `<div class="cfg"><b>${esc(g)}</b>` + a.map(([k, n]) => `<div class="cfr"><span>${esc(n)}</span><label class="chip"><input type="checkbox" data-cf="${esc(k)}" data-v="pro">Pro</label><label class="chip"><input type="checkbox" data-cf="${esc(k)}" data-v="proti">Proti</label></div>`).join("") + "</div>").join("");\n  document.querySelectorAll("#d-cond input").forEach(i => i.checked = (cond || []).includes(i.value));\n  document.querySelectorAll("#d-conf input").forEach(i => i.checked = (conf || {})[i.dataset.cf] === i.dataset.v);\n  if (!saved && p && p.pre !== false && ((p.conds && p.conds.length) || (p.groups && p.groups.length))) {\n    document.querySelectorAll("#d-cond input").forEach(i => i.checked = true);\n    document.querySelectorAll(\'#d-conf input[data-v="pro"]\').forEach(i => i.checked = true);\n  }\n  confSum();\n}\nfunction onStrat(v, isNew) {\n  buildList(v, {}, [], false);\n  const p = stratOf(v), fe = $("f").elements;\n  if (p && p.def && isNew) { if (p.def.tfm) fe.tfm.value = p.def.tfm; if (p.def.otype) fe.otype.value = p.def.otype; if (p.def.size) fe.size.value = p.def.size;\n    if (p.def.stop) { $("sd").value = p.def.stop; $("sd").dispatchEvent(new Event("input")); } }\n}\nfunction confGet() { const o = {}; document.querySelectorAll("#d-conf input:checked").forEach(i => o[i.dataset.cf] = i.dataset.v); return o; }\nfunction confSum() {\n  const c = confGet(), v = Object.values(c), pro = v.filter(x => x === "pro").length, con = v.length - pro, ck = [...document.querySelectorAll("[name=cond]:checked")].length;\n  $("cfsum").innerHTML = `Souhrnný počet konfluencí: Pro <b>${pro}</b> · Proti <b>${con}</b> · Celkově <b class="${cl(pro - con)}">${sg(pro - con)}</b>. Podmínky: <b>${ck} ze ${curConds.length}</b> splněno.`;\n}\n$("d-conf").addEventListener("change", e => { const i = e.target; if (i.checked) document.querySelectorAll(`#d-conf input[data-cf="${i.dataset.cf}"]`).forEach(o => { if (o !== i) o.checked = false; }); confSum(); });\n$("d-cond").addEventListener("change", confSum);\nfunction fillStrat(cur) {\n  const names = [...new Set([...LS.get("jr:pb", []).map(p => p.name), ...ALL.map(t => t.strat)].filter(Boolean))];\n  if (cur && !names.includes(cur)) names.push(cur);\n  $("strat").innerHTML = \'<option value="">– vyber –</option>\' + names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join("") + \'<option value="__new__">➕ Nová strategie…</option>\';\n  $("strat").value = cur || ""; $("strat").dispatchEvent(new Event("input"));\n}\n$("strat").addEventListener("change", () => { if ($("strat").value !== "__new__") { onStrat($("strat").value, !$("f").elements.id.value); return; }\n  const n = (prompt("Název nové strategie (například Silver Bullet)?") || "").trim();\n  if (n) { const P = LS.get("jr:pb", []); if (!P.some(p => p.name.toLowerCase() === n.toLowerCase())) { P.push({name: n, desc: "", rules: ""}); LS.set("jr:pb", P); try { disc(); } catch (x) {} } fillStrat(n); } else fillStrat(""); });\nfunction drawSlots() {\n  slotUrls.forEach(u => URL.revokeObjectURL(u)); slotUrls = [];\n  $("slots").innerHTML = SLOTS.map(([k, n]) => { const b = slotsD[k]; let u = ""; if (b) { u = URL.createObjectURL(b); slotUrls.push(u); }\n    return `<div class="slot${curSlot === k ? " on" : ""}" data-slot="${k}" tabindex="0"><b>${n}</b>` + (b ? `<img src="${u}" alt="${n}"><button type="button" class="ghost sm" data-sx="${k}">Smazat</button>` : `<span class="empty">Klikni sem a vlož Ctrl+V</span><input type="file" accept="image/*" data-sf="${k}">`) + "</div>"; }).join("");\n  const c = Object.values(slotsD).filter(Boolean).length + shots.length; $("shotinfo").textContent = c ? c + " screenshotů připraveno." : "";\n}\nfunction putSlot(file, k) { k = k || curSlot || (SLOTS.find(x => !slotsD[x[0]]) || [])[0]; if (!k) { shots.push(file); } else { slotsD[k] = file; curSlot = (SLOTS.find(x => !slotsD[x[0]]) || [])[0] || null; } drawSlots(); }\n$("slots").addEventListener("click", e => { const x = e.target.closest("[data-sx]"); if (x) { delete slotsD[x.dataset.sx]; drawSlots(); return; }\n  const s = e.target.closest(".slot"); if (s) { curSlot = s.dataset.slot; document.querySelectorAll("#slots .slot").forEach(o => o.classList.toggle("on", o === s)); } });\n$("slots").addEventListener("change", e => { const k = e.target.dataset.sf; if (k && e.target.files[0]) putSlot(e.target.files[0], k); });\n$("slots").addEventListener("dragover", e => e.preventDefault());\n$("slots").addEventListener("drop", e => { e.preventDefault(); const f = [...e.dataTransfer.files].find(f => f.type.startsWith("image/")), s = e.target.closest(".slot"); if (f) putSlot(f, s ? s.dataset.slot : null); });\ndocument.addEventListener("paste", e => { const f = [...(e.clipboardData?.files || [])].filter(f => f.type.startsWith("image/"));\n  if ($("dlg").open && f.length) { e.preventDefault(); f.forEach(x => putSlot(x)); } });\n\nconst pvOf = () => PV[$("f").elements.inst.value.toUpperCase()] || 1;\nfunction outcome() {\n  const f = $("f").elements, oc = f.outc.value, e = parseFloat(f.entry.value), s = parseFloat(f.stop.value), t1 = parseFloat(f.target.value), t2 = parseFloat(f.target2.value), size = Math.max(1, parseInt(f.size.value) || 1);\n  if (!oc) return null;\n  const ok = x => isNaN(x) ? null : {exit: x};\n  if (oc === "sl") return ok(s); if (oc === "be") return ok(e); if (oc === "tp1") return ok(t1); if (oc === "other") return ok(parseFloat(f.exit.value));\n  let n1 = parseInt(f.n1.value); if (isNaN(n1)) n1 = Math.max(1, Math.floor(size / 2)); n1 = Math.min(Math.max(1, n1), size);\n  const rest = size - n1, rp = oc === "tp1be" ? e : oc === "tp1trail" ? parseFloat(f.trp.value) : t2;\n  if (isNaN(t1) || (rest > 0 && isNaN(rp))) return null;\n  return {exit: (n1 * t1 + rest * (rest ? rp : 0)) / size, n1, rest, rp};\n}\nfunction outUI() {\n  const fe = $("f").elements, oc = fe.outc.value, size = Math.max(1, parseInt(fe.size.value) || 1), note = $("outnote");\n  $("n1w").style.display = (oc === "tp1be" || oc === "tp1tp2" || oc === "tp1trail") ? "" : "none"; $("trw").style.display = oc === "tp1trail" ? "" : "none"; $("exw").style.display = oc === "other" ? "" : "none";\n  fe.n1.placeholder = "např. " + Math.max(1, Math.floor(size / 2)); fe.n1.max = size;\n  if (!oc) { note.style.display = "none"; return; } note.style.display = "";\n  const o = outcome(); if (!o) { note.textContent = "Doplň vstup, stop a take profity (u vlastního výstupu a u trailu i cenu), ať jde výsledek spočítat."; return; }\n  const e = parseFloat(fe.entry.value), s = parseFloat(fe.stop.value), sgn = fe.dir.value === "short" ? -1 : 1, p = (o.exit - e) * sgn * size * pvOf(), r = e === s ? null : (o.exit - e) * sgn / Math.abs(e - s);\n  let txt = "";\n  if (o.rest === 0) txt = "Celá pozice vyšla na TP1. ";\n  else if (o.rest != null) txt = `Na TP1 vyšlo ${o.n1} ks (${nf(parseFloat(fe.target.value), 2)}), zbylých ${o.rest} ks ${oc === "tp1be" ? "na break even (vstup " + nf(e, 2) + ")" : (oc === "tp1trail" ? "vystopováno na " + nf(o.rp, 2) : "na TP2 (" + nf(o.rp, 2) + ")")}. `;\n  note.innerHTML = txt + `Průměrná výstupní cena ${nf(o.exit, 2)}, výsledek <b class="${cl(p)}">${usd(p)}</b>${r == null ? "" : " (" + sg(r, 2) + " R)"}.`;\n}\nif (!BT) $("tfw").style.display = "none"; else $("tfnote").style.display = "";\nconst nowT = () => localNow().slice(11, 16);\nfunction dlg(t, toOut) {\n  const f = $("f"), fe = f.elements; f.reset();\n  shots = t ? [...(t.shots || (t.shot ? [t.shot] : []))] : []; slotsD = t && t.slots ? {...t.slots} : {}; curSlot = null;\n  touched = t ? {target: 1, target2: 1} : {}; dist = t ? (Math.abs(t.entry - t.stop) || null) : null; $("sd").value = lsGet("defStop35") || 35;\n  $("dt").textContent = t ? "Upravit obchod" : "Nový obchod";\n  const o = t ? when(t) : (BT ? (LS.get("bt:lastd", "") + "T") : localNow()); fe.od.value = o.slice(0, 10); fe.ot.value = o.slice(11, 16); fe.acc.value = lsGet("lastAcc") || "Hlavní";\n  fillStrat(t ? t.strat : "");\n  if (t) { for (const k of ["id","inst","dir","size","pv","entry","stop","target","target2","plan","rate","notes","trend","acc","otype","tfm"]) fe[k].value = t[k] ?? "";\n    if (t.exit != null) { fe.outc.value = t.outc || "other"; fe.n1.value = t.n1 ?? ""; fe.trp.value = t.trp ?? ""; if (fe.outc.value === "other") fe.exit.value = t.exit; }\n    if (t.closed) { fe.cd.value = t.closed.slice(0, 10); fe.ct.value = t.closed.slice(11, 16); }\n    f.querySelectorAll(\'[name=emo]\').forEach(c => c.checked = (t.emo || []).includes(c.value));\n    f.querySelectorAll(\'[name=mis]\').forEach(c => c.checked = (t.mis || []).includes(c.value));\n    f.querySelectorAll(\'[name=cond]\').forEach(c => c.checked = (t.cond || []).includes(c.value));\n    buildList(t.strat, t.conf, t.cond, true); }\n  if (!t) { if (!fe.strat.value) { const ls = LS.get("lastStrat" + (BT ? "bt" : "jr"), ""); if (ls && stratOf(ls)) fillStrat(ls); } onStrat(fe.strat.value, true); }\n  confSum(); drawSlots(); rr(); $("dlg").showModal(); entryAuto = false; $("entrynote").textContent = ""; if (!t) fillEntry();\n  if (toOut) { fe.outc.focus(); fe.outc.scrollIntoView({block: "center"}); }\n}\n$("add").onclick = () => dlg(); $("cancel").onclick = () => $("dlg").close();\n(function () {\n  const lb = document.createElement("dialog"); lb.id = "lb"; lb.className = "lb";\n  lb.innerHTML = \'<div class="lbn"><b id="lbt"></b><span><button type="button" class="ghost sm" id="lbp">‹ Předchozí</button> <button type="button" class="ghost sm" id="lbn">Další ›</button> <button type="button" class="sm" id="lbx">Zavřít ✕</button></span></div><img id="lbi" alt="">\';\n  document.body.appendChild(lb);\n  let list = [], idx = 0;\n  const show = () => { const im = list[idx]; $("lbi").src = im.src; $("lbt").textContent = (im.alt || "Screenshot") + (list.length > 1 ? "  (" + (idx + 1) + " z " + list.length + ")" : ""); };\n  const go = d => { if (list.length < 2) return; idx = (idx + d + list.length) % list.length; show(); };\n  document.addEventListener("click", e => {\n    const im = e.target.closest && e.target.closest("#vbody img, #slots img, .skc img, #sk-imgs img");\n    if (im) { list = [...im.closest("#vbody, #slots, .skc, #sk-imgs").querySelectorAll("img")]; idx = Math.max(0, list.indexOf(im)); show(); lb.showModal(); return; }\n    if (!lb.open) return; const id = e.target.id;\n    if (id === "lbp") go(-1); else if (id === "lbn") go(1); else if (id === "lbx" || id === "lbi" || e.target === lb) lb.close();\n  });\n  document.addEventListener("keydown", e => { if (!lb.open) return; if (e.key === "ArrowLeft") go(-1); else if (e.key === "ArrowRight") go(1); });\n})();\n$("f").onsubmit = async e => {\n  e.preventDefault(); const f = e.target.elements, n = k => f[k].value === "" ? null : parseFloat(f[k].value), oc = f.outc.value, o = outcome();\n  if (oc && !o) { alert("Doplň vstup, stop a take profity (u vlastního výstupu i cenu), ať jde spočítat výsledek."); return; }\n  const closed = oc ? (f.cd.value || (BT ? f.od.value : localNow().slice(0, 10))) + "T" + (f.ct.value || (BT ? (f.ot.value || "00:00") : nowT())) : null;\n  const t = {opened: f.od.value + "T" + (f.ot.value || "00:00"), closed, inst: f.inst.value.toUpperCase(), dir: f.dir.value, size: n("size") || 1, pv: n("pv"), otype: f.otype.value,\n    entry: n("entry"), stop: n("stop"), target: n("target"), target2: n("target2"), exit: o ? o.exit : null, outc: oc, n1: o && o.n1 != null ? o.n1 : null, trp: oc === "tp1trail" ? n("trp") : null, tfm: f.tfm.value,\n    strat: f.strat.value === "__new__" ? "" : f.strat.value, trend: f.trend.value, acc: f.acc.value.trim() || "Hlavní", notes: f.notes.value,\n    emo: [...e.target.querySelectorAll("[name=emo]:checked")].map(c => c.value), plan: f.plan.value, rate: n("rate"),\n    mis: [...e.target.querySelectorAll("[name=mis]:checked")].map(c => c.value), cond: [...e.target.querySelectorAll("[name=cond]:checked")].map(c => c.value), conf: confGet(), slots: slotsD, shots};\n  if (f.id.value) t.id = parseInt(f.id.value);\n  LS.set("lastStrat" + (BT ? "bt" : "jr"), t.strat || ""); if (BT) LS.set("bt:lastd", f.od.value); try { localStorage.setItem("lastAcc", JSON.stringify(t.acc)); } catch (x) {} await tx("readwrite", s => s.put(t)); $("dlg").close(); render();\n};\nfunction pickLevels(text, dir) {\n  const raw = (String(text).match(/\\d{4,6}(?:[.,]\\d{1,2})?/g) || []).map(x => parseFloat(x.replace(",", "."))).filter(x => x > 1000);\n  if (!raw.length) return {found: []};\n  const srt = [...raw].sort((a, b) => a - b), med = srt[Math.floor(srt.length / 2)];\n  const found = [...new Set(raw.filter(x => Math.abs(x - med) / med < 0.03))].sort((a, b) => a - b);\n  if (found.length < 3 || found.length > 4) return {found};\n  const a = dir === "short" ? [...found].reverse() : found;\n  return {found, stop: a[0], entry: a[1], tp1: a[2], tp2: a[3] ?? null};\n}\n$("ocr").onclick = async () => {\n  const b = slotsD.tf || slotsD.m1 || slotsD.m5 || slotsD.m15 || shots[0], info = $("shotinfo");\n  if (!b) { info.textContent = "Nejdřív vlož screenshot."; return; }\n  info.textContent = "Čtu čísla ze screenshotu… při prvním použití se stahuje čtečka, chvíli to trvá.";\n  try {\n    if (!window.Tesseract) await new Promise((ok, no) => { const s = document.createElement("script"); s.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"; s.onload = ok; s.onerror = () => no(new Error("load")); document.head.appendChild(s); });\n    const w = await Tesseract.createWorker("eng"); await w.setParameters({tessedit_char_whitelist: "0123456789.,", tessedit_pageseg_mode: "11"});\n    const r = await w.recognize(b); await w.terminate(); const fe = $("f").elements, res = pickLevels(r.data.text, fe.dir.value);\n    if (res.stop == null) { info.textContent = res.found.length ? "Našel jsem tato čísla: " + res.found.join(", ") + ". Nepodařilo se je spolehlivě přiřadit, vyplň ceny ručně." : "Na screenshotu jsem nenašel žádné ceny. Vyplň je ručně."; return; }\n    fe.entry.value = res.entry; fe.stop.value = res.stop; fe.target.value = res.tp1; touched.stop = touched.target = 1; dist = Math.abs(res.entry - res.stop);\n    if (res.tp2 != null) { fe.target2.value = res.tp2; touched.target2 = 1; } else { touched.target2 = 0; fe.target2.value = rnd(res.entry + (fe.dir.value === "short" ? -1 : 1) * 2.5 * dist); }\n    entryAuto = false; $("entrynote").textContent = "Ceny jsou vyčtené ze screenshotu (experiment). Zkontroluj je!"; rr(); info.textContent = "Hotovo. Vstup, stop a cíle jsou vyplněné, zkontroluj je.";\n  } catch (x) { info.textContent = "Čtečka se nepodařila načíst (je potřeba internet). Vyplň ceny ručně."; }\n};\n\ndocument.addEventListener("click", async e => {\n  if (e.target.closest("input,select,label")) return; const b = e.target.closest("[data-a]"); if (!b) return; const t = ALL.find(x => x.id == b.dataset.id), a = b.dataset.a;\n  if ($("view").open && (a === "edit" || a === "del")) $("view").close();\n  if (a === "edit") dlg(t);\n  else if (a === "del") { if (confirm2("Smazat tento obchod?")) { await tx("readwrite", s => s.delete(t.id)); render(); } }\n  else if (a === "close") dlg(t, true);\n  else if (a === "view") { const cf = Object.entries(t.conf || {}), pro = cf.filter(x => x[1] === "pro"), con = cf.filter(x => x[1] !== "pro"), p = pnl(t), r = real(t), nfx = x => x == null ? dash : nf(x, 2);\n    const chip = (x, c) => `<span class="bdg ${c || "n"}">${esc(x)}</span>`;\n    $("vbody").innerHTML = `<div class="vh"><div><h2>${esc(t.inst)} ${t.dir === "short" ? "Short" : "Long"} ×${nf(t.size || 1, 0)}</h2><p class="empty" style="margin:0">${esc(when(t).replace("T", " "))}${t.closed ? " → " + esc(t.closed.replace("T", " ")) : ""}${t.otype ? " · " + esc(t.otype) : ""}${t.tfm ? " · " + t.tfm : ""}${t.acc ? " · " + esc(t.acc) : ""}</p></div>` +\n      (p == null ? "" : `<div class="vpl ${cl(p)}">${usd(p)}<small>${r == null ? "" : sg(r, 2) + " R"}</small></div>`) + `</div>` +\n      `<div class="dash">${K(nfx(t.entry), "Vstup")}${K(nfx(t.stop), "Stop loss")}${K(nfx(t.target), "TP1")}${K(nfx(t.target2), "TP2")}${K(nfx(t.exit), "Výstup")}${K(OUTL[t.outc] || dash, "Výsledek" + (t.n1 != null ? " (TP1: " + t.n1 + " ks)" : ""))}</div>` +\n      `<div class="tags">${t.strat ? chip("📌 " + t.strat, "up") : ""}${t.trend ? chip(t.trend === "with" ? "S trendem" : "Proti trendu") : ""}${t.plan ? chip(t.plan === "ano" ? "Plán dodržen" : "Plán porušen", t.plan === "ano" ? "up" : "down") : ""}${t.rate ? chip("Hodnocení " + t.rate + "/5") : ""}${(t.emo || []).map(x => chip(((EMO.find(y => y[1] === x) || [""])[0]) + " " + x)).join("")}${(t.mis || []).map(x => chip("⚠ " + x, "down")).join("")}</div>` +\n      (cf.length || (t.cond || []).length ? `<h3>Vstupní model</h3><div class="tags">${chip("Podmínky " + (t.cond || []).length + " ze 3")}${pro.map(x => chip("＋ " + x[0].split("|")[1], "up")).join("")}${con.map(x => chip("− " + x[0].split("|")[1], "down")).join("")}${chip("Celkově " + sg(pro.length - con.length))}</div>` : "") +\n      `<h3>Poznámka</h3><p>${esc(t.notes || "Bez poznámky.")}</p>`;\n    const sh = document.createElement("div"); sh.className = "shots";\n    const add = (b, n) => { const d = document.createElement("div"), h = document.createElement("h3"), i = document.createElement("img"); h.textContent = n; i.src = URL.createObjectURL(b); i.alt = n; d.append(h, i); sh.appendChild(d); };\n    SLOTS.forEach(([k, n]) => { if ((t.slots || {})[k]) add(t.slots[k], n); }); (t.shots || (t.shot ? [t.shot] : [])).forEach(b => add(b, "Další screenshot"));\n    if (sh.children.length) { const h = document.createElement("h3"); h.textContent = "Screenshoty"; $("vbody").append(h, sh); }\n    const ac = document.createElement("div"); ac.className = "row vact"; ac.innerHTML = `<button type="button" class="ghost" data-vclose>Zavřít</button><button type="button" data-a="edit" data-id="${t.id}">Upravit obchod</button><button type="button" class="ghost vdel" data-a="del" data-id="${t.id}">Smazat</button>`; $("vbody").appendChild(ac); if (window.__fd) { const bk = document.createElement("button"); bk.type = "button"; bk.className = "ghost vback"; bk.dataset.dayback = window.__fd; bk.textContent = "‹ Zpět na den"; ac.appendChild(bk); } if (!$("view").open) $("view").showModal(); }\n});\n\n\nfunction bulkUI() { const n = document.querySelectorAll("[data-sel]:checked").length; $("bulk").style.display = n ? "flex" : "none"; $("bn").textContent = n;\n  if (n) { const names = [...new Set([...LS.get("jr:pb", []).map(p => p.name), ...ALL.map(t => t.strat)].filter(Boolean))]; if (!$("bstrat").dataset.f) { $("bstrat").innerHTML = names.map(x => `<option>${esc(x)}</option>`).join(""); $("bstrat").dataset.f = 1; } } }\ndocument.addEventListener("change", async e => { const t = e.target;\n  if (t.matches && t.matches("[data-selall]")) { document.querySelectorAll("[data-sel]").forEach(c => c.checked = t.checked); bulkUI(); }\n  else if (t.matches && t.matches("[data-sel]")) bulkUI(); });\n$("bapply").onclick = async () => { const v = $("bstrat").value; if (!v) return; for (const c of document.querySelectorAll("[data-sel]:checked")) { const t = ALL.find(x => x.id == c.dataset.sel); if (t) { t.strat = v; await tx("readwrite", s => s.put(t)); } } $("bstrat").dataset.f = ""; await render(); bulkUI(); };\n$("bdel").onclick = async () => { const ids = [...document.querySelectorAll("[data-sel]:checked")].map(c => +c.dataset.sel); if (!ids.length || !confirm("Smazat " + ids.length + " vybraných obchodů?")) return; for (const id of ids) await tx("readwrite", s => s.delete(id)); await render(); bulkUI(); };\nconst toUrl = b => new Promise(r => { const f = new FileReader(); f.onload = () => r(f.result); f.readAsDataURL(b); });\n$("exp").onclick = async () => {\n  const out = []; for (const t of ALL) out.push({...t, shot: undefined, shots: await Promise.all((t.shots || []).map(toUrl)), slots: Object.fromEntries(await Promise.all(Object.entries(t.slots || {}).filter(x => x[1]).map(async ([k, v]) => [k, await toUrl(v)])))});\n  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(out)], {type: "application/json"}));\n  a.download = (BT ? "zaloha-backtest-" : "zaloha-denik-") + new Date().toISOString().slice(0, 10) + ".json"; a.click();\n};\n$("imp").onclick = () => $("impf").click();\n$("impf").onchange = async e => {\n  try { const ts = JSON.parse(await e.target.files[0].text());\n    for (const t of ts) { t.shots = await Promise.all((t.shots || []).map(async u => (await fetch(u)).blob())); t.slots = Object.fromEntries(await Promise.all(Object.entries(t.slots || {}).map(async ([k, u]) => [k, await (await fetch(u)).blob()]))); delete t.id; await tx("readwrite", s => s.add(t)); }\n    render();\n  } catch { alert("Soubor se nepodařilo načíst. Je to záloha z tohoto deníku?"); }\n  e.target.value = "";\n};\nconst rnd = x => Math.round(x * 4) / 4;\nfunction rr() {\n  const f = $("f").elements, e = parseFloat(f.entry.value), s = parseFloat(f.stop.value), n = parseFloat(f.size.value) || 1, pv = pvOf();\n  const t1 = parseFloat(f.target.value), t2 = parseFloat(f.target2.value), ok = !(isNaN(e) || isNaN(s) || e === s), d = ok ? Math.abs(e - s) : 0;\n  $("r1").textContent = ok && !isNaN(t1) ? "(1:" + nf(Math.abs(t1 - e) / d, 1) + ")" : ""; $("r2").textContent = ok && !isNaN(t2) ? "(1:" + nf(Math.abs(t2 - e) / d, 1) + ")" : "";\n  if (!ok) { $("rr").textContent = "Zadej vstupní cenu a stop loss a oba take profity se doplní samy."; outUI(); return; }\n  $("rr").innerHTML = `Riskuješ <b>${nf(d, 2)} bodů</b> = <b>${nf(d * pv * n)} $</b> (${nf(n, 0)} mikro). ` +\n    (isNaN(t1) ? "" : `TP1: <b class="up">+${nf(Math.abs(t1 - e) * pv * n)} $</b>. `) + (isNaN(t2) ? "" : `TP2: <b class="up">+${nf(Math.abs(t2 - e) * pv * n)} $</b>.`);\n  outUI();\n}\nfunction auto(src) {\n  const f = $("f").elements, e = parseFloat(f.entry.value), sg = f.dir.value === "short" ? -1 : 1;\n  if (src === "stop") touched.stop = 1;\n  if (isNaN(e)) return rr();\n  if (src === "sd") { dist = null; touched.stop = 0; }\n  const s0 = parseFloat(f.stop.value);\n  if ((src === "stop" || (touched.stop && dist == null)) && !isNaN(s0) && s0 !== e) dist = Math.abs(e - s0);\n  const d = dist || parseFloat($("sd").value) || 35;\n  if (src !== "stop") f.stop.value = rnd(e - sg * d);\n  if (!touched.target) f.target.value = rnd(e + sg * 2 * d);\n  if (!touched.target2) f.target2.value = rnd(e + sg * 2.5 * d);\n  rr();\n}\n{ const fe = $("f").elements;\n  fe.entry.addEventListener("input", () => auto("entry")); fe.dir.addEventListener("change", () => auto("dir")); fe.stop.addEventListener("input", () => auto("stop"));\n  fe.target.addEventListener("input", () => { touched.target = 1; rr(); }); fe.target2.addEventListener("input", () => { touched.target2 = 1; rr(); });\n  fe.size.addEventListener("input", rr); fe.inst.addEventListener("input", rr); fe.n1.addEventListener("input", outUI); fe.trp.addEventListener("input", outUI); fe.exit.addEventListener("input", outUI);\n  fe.outc.addEventListener("change", () => { if (fe.outc.value && !fe.cd.value) { fe.cd.value = BT ? fe.od.value : localNow().slice(0, 10); fe.ct.value = BT ? fe.ot.value : nowT(); } outUI(); });\n  $("sd").addEventListener("input", () => { try { localStorage.setItem("defStop35", JSON.stringify($("sd").value)); } catch (e) {} auto("sd"); }); }\nlet HIST = [], radar = null, yearc = null;\nfetch("history.json", {cache: "no-store"}).then(r => r.ok ? r.json() : []).then(h => { HIST = Array.isArray(h) ? h : []; }).catch(() => {});\nfunction biasOf(t) { const h = HIST.find(x => x.date === day(t)); if (!h) return null; const b = (h.label || "").toLowerCase(); return b.includes("bullish") ? 1 : b.includes("bearish") ? -1 : 0; }\nfunction grp(list, fn) { const w = [], a = []; list.forEach(t => { const r = fn(t); if (r === 1) w.push(t); else if (r === -1) a.push(t); }); return [w, a]; }\nfunction score(s, list) {\n  const pf = s.pf == null ? 0 : Math.min(100, s.pf / 2 * 100), wr = s.wr == null ? 0 : Math.min(100, s.wr / 60 * 100);\n  const planned = list.filter(t => t.plan); const pl = planned.length ? planned.filter(t => t.plan === "ano").length / planned.length * 100 : 50;\n  const rs = list.map(real).filter(x => x !== null); const rr2 = rs.length ? Math.min(100, Math.max(0, sum(rs) / rs.length * 100 + 40)) : 0;\n  const dd = s.net > 0 ? Math.min(100, Math.max(0, 100 - Math.abs(s.dd) / Math.max(1, s.net) * 40)) : 20;\n  const emoBad = list.filter(t => (t.emo || []).some(e => ["FOMO", "Revenge", "Tilt", "Chamtivost", "Netrpělivost"].includes(e))).length;\n  const calm = list.length ? 100 - emoBad / list.length * 100 : 50;\n  return [["Profit factor", pf], ["Úspěšnost", wr], ["Dodržení plánu", pl], ["Poměr zisku k riziku", rr2], ["Kontrola ztrát", dd], ["Klid a emoce", calm]].map(x => [x[0], Math.round(x[1])]);\n}\nfunction grade(sc) { const m = sum(sc.map(x => x[1])) / sc.length; return m >= 80 ? ["A", m] : m >= 65 ? ["B", m] : m >= 50 ? ["C", m] : m >= 35 ? ["D", m] : ["E", m]; }\nfunction analysis() {\n  const list = ALL.filter(t => pnl(t) !== null), s = st(list);\n  if (s.n < 3) { $("coach").innerHTML = \'<p class="empty">Přidej aspoň 3 uzavřené obchody a objeví se hodnocení.</p>\'; return; }\n  const sc = score(s, list), [g, m] = grade(sc), good = [], bad = [];\n  if (s.pf != null && s.pf >= 1.5) good.push("Profit factor " + nf(s.pf, 2) + ": výhry jsou větší než ztráty."); else if (s.pf != null && s.pf < 1) bad.push("Profit factor " + nf(s.pf, 2) + " je pod 1, ztráty převažují nad zisky.");\n  if (s.wr != null && s.wr >= 50) good.push("Úspěšnost " + nf(s.wr, 0) + " %."); else if (s.wr != null) bad.push("Úspěšnost je jen " + nf(s.wr, 0) + " %. Zpřísni výběr setupů.");\n  const np = list.filter(t => t.plan === "ne"), yp = list.filter(t => t.plan === "ano");\n  if (np.length) bad.push("Plán jsi nedodržel u " + np.length + " obchodů, jejich výsledek " + usd(sum(np.map(pnl))) + ".");\n  if (yp.length) good.push("Podle plánu jsi obchodoval " + yp.length + "× s výsledkem " + usd(sum(yp.map(pnl))) + ".");\n  if (s.avgR != null && s.avgR > 0.3) good.push("Průměrné R je " + sg(s.avgR, 2) + ".");\n  if (s.ml >= 3) bad.push("Série " + s.ml + " proher za sebou. Po dvou ztrátách si udělej pauzu.");\n  const bt = {}; list.forEach(t => (t.emo || []).forEach(e => bt[e] = (bt[e] || 0) + pnl(t)));\n  const worst = Object.entries(bt).sort((a, b) => a[1] - b[1])[0]; if (worst && worst[1] < 0) bad.push("Nejdražší emoce: " + worst[0] + " (" + usd(worst[1]) + ").");\n  const ms = {}; list.forEach(t => (t.mis || []).forEach(e => ms[e] = (ms[e] || 0) + 1)); const mm = Object.entries(ms).sort((a, b) => b[1] - a[1])[0]; if (mm) bad.push("Nejčastější chyba: " + mm[0] + " (" + mm[1] + "×).");\n  if (s.n < 20) bad.push("Zatím jen " + s.n + " obchodů. Známka je orientační, spolehlivá bude od 20 obchodů.");\n  if (!good.length) good.push("Zatím málo dat na silné stránky. Pokračuj v zápisech."); if (!bad.length) bad.push("Žádná výrazná slabina. Drž proces.");\n  const li = a => a.map(x => `<li>${esc(x)}</li>`).join("");\n  $("coach").innerHTML = `<div class="two"><div class="k"><b style="font-size:46px">${g}</b><span>Známka (${nf(m, 0)} ze 100)</span></div><div><h3>Silné stránky</h3><ul class="facts">${li(good)}</ul><h3 style="margin-top:12px">Slabé stránky</h3><ul class="facts">${li(bad)}</ul></div></div>`;\n  if (radar) radar.destroy(); if (window.Chart) radar = new Chart($("c-radar"), {type: "radar", data: {labels: sc.map(x => x[0]), datasets: [{data: sc.map(x => x[1]), borderColor: "#8B7CFF", backgroundColor: "rgba(139,124,255,.25)", pointBackgroundColor: "#38BDF8"}]},\n    options: {maintainAspectRatio: false, plugins: {legend: {display: false}}, scales: {r: {min: 0, max: 100, ticks: {display: false}, grid: {color: "rgba(255,255,255,.1)"}, angleLines: {color: "rgba(255,255,255,.1)"}}}}});\n  const [tw, ta] = grp(list, t => t.trend === "with" ? 1 : t.trend === "against" ? -1 : 0);\n  $("trendbars").innerHTML = bars("Trend", [["S trendem", tw], ["Proti trendu", ta]]);\n  const [fw, fa] = grp(list, t => { const b = biasOf(t); if (b === null || b === 0) return 0; return b === dir(t) ? 1 : -1; });\n  $("alignbars").innerHTML = bars("Fundament", [["Se směrem biasu", fw], ["Proti biasu", fa]]) + (HIST.length ? "" : \'<p class="empty">Historie biasu se začne plnit po prvním běhu robota.</p>\');\n  const ym = {}; list.forEach(t => { const k = day(t).slice(0, 7); ym[k] = (ym[k] || 0) + pnl(t); }); const yk = Object.keys(ym).sort();\n  if (yearc) yearc.destroy(); if (window.Chart && yk.length) yearc = new Chart($("c-year"), {type: "bar", data: {labels: yk, datasets: [{data: yk.map(k => ym[k]), borderRadius: 6, backgroundColor: yk.map(k => ym[k] >= 0 ? "#2EE6A6" : "#FF6B8A")}]},\n    options: {maintainAspectRatio: false, plugins: {legend: {display: false}, tooltip: {callbacks: {label: x => usd(x.parsed.y)}}}, scales: {x: {grid: {display: false}}, y: {ticks: {callback: v => nf(v) + " $"}}}}});\n  $("yeartab").innerHTML = yk.length ? `<div class="wrap"><table><thead><tr><th>Měsíc</th><th class="n">Obchodů</th><th class="n">Výsledek</th></tr></thead><tbody>${yk.map(k => `<tr><td>${k}</td><td class="n">${list.filter(t => day(t).slice(0, 7) === k).length}</td><td class="n ${cl(ym[k])}">${usd(ym[k])}</td></tr>`).join("")}</tbody></table></div>` : "";\n  $("accbars").innerHTML = bars("Podle účtu", [...new Set(list.map(t => t.acc || "Hlavní"))].map(a => [a, list.filter(t => (t.acc || "Hlavní") === a)]));\n}\n$("csvb").onclick = () => $("csvf").click();\n$("csvf").onchange = async e => {\n  try { const lines = (await e.target.files[0].text()).trim().split(/\\r?\\n/), sep = lines[0].includes(";") ? ";" : ",", h = lines[0].toLowerCase().split(sep).map(x => x.trim()); let n = 0;\n    const ix = k => h.findIndex(x => x.startsWith(k));\n    for (const ln of lines.slice(1)) { const c = ln.split(sep), v = k => c[ix(k)], num = k => { const x = parseFloat(String(v(k) ?? "").replace(",", ".")); return isNaN(x) ? null : x; };\n      if (!v("dat") || num("vst") == null) continue; const d = String(v("dat")).trim().slice(0, 10), dr = /^short|^s$/i.test((v("sm") || v("dir") || "").trim()) ? "short" : "long";\n      const inst = (v("sym") || "MNQ").toUpperCase(), e0 = num("vst"), st0 = num("stop"), d0 = st0 != null ? Math.abs(e0 - st0) : 35, sg2 = dr === "short" ? -1 : 1;\n      await tx("readwrite", s => s.add({opened: d + "T09:30", closed: d + "T10:00", inst, dir: dr, size: num("kontr") || 1, entry: e0, stop: st0 ?? rnd(e0 - sg2 * d0), target: rnd(e0 + sg2 * 2 * d0), target2: rnd(e0 + sg2 * 2.5 * d0), exit: num("vyst"), fee: num("poplat"), acc: "Import", emo: [], mis: [], shots: []})); n++; }\n    alert("Načteno obchodů: " + n); render();\n  } catch (x) { alert("CSV se nepodařilo načíst."); } e.target.value = "";\n};\n$("cp").onclick = async () => {\n  const list = ALL.filter(t => pnl(t) !== null), s = st(list);\n  const rows = list.map(t => [day(t), t.inst, t.dir, t.size, t.entry, t.stop, t.exit, Math.round(pnl(t)), t.trend || "", t.plan || "", (t.emo || []).join("/"), (t.mis || []).join("/"), t.strat || "", t.acc || ""].join(";")).join("\\n");\n  const txt = `Rozeber mi můj obchodní deník (mikro kontrakty MNQ). Dej mi známku, silné a slabé stránky a 3 konkrétní kroky.\\nSouhrn: obchodů ${s.n}, výsledek ${Math.round(s.net)} $, úspěšnost ${s.wr == null ? "-" : Math.round(s.wr)} %, profit factor ${s.pf == null ? "-" : s.pf.toFixed(2)}.\\nSloupce: datum;symbol;směr;kontrakty;vstup;stop;výstup;výsledek $;trend;plán;emoce;chyby;strategie;účet\\n${rows}`;\n  try { await navigator.clipboard.writeText(txt); $("cpmsg").textContent = "Zkopírováno. Vlož do chatu na claude.ai."; } catch (x) { prompt("Zkopíruj text:", txt); }\n};\nlet PR = {}, entryAuto = false;\nfetch("prices.json", {cache: "no-store"}).then(r => r.ok ? r.json() : {}).then(p => { PR = p || {}; if ($("dlg").open && !$("f").elements.id.value) fillEntry(); }).catch(() => {});\nfunction fillEntry() {\n  const f = $("f").elements, d = f.od.value || "";\n  if (BT || f.id.value || !/^(MNQ|NQ)/i.test(f.inst.value)) return;\n  let v = PR.p && PR.p[d], txt = "";\n  if (v != null) txt = "Vstupní cena je předvyplněná cenou Nasdaq futures dne " + d + " v 15:00 pražského času. Můžeš ji přepsat.";\n  else if (PR.last && PR.last.d === d) { v = PR.last.v; txt = "Cena v 15:00 ještě není k dispozici. Předvyplněna je poslední známá cena (" + PR.last.t + "). Můžeš ji přepsat."; }\n  if (v == null) { $("entrynote").textContent = "Cena v 15:00 pro tento den není uložená. Zadej vstup ručně."; return; }\n  f.entry.value = rnd(v); entryAuto = true; $("entrynote").textContent = txt; auto("entry");\n}\n$("f").elements.entry.addEventListener("input", () => { entryAuto = false; $("entrynote").textContent = ""; });\n$("f").elements.od.addEventListener("change", () => { if (entryAuto || !$("f").elements.entry.value) fillEntry(); });\n$("f").elements.inst.addEventListener("change", () => { if (!$("f").elements.entry.value) fillEntry(); });\n/* ===== Disciplína, playbook, zmeškané obchody, rozbor týdne, záloha ===== */\nconst LS = {get: (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } }, set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }};\nconst todayS = () => localNow().slice(0, 10);\nconst weekKey = (d0) => { const d = new Date(d0 + "T12:00"); const wd = (d.getDay() + 6) % 7; d.setDate(d.getDate() - wd); return d.toISOString().slice(0, 10); };\nconst REASONS = ["Nesplnil jsem podmínky setupu", "Čekal jsem na větší timeframe", "Byl jsem na denním limitu", "Nebyl čas nebo klid", "Bál jsem se (chyba, setup byl platný)", "Jiný důvod"];\nconst tbl = (head, rows) => `<div class="wrap"><table><thead><tr>${head.map((h, i) => `<th${i ? " class=\\"n\\"" : ""}>${h}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table></div>`;\nconst rowH = a => "<tr>" + a.map((c, i) => `<td${i ? " class=\\"n\\"" : ""}>${c}</td>`).join("") + "</tr>";\nconst cs = x => `<span class="${cl(x)}">${usd(x)}</span>`;\n\nfunction tilt(closed) {\n  if (!closed.length) return "<p class=\\"empty\\">Zatím žádné uzavřené obchody. Tiltmeter se začne kreslit po prvním obchodu.</p>";\n  const n = closed.length, W = Math.max(n, 12) * 14, H = 110; let c = 0; const eqv = closed.map(t => c += pnl(t));\n  const mn = Math.min(0, ...eqv), mx = Math.max(0, ...eqv), rg = (mx - mn) || 1, y = v => 8 + (1 - (v - mn) / rg) * 64;\n  const pts = eqv.map((v, i) => `${i * 14 + 7},${y(v).toFixed(1)}`).join(" ");\n  const cells = closed.map((t, i) => `<rect x="${i * 14 + 1}" y="88" width="12" height="16" rx="3" fill="${t.plan === "ano" ? "#2EE6A6" : t.plan === "ne" ? "#FF6B8A" : "#5B6785"}"><title>${day(t)}: ${usd(pnl(t))}${t.plan ? ", plán " + t.plan : ""}</title></rect>`).join("");\n  let cur = 0, curT = null; for (let i = n - 1; i >= 0; i--) { const p = closed[i].plan; if (p !== "ano" && p !== "ne") break; if (curT === null) curT = p; if (p !== curT) break; cur++; }\n  let best = 0, run = 0; closed.forEach(t => { if (t.plan === "ano") { run++; best = Math.max(best, run); } else run = 0; });\n  const msg = curT === "ano" ? `Aktuální série: ${cur}× po sobě jsi dodržel plán.` : curT === "ne" ? `Pozor: poslední ${cur}× jsi plán nedodržel. Zastav se a dej si pauzu.` : "U posledního obchodu není vyplněno, jestli jsi dodržel plán.";\n  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:130px"><line x1="0" x2="${W}" y1="${y(0).toFixed(1)}" y2="${y(0).toFixed(1)}" stroke="rgba(255,255,255,.25)" stroke-dasharray="4 4"/><polyline points="${pts}" fill="none" stroke="#8B7CFF" stroke-width="2.5" vector-effect="non-scaling-stroke"/>${cells}</svg>` +\n    `<p class="hint">Fialová čára je křivka účtu. Zelené čtverečky dole jsou obchody podle plánu, červené mimo plán, šedé bez odpovědi. ${msg} Nejdelší série podle plánu: ${best}.</p>`;\n}\n\nfunction missedHtml() {\n  const L = LS.get("jr:missed", []), ok = L.filter(x => x.ok).length;\n  return `<div class="grid"><label>Datum<input type="date" id="ms-d" value="${todayS()}"></label><label>Setup<input id="ms-s" list="pbl" placeholder="např. Break and retest"></label>` +\n    `<label>Proč jsem ho nevzal<select id="ms-r">${REASONS.map(r => `<option>${r}</option>`).join("")}</select></label></div>` +\n    `<label class="chip" style="margin-top:8px"><input type="checkbox" id="ms-ok" checked>Správně jsem počkal (byl jsem v souladu s plánem)</label><div class="row"><button type="button" id="ms-add">Zapsat zmeškaný obchod</button></div>` +\n    (L.length ? `<p class="hint">Celkem ${L.length} zmeškaných obchodů, z toho ${ok}× jsi správně počkal.</p>` + tbl(["Datum", "Setup", "Důvod", "Správně", ""], [...L].reverse().map(x => rowH([x.d, esc(x.s), esc(x.r), x.ok ? "<span class=\\"up\\">ano</span>" : "<span class=\\"down\\">ne</span>", `<button class="ghost sm" data-ms="${x.id}">Smazat</button>`]))) : "<p class=\\"empty\\">Zatím nic. Když uvidíš dobrý setup a nevezmeš ho, zapiš proč. Čekání je taky výsledek.</p>");\n}\n\nfunction reviewHtml(closed) {\n  const wk = weekKey(todayS()), R = LS.get("jr:rev", {}), cur = R[wk] || {}, tr = closed.filter(t => weekKey(day(t)) === wk), net = sum(tr.map(pnl));\n  const pl = tr.filter(t => t.plan === "ano").length, pn = tr.filter(t => t.plan === "ne").length, ms = LS.get("jr:missed", []).filter(x => weekKey(x.d) === wk && x.ok).length;\n  const stats = `<div class="kpis">${K(tr.length, "obchodů tento týden")}${K(cs(net), "výsledek týdne")}${K(pl + pn ? nf(pl / (pl + pn) * 100) + "&nbsp;%" : dash, "dodržení plánu")}${K(ms, "správně počkáno")}</div>`;\n  const q = [["a", "Co se mi tento týden dařilo?"], ["b", "Kde jsem porušil pravidla a proč?"], ["c", "Co zlepším příští týden? (jedna věc)"]];\n  const old = Object.keys(R).filter(k => k !== wk).sort().reverse().slice(0, 8);\n  return stats + q.map(([k, l]) => `<label style="margin-top:10px">${l}<textarea rows="2" data-rv="${k}">${esc(cur[k] || "")}</textarea></label>`).join("") +\n    `<label style="margin-top:10px;max-width:260px">Známka týdne<select data-rv="g"><option value="">–</option>${[1, 2, 3, 4, 5].map(i => `<option${String(cur.g) === String(i) ? " selected" : ""}>${i}</option>`).join("")}</select></label><p class="empty">Týden od ${wk}. Ukládá se samo. Nejlepší čas je neděle večer.</p>` +\n    (old.length ? `<details style="margin-top:10px"><summary>Dřívější rozbory (${old.length})</summary>${old.map(k => `<p class="hint"><b>Týden od ${k}</b>${R[k].g ? " (známka " + R[k].g + ")" : ""}<br>${esc(R[k].a || "")}<br>${esc(R[k].b || "")}<br><i>${esc(R[k].c || "")}</i></p>`).join("")}</details>` : "");\n}\n\nfunction pbLib() {\n  const P = LS.get("jr:pb", []), gm = new Map(), cs_ = new Set(CONDS);\n  ENTRY.forEach(([g, a]) => { if (!gm.has(g)) gm.set(g, new Set()); a.forEach(n => gm.get(g).add(n)); });\n  P.forEach(p => { (p.conds || []).forEach(c => cs_.add(c)); (p.groups || []).forEach(([g, a]) => { if (!gm.has(g)) gm.set(g, new Set()); a.forEach(n => gm.get(g).add(n)); }); });\n  return {conds: [...cs_], groups: [...gm].map(([g, a]) => [g, [...a]])};\n}\nfunction pickHtml() {\n  const L = pbLib();\n  return `<details class="pbpick" open><summary>Vybrat z nabídky: podmínky a konfluence (zaškrtni, co ke strategii patří)</summary>\n<h4>Podmínky vstupu</h4><div class="chips">${L.conds.map(c => `<label class="chip"><input type="checkbox" name="pbc" value="${esc(c)}">${esc(c)}</label>`).join("")}</div>\n<h4>Konfluence</h4><div class="cfgrid">${L.groups.map(([g, a]) => `<div class="cfg"><b>${esc(g)}</b><div class="chips">${a.map(n => `<label class="chip"><input type="checkbox" name="pbg" data-g="${esc(g)}" value="${esc(n)}">${esc(n)}</label>`).join("")}</div></div>`).join("")}</div></details>\n<details class="pbpick"><summary>Přidat vlastní body, které v nabídce nejsou (psaním)</summary>\n<label>Podmínky vstupu (každá na nový řádek)<textarea id="pb-c" rows="3" placeholder="např. Max 2 obchody denně"></textarea></label>\n<label>Konfluence (jedna skupina na řádek, tvar: Název skupiny: bod, bod)<textarea id="pb-g" rows="3" placeholder="např. Moje skupina: nový bod, další bod"></textarea></label></details>`;\n}\nfunction playbookHtml(closed) {\n  const P = LS.get("jr:pb", []);\n  const rows = P.map(p => { const l = closed.filter(t => (t.strat || "").toLowerCase() === p.name.toLowerCase()), s = st(l), nc = (p.conds || []).length, ng = (p.groups || []).reduce((a, g) => a + g[1].length, 0);\n    return rowH([`<b>${esc(p.name)}</b><br><span class="empty">${esc(p.desc || "")}</span><br><span class="empty">Podmínky: ${nc}, konfluence: ${ng}</span>`, s.n, s.wr == null ? dash : nf(s.wr) + "&nbsp;%", cs(s.net), `<button class="ghost sm" data-pbe="${esc(p.name)}">Upravit</button> <button class="ghost sm" data-pbd="${esc(p.name)}">Smazat</button>`]); });\n  return `<p class="hint">Tady jednou nastavíš strategii, její podmínky a konfluence. Ve formuláři obchodu pak stačí vybrat strategii a všechny kolonky se objeví a předvyplní samy. Ty odklikneš jen výjimky.</p>\n<div class="grid"><label>Název strategie<input id="pb-n" placeholder="např. ICT 15m RSI Cross + CISD"></label><label>Popis<input id="pb-d" placeholder="co to je"></label></div>\n${pickHtml()}\n<div class="grid"><label>Výchozí timeframe<select id="pb-tf"><option value="">–</option><option value="1m">1 minuta</option><option value="2m">2 minuty</option><option value="3m">3 minuty</option><option value="5m">5 minut</option><option value="15m">15 minut</option></select></label>\n<label>Výchozí typ vstupu<select id="pb-ot"><option value="">–</option><option value="market">Market</option><option value="limit">Limit</option><option value="stop">Stop (průraz)</option></select></label>\n<label>Výchozí stop (body)<input id="pb-st" type="number" step="any"></label><label>Výchozí počet kontraktů<input id="pb-sz" type="number" min="1"></label></div>\n<label class="chk"><input type="checkbox" id="pb-pre" checked>Po výběru strategie předvyplnit všechny podmínky a konfluence jako splněné (Pro)</label>\n<div class="row"><button type="button" id="pb-add">Uložit strategii</button> <button type="button" class="ghost" id="pb-clr">Vyčistit formulář</button></div>` +\n    (P.length ? tbl(["Strategie", "Obchodů", "Úspěšnost", "Výsledek", ""], rows) : "<p class=\\"empty\\">Zatím tu žádná strategie není. Vyplň formulář výše a ulož.</p>") + `<datalist id="pbl">${P.map(p => `<option value="${esc(p.name)}">`).join("")}</datalist>`;\n}\n\nfunction pbClear() { ["pb-n", "pb-d", "pb-c", "pb-g", "pb-tf", "pb-ot", "pb-st", "pb-sz"].forEach(i => $(i).value = ""); document.querySelectorAll("#d-pb [name=pbc],#d-pb [name=pbg]").forEach(i => i.checked = false); $("pb-pre").checked = true; $("pb-add").textContent = "Uložit strategii"; }\nfunction pbEdit(name) { const p = LS.get("jr:pb", []).find(x => x.name === name); if (!p) return; pbClear();\n  $("pb-n").value = p.name; $("pb-d").value = p.desc || ""; const cl_ = p.conds && p.conds.length ? p.conds : (p.rules ? p.rules.split(",").map(x => x.trim()) : []);\n  const miss = []; cl_.forEach(c => { const i = [...document.querySelectorAll("#d-pb [name=pbc]")].find(x => x.value === c); if (i) i.checked = true; else miss.push(c); }); $("pb-c").value = miss.join("\\n");\n  const gmiss = []; (p.groups || []).forEach(([g, a]) => { const rest = []; a.forEach(n => { const i = [...document.querySelectorAll("#d-pb [name=pbg]")].find(x => x.dataset.g === g && x.value === n); if (i) i.checked = true; else rest.push(n); }); if (rest.length) gmiss.push(g + ": " + rest.join(", ")); }); $("pb-g").value = gmiss.join("\\n");\n  const d = p.def || {}; $("pb-tf").value = d.tfm || ""; $("pb-ot").value = d.otype || ""; $("pb-st").value = d.stop || ""; $("pb-sz").value = d.size || ""; $("pb-pre").checked = p.pre !== false;\n  $("pb-add").textContent = "Uložit změny"; $("pb-n").scrollIntoView({block: "center"}); $("pb-n").focus(); }\nfunction disc() {\n  const closed = ALL.filter(t => pnl(t) !== null).sort((a, b) => when(a).localeCompare(when(b))), s = st(closed);\n  const broken = closed.filter(t => t.plan === "ne"), leak = sum(broken.map(pnl)), ans = closed.filter(t => t.plan === "ano" || t.plan === "ne").length;\n  $("d-tilt").innerHTML = tilt(closed);\n  $("d-leak").innerHTML = closed.length ? `<div class="kpis">${K(cs(leak), "cena obchodů mimo plán (" + broken.length + "×)")}${K(cs(s.net - leak), "výsledek bez nich")}${K(ans ? nf((ans - broken.length) / ans * 100) + "&nbsp;%" : dash, "dodržení plánu")}</div><p class="hint">${leak < 0 ? "Kdybys těchto obchodů nevzal, měl bys na účtu o " + nf(Math.abs(leak)) + " $ víc. To je cena netrpělivosti." : broken.length ? "Obchody mimo plán dopadly dobře, ale jsou riziko. Dlouhodobě vždy platí plán." : "Zatím žádný obchod mimo plán. Skvělé."}</p>` : "<p class=\\"empty\\">Zatím žádné obchody.</p>";\n  const cost = (names, key) => names.map(n => { const l = closed.filter(t => (t[key] || []).includes(n)); return [n, l.length, sum(l.map(pnl))]; }).filter(x => x[1]).sort((a, b) => a[2] - b[2]);\n  const emo = cost(EMO.map(e => e[1]), "emo").map(x => [(EMO.find(e => e[1] === x[0]) || [""])[0] + " " + x[0], x[1], x[2]]), mis = cost(MIS, "mis");\n  const ct = r => r.length ? tbl(["", "Obchodů", "Součet", "Průměr"], r.map(x => rowH([x[0], x[1], cs(x[2]), cs(x[2] / x[1])]))) : "<p class=\\"empty\\">Zatím nic. Při zápisu obchodu zaškrtni emoce a chyby.</p>";\n  $("d-emoc").innerHTML = "<h3>Kolik tě stojí emoce</h3>" + ct(emo) + "<h3 style=\\"margin-top:16px\\">Nejdražší chyby</h3>" + ct(mis);\n  $("d-miss").innerHTML = missedHtml(); $("d-rev").innerHTML = reviewHtml(closed); $("d-pb").innerHTML = playbookHtml(closed);\n  const strs = [...new Set([...ALL.map(t => t.strat), ...LS.get("jr:pb", []).map(p => p.name)].filter(Boolean))];\n  bkInfo();\n}\nfunction bkInfo() {\n  const last = LS.get("jr:lastbk", null), days = last ? Math.floor((Date.now() - last) / 864e5) : null, need = ALL.length && (days === null || days >= 7);\n  $("bk").innerHTML = ALL.length ? `<div class="note" style="margin-bottom:12px${need ? ";border-color:#FF6B8A" : ""}">${last ? "Poslední záloha: před " + days + " dny." : "Deník ještě nikdy nebyl zálohovaný."} ${need ? "Doporučuju zálohovat teď. Deník je jen v tomto prohlížeči." : "Vše v pořádku."} <button class="ghost sm" id="bk-now" type="button">Zálohovat teď</button></div>` : "";\n  if ($("bk-now")) $("bk-now").onclick = () => $("exp").click();\n}\ndocument.addEventListener("click", e => {\n  const t = e.target, g = a => t.getAttribute && t.getAttribute(a);\n  if (t.id === "ms-add") { const s = $("ms-s").value.trim(); if (!s) { $("ms-s").focus(); return; } const L = LS.get("jr:missed", []); L.push({id: Date.now(), d: $("ms-d").value || todayS(), s, r: $("ms-r").value, ok: $("ms-ok").checked}); LS.set("jr:missed", L); disc(); }\n  else if (g("data-ms")) { LS.set("jr:missed", LS.get("jr:missed", []).filter(x => String(x.id) !== g("data-ms"))); disc(); }\n  else if (t.id === "pb-add") { const n = $("pb-n").value.trim(); if (!n) { $("pb-n").focus(); return; }\n    const conds = [...document.querySelectorAll("#d-pb [name=pbc]:checked")].map(i => i.value);\n    $("pb-c").value.split("\\n").map(x => x.trim()).filter(Boolean).forEach(c => { if (!conds.includes(c)) conds.push(c); });\n    const gm = new Map(); document.querySelectorAll("#d-pb [name=pbg]:checked").forEach(i => { const g = i.dataset.g; if (!gm.has(g)) gm.set(g, []); gm.get(g).push(i.value); });\n    $("pb-g").value.split("\\n").map(x => x.trim()).filter(Boolean).forEach(l => { const k = l.indexOf(":"), g = k < 0 ? "Konfluence" : l.slice(0, k).trim() || "Konfluence", a = (k < 0 ? l : l.slice(k + 1)).split(",").map(x => x.trim()).filter(Boolean); if (!gm.has(g)) gm.set(g, []); a.forEach(x => { if (!gm.get(g).includes(x)) gm.get(g).push(x); }); });\n    const groups = [...gm].filter(x => x[1].length);\n    const def = {}; if ($("pb-tf").value) def.tfm = $("pb-tf").value; if ($("pb-ot").value) def.otype = $("pb-ot").value; if (parseFloat($("pb-st").value) > 0) def.stop = parseFloat($("pb-st").value); if (parseInt($("pb-sz").value) > 0) def.size = parseInt($("pb-sz").value);\n    const P = LS.get("jr:pb", []).filter(p => p.name.toLowerCase() !== n.toLowerCase()); P.push({name: n, desc: $("pb-d").value.trim(), rules: conds.join(", "), conds, groups, def, pre: $("pb-pre").checked}); LS.set("jr:pb", P); disc(); }\n  else if (t.id === "pb-clr") { pbClear(); }\n  else if (g("data-pbe")) { pbEdit(g("data-pbe")); }\n  else if (g("data-pbd")) { if (confirm("Smazat setup z playbooku? Obchody zůstanou.")) { LS.set("jr:pb", LS.get("jr:pb", []).filter(p => p.name !== g("data-pbd"))); disc(); } }\n});\ndocument.addEventListener("input", e => { const k = e.target.getAttribute && e.target.getAttribute("data-rv"); if (!k) return; const wk = weekKey(todayS()), R = LS.get("jr:rev", {}); R[wk] = R[wk] || {}; R[wk][k] = e.target.value; LS.set("jr:rev", R); });\n$("f").elements.strat.addEventListener("input", e => { const p = LS.get("jr:pb", []).find(x => x.name.toLowerCase() === e.target.value.trim().toLowerCase()); $("pbnote").textContent = p ? "Podmínky tohoto setupu: " + (p.rules || "nevyplněno") + ". Splňuješ je všechny?" : ""; });\n$("exp").onclick = async () => {\n  const out = []; for (const t of ALL) out.push({...t, shot: undefined, shots: await Promise.all((t.shots || []).map(toUrl)), slots: Object.fromEntries(await Promise.all(Object.entries(t.slots || {}).filter(x => x[1]).map(async ([k, v]) => [k, await toUrl(v)])))});\n  const sk_ = await Promise.all(SK.map(async r => ({...r, id: undefined, imgs: await Promise.all((r.imgs || []).map(toUrl))}))); const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify({v: 2, trades: out, extra: {skips: sk_, missed: LS.get("jr:missed", []), pb: LS.get("jr:pb", []), rev: LS.get("jr:rev", {})}})], {type: "application/json"}));\n  a.download = (BT ? "zaloha-backtest-" : "zaloha-denik-") + todayS() + ".json"; a.click(); LS.set("jr:lastbk", Date.now()); bkInfo();\n};\n$("impf").onchange = async e => {\n  try { const raw = JSON.parse(await e.target.files[0].text()), ts = Array.isArray(raw) ? raw : raw.trades;\n    for (const t of ts) { t.shots = await Promise.all((t.shots || []).map(async u => (await fetch(u)).blob())); t.slots = Object.fromEntries(await Promise.all(Object.entries(t.slots || {}).map(async ([k, u]) => [k, await (await fetch(u)).blob()]))); delete t.id; await tx("readwrite", s => s.add(t)); }\n    if (raw.extra) { await skLoad(); for (const r of (raw.extra.skips || [])) { if (SK.some(x => x.date === r.date && x.created === r.created)) continue; r.imgs = await Promise.all((r.imgs || []).map(async u => (await fetch(u)).blob())); delete r.id; await stx("readwrite", s => s.add(r)); }\n      const m = LS.get("jr:missed", []), ids = new Set(m.map(x => x.id)); (raw.extra.missed || []).forEach(x => { if (!ids.has(x.id)) m.push(x); }); LS.set("jr:missed", m);\n      const pb = LS.get("jr:pb", []), nm = new Set(pb.map(p => p.name.toLowerCase())); (raw.extra.pb || []).forEach(p => { if (!nm.has(p.name.toLowerCase())) pb.push(p); }); LS.set("jr:pb", pb);\n      LS.set("jr:rev", Object.assign({}, raw.extra.rev || {}, LS.get("jr:rev", {}))); }\n    render();\n  } catch (x) { alert("Soubor se nepodařilo načíst. Je to záloha z tohoto deníku?"); }\n  e.target.value = "";\n};\n\n/* ===== Dny bez obchodu ===== */\nconst SKR = ["Špatná price action", "Žádný setup podle strategie", "Mimo killzone / špatný čas", "Důležitá zpráva / vysoká volatilita", "Úzký rozsah / nízká likvidita", "Nenabralo", "Jiný důvod"];\nvar SKD = new Set(); let sdb = null, SK = [], skImgs = [], skUrls = [], skEdit = null;\nconst sopen = () => new Promise(res => { try { const r = indexedDB.open("journal_skips", 1); r.onupgradeneeded = () => r.result.createObjectStore("days", {keyPath: "id", autoIncrement: true}); r.onsuccess = () => res(r.result); r.onerror = () => res(null); } catch (x) { res(null); } });\nconst stx = (m, f) => new Promise((res, rej) => { if (!sdb) return res([]); const t = sdb.transaction("days", m), o = f(t.objectStore("days")); t.oncomplete = () => res(o && o.result); t.onerror = () => rej(t.error); });\nasync function skLoad() { if (!sdb) sdb = await sopen(); SK = (await stx("readonly", s => s.getAll())) || []; SKD = new Set(SK.map(r => r.date)); }\n$("skr").innerHTML = SKR.map(r => `<option>${r}</option>`).join("");\nfunction skDraw() { skUrls.forEach(u => URL.revokeObjectURL(u)); skUrls = [];\n  $("sk-imgs").innerHTML = skImgs.map((b, i) => { const u = URL.createObjectURL(b); skUrls.push(u); return `<div class="slot"><b>Fotka ${i + 1}</b><img src="${u}" alt="Fotka ${i + 1}"><button type="button" class="ghost sm" data-skx="${i}">Smazat</button></div>`; }).join("") || \'<p class="empty">Zatím žádná fotka. Přetáhni ji sem, vlož přes ⌘V nebo klikni na Vybrat fotky.</p>\'; }\nconst memBlob = async f => { try { const b = await f.arrayBuffer(); return new File([b], f.name || "foto.png", {type: f.type || "image/png", lastModified: f.lastModified || Date.now()}); } catch (x) { return f; } };\nconst skAdd = async fs => { fs = await Promise.all(fs.map(memBlob)); fs.forEach(f => { if (skImgs.length < 4) skImgs.push(f); }); skDraw(); $("sk-msg").textContent = ""; };\nfunction skOpen(r) { skEdit = r || null; skImgs = r ? [...(r.imgs || [])] : []; const f = $("skf").elements;\n  f.date.value = r ? r.date : (LS.get("jr:lastd", "") || todayS()); f.reason.value = r ? r.reason : LS.get("jr:lastReason", SKR[0]); f.note.value = r ? (r.note || "") : ""; f.miss.value = r && r.miss != null ? r.miss : ""; f.would.value = r ? (r.would || "") : ""; f.nbdir.value = r && r.dir === "short" ? "short" : "long"; f.nbt.value = r ? (r.time || "") : ""; $("sk-msg").textContent = ""; skNB(); skDraw(); $("skd").showModal(); }\nfunction skNB() { const on = $("skr").value === "Nenabralo"; $("nbw").style.display = on ? "" : "none"; $("skh").textContent = on ? "Nenabralo" : "Den bez obchodu";\n  $("skp").textContent = on ? "Vstup ti nenabralo. Fotka grafu je povinná: ukaž, kde byl tvůj příkaz a kam cena došla." : "Obchod jsi nevzal, protože podmínky byly špatné. Fotka grafu je povinná: uvidíš, že price action opravdu byla špatná."; }\n$("skr").addEventListener("change", skNB);\n$("skadd").onclick = () => skOpen(null); $("skcancel").onclick = () => $("skd").close();\n$("sk-file").onchange = async e => { const fs = [...e.target.files]; await skAdd(fs); e.target.value = ""; };\n$("sk-imgs").addEventListener("click", e => { const x = e.target.closest("[data-skx]"); if (x) { skImgs.splice(+x.dataset.skx, 1); skDraw(); } });\n$("sk-imgs").addEventListener("dragover", e => e.preventDefault());\n$("sk-imgs").addEventListener("drop", e => { e.preventDefault(); skAdd([...e.dataTransfer.files].filter(f => f.type.startsWith("image/")).sort((a, b) => a.lastModified - b.lastModified)); });\ndocument.addEventListener("paste", e => { const f = [...(e.clipboardData?.files || [])].filter(f => f.type.startsWith("image/")); if ($("skd").open && f.length) { e.preventDefault(); skAdd(f); } });\n$("skf").onsubmit = async e => { e.preventDefault(); const f = e.target.elements;\n  if (!skImgs.length) { $("sk-msg").textContent = f.reason.value === "Nenabralo" ? "Nahraj aspoň jednu fotku grafu, ať vidíš, kde byl vstup a kam cena došla." : "Nahraj aspoň jednu fotku grafu. Je to důkaz, že price action opravdu byla špatná."; return; }\n  const hasT = f.reason.value !== "Nenabralo" && ALL.some(t => day(t) === f.date.value);\n  if (hasT && !confirm("V tento den už máš zapsaný obchod. Přesto uložit den bez obchodu?")) return;\n  const r = {date: f.date.value, reason: f.reason.value, note: f.note.value.trim(), imgs: skImgs, created: skEdit ? skEdit.created : Date.now()};\n  if (r.reason === "Nenabralo") { const m = parseFloat(f.miss.value); if (!isNaN(m)) r.miss = m; if (f.would.value) r.would = f.would.value; r.dir = f.nbdir.value; if (f.nbt.value) r.time = f.nbt.value; } if (skEdit) r.id = skEdit.id;\n  await stx("readwrite", s => s.put(r)); LS.set("jr:lastReason", r.reason); LS.set("jr:lastd", r.date); $("skd").close(); render(); };\nconst WDN = ["Neděle", "Pondělí", "Úterý", "Středa", "Čtvrtek", "Pátek", "Sobota"];\nfunction renderSkips() {\n  const tdays = new Set(ALL.map(day)), sdays = new Set(SK.map(r => r.date)), all = new Set([...tdays, ...sdays]), nT = [...tdays].filter(d => !sdays.has(d)).length + [...tdays].filter(d => sdays.has(d)).length;\n  const pure = [...sdays].filter(d => !tdays.has(d)).length, tot = all.size, sel = tot ? Math.round(pure / tot * 100) : null;\n  const tile = (h, v, sub) => `<div class="tile"><h3>${h}</h3><div class="big">${v}</div><div class="hint">${sub}</div></div>`;\n  let h = `<div class="dash">${tile("Dny obchodování", tot, "celkem dnů s obchodem nebo bez")}${tile("Dny s obchodem", tdays.size, "aspoň jeden obchod")}${tile("Dny bez obchodu", pure, "jen zapsané, bez obchodu")}${tile("Podíl dnů bez obchodu", sel == null ? "–" : sel + " %", "čím víc, tím vybíravější jsi")}</div>`;\n  if (SK.length) {\n    const rc = {}; SK.forEach(r => rc[r.reason] = (rc[r.reason] || 0) + 1);\n    h += "<h3>Proč jsi obchod nevzal</h3>" + tbl(["Důvod", "Dnů", "Podíl"], Object.entries(rc).sort((a, b) => b[1] - a[1]).map(([k, n]) => rowH([esc(k), n, Math.round(n / SK.length * 100) + "&nbsp;%"])));\n    const wd = [1, 2, 3, 4, 5].map(d => { const t = [...tdays].filter(x => new Date(x + "T12:00").getDay() === d).length, k = [...sdays].filter(x => new Date(x + "T12:00").getDay() === d && !tdays.has(x)).length; return [WDN[d], t, k, t + k ? Math.round(k / (t + k) * 100) + "&nbsp;%" : "–"]; });\n    const NB_ = SK.filter(r => r.reason === "Nenabralo");\n    if (NB_.length) { const ms = NB_.filter(r => r.miss != null).map(r => r.miss), tp = NB_.filter(r => r.would === "tp").length, sl = NB_.filter(r => r.would === "sl").length, wt = NB_.filter(r => tdays.has(r.date)).length;\n      h += "<h3>⏳ Nenabralo</h3>" + `<div class="dash">${tile("Kolikrát", NB_.length, wt + "× jsi ten den pak vzal jiný obchod")}${tile("Ø chybělo", ms.length ? String(Math.round(ms.reduce((a, b) => a + b, 0) / ms.length * 4) / 4).replace(".", ",") + " b." : "–", "bodů do tvého vstupu")}${tile("Výsledek TP", tp, "ušlé obchody")}${tile("Výsledek SL", sl, "tady tě nenabrání ochránilo")}</div>` +\n        `<p class="hint">${tp > sl && tp >= 3 ? "Častěji ti utíkají dobré obchody. Zkus dát vstup o kousek blíž nebo vstoupit po potvrzení." : sl > tp && sl >= 3 ? "Většinou je dobře, že nenabralo. Na vstupu nic neměň." : "Zapisuj dál a vyplň „Výsledek“. Za pár týdnů uvidíš, jestli máš vstup moc daleko."}</p>`; }\n    h += "<h3>Podle dne v týdnu</h3>" + tbl(["Den", "S obchodem", "Bez obchodu", "Podíl bez obchodu"], wd.map(r => rowH(r)));\n  }\n  $("sk-stats").innerHTML = h;\n  $("sk-list").innerHTML = SK.length ? \'<h3>Všechny dny bez obchodu a nenabralo</h3><div class="wrap"><table class="tt"><thead><tr><th>Den</th><th>Důvod</th><th>Poznámka</th><th></th></tr></thead><tbody>\' + [...SK].sort((a, b) => b.date.localeCompare(a.date)).map(r => { const d = new Date(r.date + "T12:00"), n = (r.imgs || []).length;\n    return `<tr><td>${esc(r.date)}<br><span class="hint">${esc(WDN[d.getDay()])}</span></td><td><span class="bdg down">${r.reason === "Nenabralo" ? "⏳ " : ""}${esc(r.reason)}</span>${r.reason === "Nenabralo" && (r.dir || r.would) ? `<br><span class="hint">${r.dir === "short" ? "Short" : r.dir ? "Long" : ""}${r.would ? " · " + (r.would === "tp" ? "TP" : r.would === "sl" ? "SL" : r.would === "be" ? "BE" : "") : ""}</span>` : ""}${r.miss != null ? `<br><span class="hint">chybělo ${String(r.miss).replace(".", ",")} b.</span>` : ""}</td><td>${r.note ? esc(r.note.length > 70 ? r.note.slice(0, 70) + "…" : r.note) : "–"}</td><td class="act"><div><button type="button" class="ghost sm" data-skv="${r.id}">${n ? "📷 " + n : "Detail"}</button><button type="button" class="ghost sm" data-ske="${r.id}">Upravit</button><button type="button" class="ghost sm" data-skdel="${r.id}">Smazat</button></div></td></tr>`; }).join("") + "</tbody></table></div>" : \'<p class="empty">Zatím žádný den bez obchodu. Klikni nahoře na „Den bez obchodu“.</p>\';\n}\nfunction skView(r) { if (!r) return; const d = new Date(r.date + "T12:00"), n = (r.imgs || []).length;\n  $("vbody").innerHTML = `<div class="vh"><div><h2>${r.reason === "Nenabralo" ? "⏳ Nenabralo" : "Den bez obchodu"}</h2><p class="empty" style="margin:0">${esc(WDN[d.getDay()])} ${esc(r.date)}</p></div></div><div class="row"><span class="bdg down">${esc(r.reason)}</span>${r.dir ? `<span class="bdg">${r.dir === "short" ? "Short" : "Long"}</span>` : ""}${r.time ? `<span class="bdg">${esc(r.time)}</span>` : ""}${r.miss != null ? `<span class="bdg">chybělo ${String(r.miss).replace(".", ",")} bodů</span>` : ""}${r.would ? `<span class="bdg ${r.would === "sl" ? "up" : r.would === "tp" ? "down" : ""}">výsledek ${r.would === "tp" ? "TP" : r.would === "sl" ? "SL" : "BE"}</span>` : ""}</div>` +\n    `<h3>Poznámka</h3><p>${r.note ? esc(r.note) : "Bez poznámky."}</p><h3>Screenshoty</h3><div class="slots">` + (r.imgs || []).map((b, i) => { const u = URL.createObjectURL(b); skUrls.push(u); return `<div class="slot"><img src="${u}" alt="${esc(r.date)}: fotka ${i + 1} z ${n}"></div>`; }).join("") + `</div>` +\n    `<div class="row vact"><button type="button" class="ghost" data-vclose>Zavřít</button><button type="button" data-skve="${r.id}">Upravit</button><button type="button" class="ghost vdel" data-skvdel="${r.id}">Smazat</button></div>`;\n  if (!$("view").open) $("view").showModal(); }\ndocument.addEventListener("click", async e => { const t = e.target, g = a => t.getAttribute && t.getAttribute(a);\n  if (g("data-skv")) { skView(SK.find(r => String(r.id) === g("data-skv"))); }\n  else if (g("data-skve")) { $("view").close(); skOpen(SK.find(r => String(r.id) === g("data-skve"))); }\n  else if (g("data-skvdel")) { if (confirm2("Smazat tento den bez obchodu i s fotkami?")) { await stx("readwrite", s => s.delete(+g("data-skvdel"))); $("view").close(); render(); } }\n  else if (g("data-ske")) { skOpen(SK.find(r => String(r.id) === g("data-ske"))); }\n  else if (g("data-skdel")) { if (confirm2("Smazat tento den bez obchodu i s fotkami?")) { await stx("readwrite", s => s.delete(+g("data-skdel"))); render(); } } });\nconst _render = render; render = async function () { await skLoad(); await _render(); disc(); renderSkips(); if (!BT && window.TDguard) TDguard(); };\n\nopen().then(d => { db = d; render(); });\n</script><script src="tips.js"></script><script>\n(function () {\n  const pad = n => String(n).padStart(2, "0"), iso = d => d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());\n  const MN = ["leden", "únor", "březen", "duben", "květen", "červen", "červenec", "srpen", "září", "říjen", "listopad", "prosinec"];\n  let box = null, cur = null, vy = 0, vm = 0;\n  const ng = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");\n  const cz = x => /^\\d{4}-\\d{2}-\\d{2}$/.test(x || "") ? (+x.slice(8)) + ". " + (+x.slice(5, 7)) + ". " + x.slice(0, 4) : (x || "");\n  const parse = t => { t = String(t || "").trim(); if (!t) return ""; let m = t.match(/^(\\d{4})-(\\d{1,2})-(\\d{1,2})$/), d, mo, y;\n    if (m) { y = +m[1]; mo = +m[2]; d = +m[3]; } else { m = t.match(/^(\\d{1,2})\\s*[.\\/-]\\s*(\\d{1,2})\\s*[.\\/-]\\s*(\\d{4})\\.?$/); if (!m) return null; d = +m[1]; mo = +m[2]; y = +m[3]; }\n    const dt = new Date(y, mo - 1, d); if (dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d) return null; return iso(dt); };\n  const prep = el => { if (el.dataset.dp) return; el.dataset.dp = "1"; const v = el.value; el.type = "text";\n    Object.defineProperty(el, "value", {configurable: true, get() { const r = parse(ng.get.call(el)); return r == null ? "" : r; }, set(x) { ng.set.call(el, cz(x)); }});\n    el.value = v; el.placeholder = "d. m. rrrr"; el.setAttribute("inputmode", "numeric"); el.autocomplete = "off";\n    el.addEventListener("input", () => { el.setCustomValidity(parse(ng.get.call(el)) == null ? "Napiš datum například 25. 10. 2026" : ""); });\n    if (el.form) el.form.addEventListener("reset", () => setTimeout(() => { const r = parse(ng.get.call(el)); ng.set.call(el, cz(r == null ? "" : r)); }, 0)); };\n  const scan = () => document.querySelectorAll(\'input[type="date"]\').forEach(prep);\n  const close = () => { if (box) { box.remove(); box = null; cur = null; } };\n  const draw = () => {\n    const sel = /^\\d{4}-\\d{2}-\\d{2}$/.test(cur.value) ? cur.value : "", td = iso(new Date());\n    const first = new Date(vy, vm, 1), off = (first.getDay() + 6) % 7, start = new Date(vy, vm, 1 - off);\n    let h = \'<div class="dph"><button type="button" data-a="py">«</button><button type="button" data-a="pm">‹</button><b>\' + MN[vm] + " " + vy + \'</b><button type="button" data-a="nm">›</button><button type="button" data-a="ny">»</button></div><div class="dpg">\';\n    ["P", "Ú", "S", "Č", "P", "S", "N"].forEach(x => h += \'<div class="dpw">\' + x + "</div>");\n    for (let i = 0; i < 42; i++) { const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i), k = iso(d);\n      h += \'<button type="button" class="dpd\' + (d.getMonth() !== vm ? " o" : "") + (k === td ? " t" : "") + (k === sel ? " s" : "") + \'" data-d="\' + k + \'">\' + d.getDate() + "</button>"; }\n    h += \'</div><div class="dpf"><button type="button" data-a="today">Dnes</button><button type="button" data-a="x">Zavřít</button></div>\';\n    box.innerHTML = h;\n  };\n  const open = el => {\n    close(); cur = el; const dlg = el.closest("dialog"), v = /^\\d{4}-\\d{2}-\\d{2}$/.test(el.value) ? new Date(el.value + "T12:00") : new Date();\n    vy = v.getFullYear(); vm = v.getMonth(); box = document.createElement("div"); box.className = "dp"; (dlg || document.body).appendChild(box); draw();\n    const r = el.getBoundingClientRect(), bh = box.offsetHeight, bw = box.offsetWidth;\n    let top = r.bottom + 6; if (top + bh > innerHeight - 8) top = Math.max(8, r.top - bh - 6);\n    box.style.top = top + "px"; box.style.left = Math.max(8, Math.min(r.left, innerWidth - bw - 8)) + "px";\n  };\n  const pick = k => { cur.value = k; cur.dispatchEvent(new Event("input", {bubbles: true})); cur.dispatchEvent(new Event("change", {bubbles: true})); close(); };\n  document.addEventListener("click", e => {\n    const t = e.target; if (!t || !t.closest) return;\n    const inp = t.closest("input[data-dp]"); if (inp) { if (!box || cur !== inp) open(inp); return; }\n    const b = t.closest(".dp"); if (!b) { close(); return; }\n    const x = t.closest("button"); if (!x) return; e.preventDefault();\n    if (x.dataset.d) return pick(x.dataset.d);\n    const a = x.dataset.a;\n    if (a === "pm") { vm--; if (vm < 0) { vm = 11; vy--; } } else if (a === "nm") { vm++; if (vm > 11) { vm = 0; vy++; } } else if (a === "py") vy--; else if (a === "ny") vy++;\n    else if (a === "today") return pick(iso(new Date())); else if (a === "x") return close();\n    draw();\n  });\n  document.addEventListener("keydown", e => { if (e.key === "Escape" && box) { e.stopPropagation(); close(); } if (e.key === "Tab") close(); }, true);\n  new MutationObserver(scan).observe(document.documentElement, {childList: true, subtree: true}); scan();\n})();\n</script>\n<script>\n(function () {\n  const N = 6, open = {};\n  const apply = id => {\n    const box = document.getElementById(id); if (!box) return; const tb = box.querySelector("table.tt tbody"); if (!tb || tb.dataset.col) return; tb.dataset.col = "1";\n    const rows = [...tb.querySelectorAll(":scope > tr")]; if (rows.length <= N) return;\n    const btn = document.createElement("button"); btn.type = "button"; btn.className = "moreb";\n    const paint = () => { rows.forEach((r, i) => r.hidden = i >= N && !open[id]); btn.textContent = open[id] ? "▴ Zobrazit jen posledních " + N : "▾ Zobrazit všech " + rows.length + " (dalších " + (rows.length - N) + ")"; };\n    btn.onclick = () => { open[id] = !open[id]; paint(); }; paint();\n    box.querySelector(".wrap").insertAdjacentElement("afterend", btn);\n  };\n  const run = () => { apply("list"); apply("sk-list"); };\n  document.addEventListener("click", e => { if (e.target.closest && e.target.closest("[data-selall]") && !open.list) { open.list = true; const b = document.querySelector("#list .moreb"); if (b) { document.querySelectorAll("#list tbody tr").forEach(r => r.hidden = false); b.textContent = "▴ Zobrazit jen posledních " + N; } } }, true);\n  ["list", "sk-list"].forEach(id => { const el = document.getElementById(id); if (el) new MutationObserver(run).observe(el, {childList: true}); });\n  run();\n})();\n</script>\n<script>\n(function () {\n  let menu = null, cur = null;\n  const label = sel => { const o = sel.options[sel.selectedIndex]; return o ? o.textContent : ""; };\n  const sync = sel => { const b = sel._b; if (!b) return; b.firstElementChild.textContent = label(sel) || "Vyber…"; b.disabled = sel.disabled; };\n  const enhance = sel => {\n    if (sel.dataset.big || sel.multiple || !sel.closest("dialog")) return; sel.dataset.big = "1";\n    const w = document.createElement("div"); w.className = "selw"; sel.parentNode.insertBefore(w, sel);\n    sel.style.cssText = "position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;left:0;bottom:0"; sel.tabIndex = -1;\n    const b = document.createElement("button"); b.type = "button"; b.className = "selb"; b.innerHTML = "<span></span><span aria-hidden=\\"true\\">▾</span>"; w.appendChild(b); w.appendChild(sel); sel._b = b; sync(sel);\n    b.onclick = e => { e.preventDefault(); if (menu && cur === sel) { close(); return; } open(sel); };\n  };\n  const close = () => { if (menu) { menu.remove(); menu = null; cur = null; } };\n  const open = sel => {\n    close(); cur = sel; menu = document.createElement("div"); menu.className = "selm"; menu.setAttribute("role", "listbox");\n    const add = (o, box) => { const x = document.createElement("button"); x.type = "button"; x.textContent = o.textContent; x.disabled = o.disabled; if (o === sel.options[sel.selectedIndex]) x.classList.add("on");\n      x.onclick = () => { sel.value = o.value; sel.selectedIndex = [...sel.options].indexOf(o); sel.dispatchEvent(new Event("input", {bubbles: true})); sel.dispatchEvent(new Event("change", {bubbles: true})); sync(sel); close(); }; box.appendChild(x); };\n    [...sel.children].forEach(c => { if (c.tagName === "OPTGROUP") { const g = document.createElement("div"); g.className = "selg"; g.textContent = c.label; menu.appendChild(g); [...c.children].forEach(o => add(o, menu)); } else add(c, menu); });\n    (sel.closest("dialog") || document.body).appendChild(menu);\n    const r = sel._b.getBoundingClientRect(); menu.style.minWidth = r.width + "px";\n    let top = r.bottom + 6; const h = menu.offsetHeight; if (top + h > innerHeight - 8) top = Math.max(8, r.top - h - 6);\n    menu.style.top = top + "px"; menu.style.left = Math.max(8, Math.min(r.left, innerWidth - menu.offsetWidth - 8)) + "px";\n    const on = menu.querySelector(".on"); if (on) on.scrollIntoView({block: "nearest"});\n  };\n  document.addEventListener("click", e => { if (menu && !e.target.closest(".selm") && !e.target.closest(".selb")) close(); });\n  document.addEventListener("keydown", e => { if (e.key === "Escape" && menu) { e.stopPropagation(); close(); } }, true);\n  const scan = () => document.querySelectorAll("dialog select").forEach(enhance);\n  new MutationObserver(scan).observe(document.documentElement, {childList: true, subtree: true}); scan();\n  setInterval(() => document.querySelectorAll("select[data-big]").forEach(sync), 300);\n})();\n</script>\n<script>\n(function () {\n  const czd = x => (+x.slice(8)) + ". " + (+x.slice(5, 7)) + ". " + x.slice(0, 4);\n  const openDay = date => {\n    const ts = ALL.filter(t => day(t) === date).sort((a, b) => String(when(a)).localeCompare(String(when(b)))), sk = (typeof SK !== "undefined" ? SK : []).filter(r => r.date === date);\n    const click = (attr, val, extra) => { const b = document.createElement("button"); b.hidden = true; b.setAttribute(attr, attr === "data-a" ? "view" : val); if (attr === "data-a") b.dataset.id = val; if (extra) b.dataset.fromday = date; document.body.appendChild(b); b.click(); b.remove(); };\n    if (ts.length === 1 && !sk.length) { window.__fd = null; return click("data-a", ts[0].id, false); }\n    if (!ts.length && sk.length === 1) { window.__fd = null; return click("data-skv", sk[0].id, false); }\n    if (!ts.length && !sk.length) return;\n    const tot = ts.reduce((a, t) => a + (pnl(t) || 0), 0), d = new Date(date + "T12:00");\n    $("vbody").innerHTML = `<div class="vh"><div><h2>${esc(WDN[d.getDay()])} ${czd(date)}</h2><p class="empty" style="margin:0">${ts.length ? ts.length + (ts.length === 1 ? " obchod" : ts.length < 5 ? " obchody" : " obchodů") + " · celkem " : ""}${ts.length ? `<b class="${cl(tot)}">${usd(tot)}</b>` : ""}${sk.length ? (ts.length ? " · " : "") + (sk.every(r => r.reason === "Nenabralo") ? "nenabralo " + sk.length + "×" : "den bez obchodu") : ""}</p></div></div>` +\n      ts.map(t => { const p = pnl(t); return `<div class="dl"><span>${esc(String(when(t)).slice(11, 16))} · <b>${esc(t.inst)} ${t.dir === "short" ? "Short" : "Long"} ×${nf(t.size || 1, 0)}</b>${t.strat ? " · " + esc(t.strat) : ""}</span><span class="${cl(p)}"><b>${p == null ? "–" : usd(p)}</b></span><button type="button" class="ghost sm" data-a="view" data-id="${t.id}" data-fromday="${date}">Detail ›</button></div>`; }).join("") +\n      sk.map(r => `<div class="dl"><span>${r.reason === "Nenabralo" ? "⏳ Nenabralo" + (r.dir ? " · " + (r.dir === "short" ? "Short" : "Long") : "") + (r.time ? " · " + esc(r.time) : "") + (r.miss != null ? " · chybělo " + String(r.miss).replace(".", ",") + " b." : "") + (r.would ? " · výsledek " + (r.would === "tp" ? "TP" : r.would === "sl" ? "SL" : r.would === "be" ? "BE" : "") : "") : "🚫 Den bez obchodu · " + esc(r.reason)}</span><button type="button" class="ghost sm" data-skv="${r.id}">Detail ›</button></div>`).join("");\n    if (!$("view").open) $("view").showModal();\n  };\n  document.addEventListener("click", e => {\n    const v = e.target.closest && e.target.closest(\'[data-a="view"]\'); if (v) window.__fd = v.dataset.fromday || null;\n    const bk = e.target.closest && e.target.closest("[data-dayback]"); if (bk) { openDay(bk.dataset.dayback); return; }\n    const c = e.target.closest && e.target.closest(".dayc[data-day]"); if (c) openDay(c.dataset.day);\n  }, true);\n  document.addEventListener("keydown", e => { if ((e.key === "Enter" || e.key === " ") && e.target.matches && e.target.matches(".dayc[data-day]")) { e.preventDefault(); openDay(e.target.dataset.day); } });\n})();\n</script>\n<script>\nwindow.confirm2 = t => confirm(t + "\\n\\nTohle nejde vrátit zpět.") && confirm("Opravdu? Poslední kontrola: smazat to natrvalo?");\ndocument.addEventListener("click", e => { if (e.target.closest && e.target.closest("[data-vclose]")) { const d = document.getElementById("view"); if (d && d.open) d.close(); } });\n</script>\n</body></html>'
+BACKTEST_HTML = '<!doctype html>\n<html lang="cs"><head><meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n<title>Backtest deník</title>\n<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">\n<link rel="stylesheet" href="style.css?v=89"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}window.TDux=function(){try{var u=JSON.parse(localStorage.getItem("ux")||"{}"),c="",F={sys:"-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif",read:"Atkinson Hyperlegible,Verdana,sans-serif",serif:"Newsreader,Georgia,serif",round:"Nunito,Arial Rounded MT Bold,sans-serif",mono:"JetBrains Mono,Menlo,Consolas,monospace"},G={read:"Atkinson+Hyperlegible:wght@400;700",round:"Nunito:wght@400;600;700;800",mono:"JetBrains+Mono:wght@400;600;700"};if(F[u.f]){c+="body,body *{font-family:"+F[u.f]+"!important}";if(G[u.f]&&!document.getElementById("uxf-"+u.f)){var l=document.createElement("link");l.id="uxf-"+u.f;l.rel="stylesheet";l.href="https://fonts.googleapis.com/css2?family="+G[u.f]+"&display=swap";document.head.appendChild(l)}}if(u.z&&u.z!=1)c+="html{zoom:"+u.z+"}";var A={blue:["#38BDF8","#6366F1"],green:["#2EE6A6","#0EA5E9"],orange:["#FFB547","#FF6B8A"],pink:["#F472B6","#8B7CFF"],gold:["#E8C26A","#B9812C"],red:["#FF6B8A","#B91C1C"]};if(A[u.a])c+=":root{--acc:"+A[u.a][0]+"!important}button{background-image:linear-gradient(135deg,"+A[u.a][0]+","+A[u.a][1]+")}h2::before,.side a.on,.side a[aria-current]{border-color:"+A[u.a][0]+"!important}";if(u.bg===0)c+="body::before,body::after{background-image:none!important;opacity:0!important}";if(u.an===0)c+="*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}";if(u.lh)c+="p,li,td,.hint,.facts li{line-height:1.8!important}";if(u.b)c+="body{font-weight:500}b,strong,h1,h2,h3{font-weight:800!important}";var s=document.getElementById("uxs")||document.createElement("style");s.id="uxs";s.textContent=c;document.head.appendChild(s)}catch(e){}};TDux();document.addEventListener("DOMContentLoaded",TDux);</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><style>\n#f .grid{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}#f .grid>label{min-width:0}#f select,#f input{width:100%;min-width:0;text-overflow:ellipsis}#f input[type=checkbox]{width:auto;flex:none;margin:0}#f .chip{white-space:nowrap;display:inline-flex}\n#f .sec{margin:20px 0 8px;padding-top:12px;border-top:1px solid var(--rule);font-size:16px}#f .sec:first-of-type{border-top:0;margin-top:6px;padding-top:0}\n#f label em{font-style:normal;color:var(--acc);font-weight:600}\n.mdl{margin-top:14px;border:1px solid var(--rule);border-radius:14px;padding:10px 14px}.mdl summary{cursor:pointer;font-weight:600}.mdl h4{margin:14px 0 6px;font-size:14px}\n.qt{margin:10px 0;padding:8px 12px;border-left:3px solid var(--acc);color:var(--muted);font-style:italic}\n.cfgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}.cfg{border:1px solid var(--rule);border-radius:12px;padding:8px 10px}.cfg b{display:block;margin-bottom:4px;font-size:13px}\n.cfr{display:flex;align-items:center;gap:6px;justify-content:space-between;padding:3px 0;font-size:13px}.cfr>span{flex:1;min-width:0}.cfr .chip{padding:2px 9px}\n.slots{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}.slot{border:2px dashed var(--rule);border-radius:12px;padding:8px;min-height:130px;display:flex;flex-direction:column;gap:6px;font-size:13px;outline:0}\n.slot.on{border-color:var(--acc);background:rgba(139,124,255,.08)}.slot img{max-width:100%;max-height:150px;object-fit:contain;border-radius:8px}.slot input{font-size:12px}\n.tt td{white-space:nowrap}.tt td.act{white-space:normal;min-width:190px}.tt td.act div{display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end}.tt td{vertical-align:middle}@media(max-width:900px){.tt td.act{position:sticky;right:0;background:#0C1124;min-width:150px}html[data-theme=light] .tt td.act{background:#fff}}\n.guide{margin:0 0 14px;border:1px solid var(--rule);border-radius:14px;padding:12px 16px;background:var(--glass)}.guide summary{cursor:pointer;font-weight:600}.guide h3{margin:14px 0 4px;font-size:15px}.guide ol,.guide ul{margin:4px 0 0;padding-left:22px}.guide li{margin:3px 0}\n</style>\n<style>.cal{grid-template-columns:repeat(5,1fr) 1.3fr}.day b{display:block;font-size:13px;font-weight:600;white-space:nowrap}.day.wk{background:rgba(139,124,255,.14);border-color:rgba(139,124,255,.45)}.day.wk em{font-style:normal;font-size:12px;color:var(--muted)}.day.wk.up b{color:var(--up)}.day.wk.down b{color:var(--down)}@media(max-width:560px){.day b{font-size:11px}.cal{gap:3px}}</style>\n<style>\n.tz main{font-size:16px}.tz .p{padding:26px 28px;border-radius:20px}.tz .p h2{font-size:19px;margin-bottom:12px}\n.tz .tabs button{padding:11px 20px;font-size:15px}.tz #add{padding:13px 24px;font-size:16px;border-radius:14px}\n.dash{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin-bottom:18px}\n.tile{border:1px solid var(--rule);border-radius:20px;padding:20px 22px;background:var(--glass);display:flex;flex-direction:column;gap:6px;min-height:150px}\n.tile h3{margin:0;font-size:13px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600}\n.tile .big{font-size:36px;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums}.tile .sub{font-size:14px;color:var(--muted)}\n.tile .rw{display:flex;align-items:center;gap:16px}.tile svg.ring{width:92px;height:92px;flex:none}.ring text{fill:var(--ink);font:700 22px "IBM Plex Sans",sans-serif}\n.tile .badges2{display:flex;gap:6px;flex-wrap:wrap}.bdg{padding:3px 10px;border-radius:99px;font-size:13px;font-weight:600}.bdg.up{background:rgba(46,230,166,.16)}.bdg.down{background:rgba(255,107,138,.16)}.bdg.n{background:rgba(255,255,255,.1);text-align:left}\n.hb{height:12px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden;margin:3px 0}.hb i{display:block;height:100%;border-radius:99px}\n.dgrid{display:grid;grid-template-columns:1.45fr 1fr;gap:18px}.dgrid .chartbox{height:290px!important}@media(max-width:1100px){.dgrid{grid-template-columns:1fr}}\n.day{min-height:84px;padding:9px 11px;font-size:14px;border-radius:12px}.day b{font-size:15px!important}.cal{gap:8px}\n.tt td,.tt th{padding:15px 10px;font-size:15px}.tt tr.rowlink{cursor:pointer}.tt tr.rowlink:hover td{background:rgba(255,255,255,.05)}.tt tr.win td:first-child{box-shadow:inset 4px 0 var(--up)}.tt tr.loss td:first-child{box-shadow:inset 4px 0 var(--down)}\n.tt .pl{font-weight:700;font-size:16px}.tt input[type=checkbox]{width:18px;height:18px}\n.bulk{display:none;gap:10px;align-items:center;flex-wrap:wrap;padding:12px 16px;margin-bottom:12px;border:1px solid var(--acc);border-radius:14px;background:rgba(139,124,255,.12)}\n#view{width:min(1040px,96vw)}#view .vh{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:flex-start;margin-bottom:14px}#view .vh h2{font-size:24px;margin:0 0 4px}\n#view .vpl{font-size:34px;font-weight:700;text-align:right}#view .vpl small{display:block;font-size:15px;font-weight:500;color:var(--muted)}\n#view .tags{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}#view .shots{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:14px}#view .shots img{width:100%;border-radius:12px;border:1px solid var(--rule)}#view .shots h3{margin:0 0 6px;font-size:14px;color:var(--muted)}\n#view .dash{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}#view .dash .tile{min-height:0;padding:12px 14px}#view .dash .big{font-size:22px}#view .k{padding:12px 14px}#view .k b{font-size:20px;line-height:1.2}\n@media(max-width:700px){#view .shots{grid-template-columns:1fr}.tile .big{font-size:30px}}\n</style>\n</head>\n<body class="bg-analysis tz"><div class="app">@@SIDEBAR@@<div class="content"><header class="pagehead"><h1>Backtest deník</h1><p>Obchody z minulosti: cvič na historii a zjisti, co funguje</p></header><main>\n<div class="head"><div class="tabs" role="tablist">\n<button role="tab" data-tab="over" aria-selected="true">Přehled</button><button role="tab" data-tab="trades" aria-selected="false">Obchody</button><button role="tab" data-tab="rep" aria-selected="false">Reporty</button><button role="tab" data-tab="ai" aria-selected="false">Analýza</button><button role="tab" data-tab="disc" aria-selected="false">Disciplína</button></div>\n<div class="row" style="margin:0"><button id="skadd" type="button" class="ghost">🚫 Den bez obchodu</button><button id="add" type="button">+ Přidat obchod</button></div></div>\n\n<div id="t-over"><details class="guide"><summary>ℹ️ Jak backtest zapisovat (klikni)</summary><ul class="facts"><li>Tady jsou obchody z minulosti. Nejsou živé a nepočítají se do limitů dne ani do Uzavření dne. Deník obchodů zůstává zvlášť.</li><li>U obchodu napiš <b>den z minulosti</b> a čas obchodu (pražský čas, stejně jako v deníku).</li><li>Cenu vstupu vezmi z grafu v minulosti. Nic se nepředvyplňuje podle dnešní ceny.</li><li>Nejnižší timeframe je <b>1 minuta</b>. 15 s a 30 s v minulosti nejdou, proto je v seznamu nemáš.</li><li>Zapisuj stejně jako ostrý obchod: vstupní model, výsledek, chyby, emoce a screenshoty. Pak uvidíš, co ti opravdu vydělává.</li></ul></details>\n<div id="bk"></div><div class="dash" id="kpis"></div>\n<div class="dgrid"><section class="p"><h2>Vývoj zisku</h2><div id="curve"></div></section>\n<section class="p"><h2>Výsledek po dnech</h2><div class="chartbox"><canvas id="c-day"></canvas></div></section></div>\n<section class="p" id="sk-sec"><h2>Dny bez obchodu</h2><p class="hint">Dny, kdy jsi backtestoval, ale obchod nevzal, protože podmínky nebyly dobré. U každého je fotka grafu.</p><div id="sk-stats"></div><div id="sk-list"></div></section>\n<section class="p"><div class="calhead"><button class="ghost sm" onclick="mv(-1)" aria-label="Předchozí měsíc">‹</button><b id="calt"></b><button class="ghost sm" onclick="mv(1)" aria-label="Další měsíc">›</button><span id="calsum"></span></div><div class="cal" id="cal"></div></section></div>\n\n<div id="t-trades" hidden><section class="p"><h2>Otevřené pozice</h2><div id="open"></div></section>\n<section class="p"><h2>Všechny obchody</h2><div class="bulk" id="bulk">Vybráno: <b id="bn">0</b><select id="bstrat"></select><button type="button" id="bapply">Nastavit strategii</button><button type="button" class="ghost" id="bdel">Smazat vybrané</button></div><div id="list"></div>\n<div class="row"><button class="ghost" id="exp" type="button">Zálohovat do souboru</button><button class="ghost" id="imp" type="button">Obnovit ze zálohy</button><input id="impf" type="file" accept="application/json" hidden></div>\n<div class="row"><button id="tvb" type="button">⬇ Importovat z TradingView (CSV)</button><input id="tvf" type="file" accept=".csv,text/csv" hidden><label class="chip"><input type="checkbox" id="tvm">Přepočítat na MNQ (1 NQ = 10 MNQ)</label></div>\n<p class="empty">Funguje soubor z Replay Trading i ze Strategy Testeru (List of trades → ikona stažení → CSV). Pozice rozdělená na víc výstupů (TP1 a TP2) se spojí do jednoho obchodu. Soubor můžeš také přetáhnout kamkoliv na stránku. Čas v souboru musí být pražský. Znovu nahraný stejný soubor nevytvoří duplicity.</p>\n<p class="empty">Obchody se ukládají jen v tomto prohlížeči na tomto zařízení. Zálohuj je pravidelně.</p></section></div>\n\n<div id="t-rep" hidden><section class="p"><h2>Filtry</h2><div class="grid" id="flt">\n<label>Od<input type="date" id="f-from"></label><label>Do<input type="date" id="f-to"></label>\n<label>Symbol<select id="f-sym"></select></label><label>Směr<select id="f-dir"><option value="">Oba</option><option value="long">Long</option><option value="short">Short</option></select></label>\n<label>Výsledek<select id="f-res"><option value="">Všechny</option><option value="w">Výhry</option><option value="l">Prohry</option></select></label><label>Strategie<select id="f-str"></select></label></div>\n<div class="chips" id="f-emo"></div><div class="row"><button class="ghost sm" id="f-reset" type="button">Reset</button></div></section>\n<section class="p"><h2>Souhrn filtrovaných obchodů</h2><div class="kpis" id="rsum"></div>\n<div class="two" id="rbars"></div></section></div>\n<div id="t-ai" hidden>\n<section class="p"><h2>Hodnocení tvého obchodování</h2><p class="hint">Hodnotí pravidla v prohlížeči zdarma, bez umělé inteligence. Pro hlubší rozbor zmáčkni tlačítko dole a vlož data do chatu s Claudem.</p><div id="coach"></div></section>\n<section class="p"><div class="two"><div><h2>Skóre tradera</h2><div class="chartbox" style="height:300px"><canvas id="c-radar"></canvas></div></div>\n<div><h2>S trendem a proti trendu</h2><div id="trendbars"></div><h2 style="margin-top:18px">S fundamentem a proti němu</h2><p class="hint">Porovnává tvůj směr s ranním biasem, který robot uložil ten den.</p><div id="alignbars"></div></div></div></section>\n<section class="p"><h2>Roční přehled</h2><div class="chartbox" style="height:240px"><canvas id="c-year"></canvas></div><div id="yeartab" style="margin-top:12px"></div></section>\n<section class="p"><h2>Účty</h2><div id="accbars"></div></section>\n<section class="p"><h2>Import a data pro Claude</h2><div class="row"><button class="ghost" id="csvb" type="button">Importovat obchody z CSV</button><input id="csvf" type="file" accept=".csv,text/csv" hidden><button id="cp" type="button">Zkopírovat data pro Claude</button></div>\n<p class="empty">CSV musí mít hlavičku se sloupci: datum, symbol, smer, kontrakty, vstup, vystup, stop (stop je nepovinný). Zkopírovaná data vlož do chatu na claude.ai a napiš: „Rozeber mi můj deník.“</p><p id="cpmsg" class="empty"></p></section></div>\n<div id="t-disc" hidden><section class="p"><h2>Tiltmeter: křivka účtu a dodržování plánu</h2><div id="d-tilt"></div></section><section class="p"><h2>Cena obchodů mimo plán</h2><div id="d-leak"></div></section><section class="p"><h2>Emoce a chyby v penězích</h2><div id="d-emoc"></div></section><section class="p"><h2>Zmeškané obchody (čekání je taky výsledek)</h2><div id="d-miss"></div></section><section class="p"><h2>Rozbor týdne</h2><div id="d-rev"></div></section><section class="p"><h2>Strategie a konfluence</h2><div id="d-pb"></div></section></div>\n</main></div></div>\n\n<dialog id="dlg"><form id="f"><h2 id="dt">Nový obchod</h2><input type="hidden" name="id">\n<h3 class="sec">1. Zápis obchodu: vstup</h3>\n<div class="grid">\n<label>Den obchodu (v minulosti)<input name="od" type="date" required></label><label>Čas obchodu<input name="ot" type="time" required></label>\n<label>Instrument<input name="inst" value="MNQ" required></label><label>Směr<select name="dir"><option value="long">Long</option><option value="short">Short</option></select></label>\n<label>Počet mikro kontraktů<input name="size" type="number" step="1" min="1" value="1"></label><label>Vzdálenost stopu (body)<input id="sd" type="number" step="any" value="35"></label><input name="pv" type="hidden">\n<label id="tfw">Timeframe vstupu<select name="tfm"><option value="">–</option><option value="1m">1 minuta</option><option value="2m">2 minuty</option><option value="3m">3 minuty</option><option value="5m">5 minut</option><option value="15m">15 minut</option></select></label>\n<label>Typ vstupu<select name="otype"><option value="">–</option><option value="market">Market</option><option value="limit">Limit</option><option value="stop">Stop (průraz)</option></select></label><label>Vstup (cena)<input name="entry" type="number" step="any" required></label>\n<label>Stop loss<input name="stop" type="number" step="any" required></label>\n<label>Take profit 1 <em id="r1"></em><input name="target" type="number" step="any" required></label><label>Take profit 2 <em id="r2"></em><input name="target2" type="number" step="any"></label>\n<label>Strategie<select name="strat" id="strat"></select></label><label>Trend dne<select name="trend"><option value="">–</option><option value="with">S trendem</option><option value="against">Proti trendu</option></select></label><label>Účet<input name="acc" value="Hlavní" list="accs"></label></div>\n<p class="empty" id="tfnote" style="margin:6px 0 0;display:none">Nejnižší timeframe je 1 minuta. Timeframey 15 s a 30 s tu nejsou, protože v minulosti je TradingView nezobrazí.</p><p class="empty" id="pbnote" style="margin:6px 0 0"></p><p class="empty" style="margin:4px 0 0">Strategii i s jejími podmínkami a konfluencemi si nastavíš v záložce Disciplína → Strategie. Po jejím výběru se checklist vyplní sám.</p><datalist id="accs"></datalist>\n<p class="empty" id="entrynote" style="margin:8px 0 0"></p><div class="note" id="rr" style="margin-top:12px">Zadej vstupní cenu a stop loss i oba take profity se doplní samy.</div>\n<details class="mdl" open><summary>Vstupní model: checklist (co platilo při vstupu)</summary>\n<blockquote class="qt">Každý vstup musí být v souladu s tvojí celkovou obchodní strategií a pravidly řízení rizika. Bez výjimek!</blockquote>\n<h4>Podmínky pro vstup</h4><div class="chips" id="d-cond"></div>\n<h4>Konfluence: u každého bodu vyber Pro nebo Proti</h4><div class="cfgrid" id="d-conf"></div><div class="note" id="cfsum"></div></details>\n<h3 class="sec">2. Výsledek obchodu</h3>\n<div class="grid">\n<label>Výsledek obchodu<select name="outc"><option value="">Zatím otevřeno</option><option value="sl">Stop loss</option><option value="be">Break even</option><option value="tp1">Celá pozice na TP1</option><option value="tp1be">TP1 + break even</option><option value="tp1tp2">TP1 + TP2</option><option value="tp1trail">TP1 + TP2 trail</option><option value="other">Jiný výstup (zadám cenu)</option></select></label>\n<label id="n1w" style="display:none">Kolik kontraktů vyšlo na TP1<input name="n1" type="number" step="1" min="1"></label>\n<label id="trw" style="display:none">Kde skončil zbytek (cena trailing stopu)<input name="trp" type="number" step="any"></label>\n<label id="exw" style="display:none">Výstupní cena<input name="exit" type="number" step="any"></label>\n<label>Zavřeno: den<input name="cd" type="date"></label><label>Zavřeno: čas<input name="ct" type="time"></label></div>\n<div class="note" id="outnote" style="margin-top:10px;display:none"></div>\n<div class="grid" style="margin-top:12px"><label>Dodržel jsem plán?<select name="plan"><option value="">–</option><option value="ano">Ano</option><option value="ne">Ne</option></select></label><label>Hodnocení obchodu<select name="rate"><option value="">–</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></label></div><label style="margin-top:12px">Chyby</label><div class="chips" id="d-mis"></div>\n<label style="margin-top:12px">Emoce</label><div class="chips" id="d-emo"></div>\n<label style="margin-top:12px">Poznámky<textarea name="notes" rows="3"></textarea></label>\n<h3 class="sec">3. Screenshoty</h3>\n<p class="empty" style="margin:0 0 8px">Čtyři screenshoty v pořadí, jak je děláš: vstup 1 min, vstup 5 min, výsledek 1 min, výsledek 5 min. Ctrl+V (nebo ⌘V) vloží obrázek do dalšího prázdného rámečku. Můžeš také přetáhnout nebo vybrat všechny najednou: seřadí se podle času uložení.</p>\n<div class="row"><label class="ghost sm" style="cursor:pointer;padding:9px 14px;border:1px solid var(--line,#2a3350);border-radius:12px">📎 Vybrat více screenshotů najednou<input type="file" id="shotmulti" accept="image/*" multiple hidden></label></div>\n<div class="slots" id="slots"></div>\n<div class="row"><button type="button" class="ghost sm" id="ocr">🔍 Vyčíst ceny ze screenshotu (experiment)</button></div>\n<p class="empty" id="shotinfo"></p>\n<div class="row"><button type="submit">Uložit</button><button type="button" class="ghost" id="cancel">Zrušit</button></div></form></dialog>\n<dialog id="skd"><form id="skf"><h2 id="skh">Den bez obchodu</h2>\n<p class="empty" id="skp">Backtestoval jsi, ale obchod jsi nevzal, protože podmínky byly špatné. Fotka grafu je povinná: uvidíš, že price action opravdu byla špatná.</p>\n<div class="grid"><label>Den<input name="date" type="date" required></label><label>Důvod<select name="reason" id="skr"></select></label></div>\n<div id="nbw" style="display:none"><p class="note" style="margin:0 0 10px">⏳ <b>Nenabralo</b> = setup byl dobrý, ale cena nedošla na tvůj vstup. Když jsi ten den pak vzal jiný obchod, zapiš ho normálně přes „+ Přidat obchod“. V kalendáři uvidíš obojí.</p><div class="grid"><label>Kolik bodů chybělo do vstupu<input name="miss" type="number" step="any" min="0" placeholder="např. 3"></label><label>Směr<select name="nbdir"><option value="long">Long</option><option value="short">Short</option></select></label><label>Výsledek (co by obchod udělal)<select name="would"><option value="">Nevím</option><option value="tp">TP</option><option value="sl">SL</option><option value="be">BE</option></select></label><label>Čas (nepovinný)<input name="nbt" type="time"></label></div></div>\n<label>Poznámka (nepovinná)<textarea name="note" rows="2" placeholder="např. celý den úzký rozsah, žádný CISD"></textarea></label>\n<h3 class="sec">Fotky grafu (aspoň jedna, nejvíc 4)</h3>\n<p class="empty" style="margin:0 0 8px">Vlož přes Ctrl+V (⌘V), přetáhni soubor, nebo vyber soubory.</p>\n<div class="slots" id="sk-imgs"></div>\n<div class="row"><label class="ghost sm" style="cursor:pointer;padding:9px 14px;border:1px solid var(--rule,#2a3350);border-radius:12px">📎 Vybrat fotky<input type="file" id="sk-file" accept="image/*" multiple hidden></label></div>\n<p class="empty" id="sk-msg" style="color:#FF9DB0"></p>\n<div class="row"><button type="submit">Uložit</button><button type="button" class="ghost" id="skcancel">Zrušit</button></div></form></dialog>\n<dialog id="view"><div id="vbody"></div><div class="row"><button class="ghost" onclick="this.closest(\'dialog\').close()">Zavřít</button></div></dialog>\n\n<script>\nif (window.Chart) { const LIGHT = document.documentElement.getAttribute("data-theme") === "light"; Chart.defaults.color = LIGHT ? "#3B4668" : "#C9D1E8"; Chart.defaults.borderColor = LIGHT ? "rgba(20,30,70,.12)" : "rgba(255,255,255,.07)"; Chart.defaults.font.family = \'"IBM Plex Sans",system-ui,sans-serif\'; }\nif (window.Chart) Chart.register({id: "cross", afterDraw(c) { if (c.config.type === "line" && c.tooltip && c.tooltip._active && c.tooltip._active.length) { const x = c.tooltip._active[0].element.x, a = c.chartArea, g = c.ctx; g.save(); g.beginPath(); g.moveTo(x, a.top); g.lineTo(x, a.bottom); g.lineWidth = 1; g.strokeStyle = "rgba(255,255,255,.28)"; g.setLineDash([4, 4]); g.stroke(); g.restore(); } }});\nconst BT = true; let calSet = false;\nconst S = "trades", EMO = [["😌","Klid"],["💪","Sebevědomí"],["🏃","FOMO"],["🤑","Chamtivost"],["😨","Strach"],["😡","Revenge"],["⏱️","Netrpělivost"],["😕","Nejistota"],["🤯","Tilt"],["😴","Nuda"]];\nconst MIS = ["Brzký vstup","Pozdní vstup","Přesunutý stop","Předčasný výstup","Přeobchodování","Bez setupu","Bez korelace s ES","Uzavřel skrz BE","Vstup mezi 18. a 19. hodinou","FOMO","Revenge obchod","Moc velká pozice"];\nconst lsGet = k => { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } };\nconst PV = {NQ:20, MNQ:2, ES:50, MES:5, YM:5, MYM:0.5};\nlet touched = {}, dist = null, dayc = null, eq = null, db, shots = [], calD = new Date(), E = Object.create(null);\nconst $ = id => document.getElementById(id), sum = a => a.reduce((x, y) => x + y, 0);\nconst esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",\'"\':"&quot;"}[c]));\nconst nf = (x, d = 0) => x.toLocaleString("cs-CZ", {maximumFractionDigits: d});\nconst sg = (x, d = 0) => (x >= 0 ? "+" : "\\u2212") + nf(Math.abs(x), d), usd = x => sg(x) + "\\u00a0$", cl = x => x >= 0 ? "up" : "down";\nconst localNow = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); };\n\nconst open = () => new Promise((res, rej) => { const r = indexedDB.open("backtest", 1);\n  r.onupgradeneeded = () => r.result.createObjectStore(S, {keyPath: "id", autoIncrement: true}); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });\nconst tx = (m, f) => new Promise((res, rej) => { const t = db.transaction(S, m), o = f(t.objectStore(S)); t.oncomplete = () => res(o && o.result); t.onerror = () => rej(t.error); });\n\nconst dir = t => t.dir === "short" ? -1 : 1, when = t => t.opened || t.date + "T00:00", day = t => when(t).slice(0, 10);\nconst imgs = t => [...Object.values(t.slots || {}).filter(Boolean), ...(t.shots || (t.shot ? [t.shot] : []))];\nconst pnl = t => t.exit == null ? null : (t.exit - t.entry) * dir(t) * (t.size || 1) * (t.pv || PV[t.inst] || 1) - (t.fee || 0);\nconst risk = t => Math.abs(t.entry - t.stop);\nconst real = t => (t.exit != null && risk(t)) ? (t.exit - t.entry) * dir(t) / risk(t) : null;\nconst plan = t => risk(t) ? Math.abs(t.target - t.entry) / risk(t) : null;\n\nfunction st(list) {\n  const d = list.filter(t => pnl(t) !== null).sort((a, b) => when(a).localeCompare(when(b))), p = d.map(pnl);\n  const w = p.filter(x => x > 0), l = p.filter(x => x < 0), net = sum(p);\n  let c = 0, pk = 0, dd = 0, ws = 0, ls = 0, mw = 0, ml = 0;\n  p.forEach(x => { c += x; pk = Math.max(pk, c); dd = Math.min(dd, c - pk);\n    if (x > 0) { ws++; ls = 0; } else if (x < 0) { ls++; ws = 0; } else ws = ls = 0; mw = Math.max(mw, ws); ml = Math.max(ml, ls); });\n  const days = {}, dayN = {}; d.forEach(t => { days[day(t)] = (days[day(t)] || 0) + pnl(t); dayN[day(t)] = (dayN[day(t)] || 0) + 1; }); Object.defineProperty(days, "_n", {value: dayN, enumerable: false});\n  const dv = Object.values(days), rs = d.map(real).filter(x => x !== null);\n  const hs = d.filter(t => t.closed && t.opened).map(t => (new Date(t.closed) - new Date(t.opened)) / 60000);\n  return {d, p, n: d.length, net, win: w.length, loss: l.length, be: p.length - w.length - l.length, days,\n    wr: d.length ? w.length / d.length * 100 : null, pf: l.length ? sum(w) / Math.abs(sum(l)) : null,\n    avgW: w.length ? sum(w) / w.length : 0, avgL: l.length ? sum(l) / l.length : 0, exp: d.length ? net / d.length : 0,\n    avgR: rs.length ? sum(rs) / rs.length : null, best: p.length ? Math.max(...p) : 0, worst: p.length ? Math.min(...p) : 0,\n    dd, mw, ml, dayWin: dv.length ? dv.filter(x => x > 0).length / dv.length * 100 : null, hold: hs.length ? sum(hs) / hs.length : null};\n}\nconst K = (v, l) => `<div class="k"><b>${v}</b><span>${l}</span></div>`;\nconst dash = "–";\n\nfunction over(trades) {\nfunction dg(el,v,big,sub,word,cls,cap){var a=Math.max(-1,Math.min(1,v))*80;el.innerHTML=`<div class="gbox"><svg class="gauge" viewBox="0 0 200 110"><defs><linearGradient id="gd"><stop offset="0" stop-color="#FF6B8A"/><stop offset=".5" stop-color="#C9D1E8"/><stop offset="1" stop-color="#2EE6A6"/></linearGradient></defs><path d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke="url(#gd)" stroke-width="14" stroke-linecap="round"/><g transform="rotate(${a} 100 100)"><line x1="100" y1="100" x2="100" y2="34" stroke="#EEF1FA" stroke-width="3" stroke-linecap="round"/></g><circle cx="100" cy="100" r="6" fill="#EEF1FA"/></svg><div class="gnum ${cls}">${big}<span> ${sub}</span></div><div class="gword ${cls}">${word}</div><div class="gcap">${cap}</div></div>`;}  const s = st(trades);\n  const ring = (pct, col, mid) => { const p = Math.max(0, Math.min(100, pct || 0)), C = 2 * Math.PI * 44; return `<svg class="ring" viewBox="0 0 110 110"><circle cx="55" cy="55" r="44" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="11"/><circle cx="55" cy="55" r="44" fill="none" stroke="${col}" stroke-width="11" stroke-linecap="round" stroke-dasharray="${C * p / 100} ${C}" transform="rotate(-90 55 55)"/><text x="55" y="63" text-anchor="middle">${mid}</text></svg>`; };\n  const aw = s.avgW, al = Math.abs(s.avgL), mxw = Math.max(aw, al, 1), sc3 = s.n >= 3 ? grade(score(s, s.d)) : null;\n  $("kpis").innerHTML =\n    `<div class="tile"><h3>Čistý výsledek</h3><div class="big ${cl(s.net)}">${usd(s.net)}</div><div class="sub">${s.n} obchodů celkem</div><div class="badges2"><span class="bdg up">${s.win} výher</span><span class="bdg down">${s.loss} proher</span><span class="bdg n">${s.be} BE</span></div></div>` +\n    `<div class="tile"><h3>Úspěšnost</h3><div class="rw">${ring(s.wr, "#2EE6A6", s.wr == null ? dash : nf(s.wr, 0) + "%")}<div class="sub">výhry z uzavřených obchodů<br>Série výher ${s.mw}, proher ${s.ml}</div></div></div>` +\n    `<div class="tile"><h3>Profit factor</h3><div class="rw">${ring(s.pf == null ? 0 : s.pf / 3 * 100, "#8B7CFF", s.pf == null ? dash : nf(s.pf, 2))}<div class="sub">součet zisků ÷ součet ztrát<br>Nad 1,5 je dobré</div></div></div>` +\n    `<div class="tile"><h3>Ø výhra a ztráta</h3><div class="sub">Výhra <b class="up">${usd(aw)}</b></div><div class="hb"><i style="width:${aw / mxw * 100}%;background:var(--up)"></i></div><div class="sub">Ztráta <b class="down">${usd(-al)}</b></div><div class="hb"><i style="width:${al / mxw * 100}%;background:var(--down)"></i></div></div>` +\n    `<div class="tile"><h3>Ziskové dny</h3><div class="rw">${ring(s.dayWin, "#38BDF8", s.dayWin == null ? dash : nf(s.dayWin, 0) + "%")}<div class="sub">dnů v plusu<br>Průměrné R: ${s.avgR == null ? dash : sg(s.avgR, 2)}</div></div></div>` +\n    `<div class="tile"><h3>Maximální drawdown</h3><div class="big down">${usd(s.dd)}</div><div class="sub">Nejlepší ${usd(s.best)}<br>Nejhorší ${usd(s.worst)}</div></div>` +\n    `<div class="tile"><h3>Skóre tradera</h3>${sc3 ? `<div class="rw">${ring(sc3[1], "#FBBF24", sc3[0])}<div class="sub">${nf(sc3[1], 0)} ze 100<br>Detail v záložce Analýza</div></div>` : \'<div class="sub">Přidej aspoň 3 uzavřené obchody.</div>\'}</div>`;\n  if (eq) { eq.destroy(); eq = null; }\n  $("curve").innerHTML = s.n < 2 ? \'<p class="empty">Graf se zobrazí od dvou uzavřených obchodů.</p>\' : \'<div class="chartbox"><canvas id="c-eq"></canvas></div>\';\n  if (s.n >= 2 && window.Chart) { let c = 0; const cum = s.p.map(x => c += x);\n    eq = new Chart($("c-eq"), {type: "line", data: {labels: s.d.map(t => day(t)), datasets: [{data: cum, borderColor: "#8B7CFF", borderWidth: 2, tension: .3, fill: true, pointRadius: 0, pointHoverRadius: 5,\n      backgroundColor: x => { const g = x.chart.ctx.createLinearGradient(0, 0, 0, x.chart.height); g.addColorStop(0, "rgba(139,124,255,.35)"); g.addColorStop(1, "rgba(139,124,255,0)"); return g; }}]},\n      options: {maintainAspectRatio: false, interaction: {mode: "index", intersect: false}, plugins: {legend: {display: false}, tooltip: {callbacks: {label: x => "Celkem " + usd(x.parsed.y), afterLabel: x => "Tento obchod: " + usd(s.p[x.dataIndex])}}},\n      scales: {x: {ticks: {maxTicksLimit: 6}, grid: {display: false}}, y: {ticks: {callback: v => nf(v) + " $"}}}}}); }\n  dayChart(s);\n  const y = calD.getFullYear(), m = calD.getMonth(), pre = `${y}-${String(m + 1).padStart(2, "0")}`, off = (new Date(y, m, 1).getDay() + 6) % 7;\n  let h = ["Po","Út","St","Čt","Pá"].map(d => `<b class="dow">${d}</b>`).join("") + \'<b class="dow">Týden</b>\' + "<i></i>".repeat(off < 5 ? off : 0), tot = 0, nd = new Date(y, m + 1, 0).getDate();\n  const val = d => s.days[`${pre}-${String(d).padStart(2, "0")}`];\n  for (let d = 1; d <= nd; d++) { const v = val(d), dow = (off + d - 1) % 7; if (v != null) tot += v;\n    if (dow > 4) continue;\n    const ds_ = `${pre}-${String(d).padStart(2, "0")}`, nb_ = (typeof SK !== "undefined" ? SK : []).filter(r => r.date === ds_ && r.reason === "Nenabralo").length, sk_ = v == null && SKD.has(ds_); h += `<div class="day${(v != null || sk_) ? " dayc" : ""} ${v == null ? (sk_ ? "skipd" : "") : cl(v)}"${(v != null || sk_) ? ` data-day="${pre}-${String(d).padStart(2, "0")}" tabindex="0" title="Klikni a otevři obchod"` : ""}><span>${d}</span>${v == null ? (sk_ ? (nb_ && !(typeof SK !== "undefined" ? SK : []).some(r => r.date === ds_ && r.reason !== "Nenabralo") ? \'<b class="skm" title="Nenabralo">⏳</b><em>nenabralo\' + (nb_ > 1 ? " " + nb_ + "×" : "") + \'</em>\' : \'<b class="skm" title="Den bez obchodu">🚫</b>\') : "") : "<b>" + usd(v) + "</b>" + ((n_ => n_ ? "<em>" + n_ + (n_ === 1 ? " obchod" : n_ < 5 ? " obchody" : " obchodů") + "</em>" : "")((s.days._n || {})[`${pre}-${String(d).padStart(2, "0")}`]) + (nb_ ? "<em style=\'display:block;color:#F5B94A\'>⏳ nenabralo" + (nb_ > 1 ? " " + nb_ + "×" : "") + "</em>" : ""))}</div>`;\n    if (dow === 4 || d === nd) { if (dow < 4) h += "<i></i>".repeat(4 - dow); let ws = 0, wn = 0;\n      for (let k = Math.max(1, d - dow); k <= Math.min(nd, d - dow + 6); k++) { const x = val(k); if (x != null) { ws += x; wn++; } }\n      h += `<div class="day wk ${wn ? cl(ws) : ""}"><span>Týden</span>${wn ? "<b>" + usd(ws) + "</b><em>" + wn + (wn === 1 ? " den" : wn < 5 ? " dny" : " dní") + "</em>" : ""}</div>`; } }\n  $("cal").innerHTML = h; $("calt").textContent = calD.toLocaleString("cs-CZ", {month: "long", year: "numeric"});\n  $("calsum").innerHTML = `<span class="${cl(tot)}">${usd(tot)}</span>`;\n}\nfunction dayChart(s) {\n  if (dayc) { dayc.destroy(); dayc = null; }\n  const k = Object.keys(s.days).sort();\n  if (!window.Chart || !$("c-day") || !k.length) return;\n  dayc = new Chart($("c-day"), {type: "bar", data: {labels: k, datasets: [{data: k.map(d => s.days[d]), borderRadius: 6, hoverBackgroundColor: "#8B7CFF", backgroundColor: k.map(d => s.days[d] >= 0 ? "#2EE6A6" : "#FF6B8A")}]},\n    options: {maintainAspectRatio: false, plugins: {legend: {display: false}, tooltip: {callbacks: {label: x => usd(x.parsed.y)}}}, scales: {x: {ticks: {maxTicksLimit: 8}, grid: {display: false}}, y: {ticks: {callback: v => nf(v) + " $"}}}}});\n}\nconst mv = n => { calD = new Date(calD.getFullYear(), calD.getMonth() + n, 1); render(); };\n\nconst emoStr = t => (t.emo || []).map(e => (EMO.find(x => x[1] === e) || [""])[0]).join("");\nconst OUTL = {sl: "Stop loss", be: "Break even", tp1: "TP1", tp1be: "TP1 + BE", tp1tp2: "TP1 + TP2", tp1trail: "TP1 + TP2 trail", other: "Vlastní výstup"};\nfunction table(rows, isOpen) {\n  if (!rows.length) return `<p class="empty">${isOpen ? "Žádná otevřená pozice." : "Zatím žádný obchod. Přidej první tlačítkem nahoře."}</p>`;\n  const head = isOpen ? ["Otevřeno", "Obchod", "Vstup", "Stop", "TP1", "TP2"] : ["Otevřeno", "Obchod", "Vstup", "Výstup", "Net P&amp;L", "R"], ck = isOpen ? "" : \'<th><input type="checkbox" data-selall></th>\';\n  return `<div class="wrap"><table class="tt"><thead><tr>${ck}${head.map((h, i) => `<th${i > 1 ? \' class="n"\' : ""}>${h}</th>`).join("")}<th></th></tr></thead><tbody>` +\n  rows.map(t => { const p = pnl(t), r = real(t);\n    const who = `${esc(t.inst)} ${t.dir === "short" ? "Short" : "Long"} ×${nf(t.size || 1, 0)}` + (t.tfm ? ` <span class="empty">${t.tfm}</span>` : "") + (!isOpen && t.outc ? ` <span class="empty">${OUTL[t.outc] || ""}</span>` : "") + (!isOpen && (t.emo || t.strat) ? `<br><span class="empty">${emoStr(t)} ${esc(t.strat || "")}</span>` : "");\n    return `<tr class="rowlink ${isOpen ? "" : p > 0 ? "win" : p < 0 ? "loss" : ""}" data-a="view" data-id="${t.id}">${isOpen ? "" : `<td><input type="checkbox" data-sel="${t.id}"></td>`}<td>${esc(when(t).slice(0, 10))}<br><span class="empty">${esc(when(t).slice(11, 16))}</span></td><td>${who}</td><td class="n">${nf(t.entry, 2)}</td>` +\n    (isOpen ? `<td class="n">${nf(t.stop, 2)}</td><td class="n">${nf(t.target, 2)} <span class="empty">(1:${nf(plan(t) || 0, 1)})</span></td><td class="n">${t.target2 != null ? nf(t.target2, 2) + \' <span class="empty">(1:\' + nf(Math.abs(t.target2 - t.entry) / (risk(t) || 1), 1) + ")</span>" : dash}</td>`\n      : `<td class="n">${nf(t.exit, 2)}</td><td class="n ${cl(p)}"><span class="pl">${usd(p)}</span></td><td class="n">${r == null ? dash : sg(r, 2) + "R"}</td>`) +\n    `<td class="act"><div><button class="ghost sm" data-a="view" data-id="${t.id}">${imgs(t).length ? "📷 " + imgs(t).length : "Detail"}</button>` +\n    `<button class="ghost sm" data-a="edit" data-id="${t.id}">Upravit</button>` +\n    (isOpen ? `<button class="sm" data-a="close" data-id="${t.id}">Uzavřít</button>` : "") +\n    `<button class="ghost sm" data-a="del" data-id="${t.id}">Smazat</button></div></td></tr>`; }).join("") + "</tbody></table></div>";\n}\n\nfunction bars(title, groups) {\n  const rows = groups.map(([k, ts]) => { const s = st(ts); return {k, net: s.net, n: s.n, wr: s.wr}; }).filter(r => r.n);\n  const mx = Math.max(1, ...rows.map(r => Math.abs(r.net)));\n  return `<div><h3>${title}</h3>` + (rows.length ? rows.map(r => `<div class="bar"><span>${esc(r.k)}</span><div class="track ${cl(r.net)}"><i style="width:${Math.abs(r.net) / mx * 100}%"></i></div><b class="${cl(r.net)}">${usd(r.net)} <em>${r.n}× · ${nf(r.wr)} %</em></b></div>`).join("") : \'<p class="empty">Žádná data.</p>\') + "</div>";\n}\nfunction reports() {\n  const g = id => $(id).value, em = [...document.querySelectorAll("#f-emo input:checked")].map(i => i.value);\n  const list = ALL.filter(t => pnl(t) !== null && (!g("f-from") || day(t) >= g("f-from")) && (!g("f-to") || day(t) <= g("f-to")) &&\n    (!g("f-sym") || t.inst === g("f-sym")) && (!g("f-dir") || t.dir === g("f-dir")) && (!g("f-str") || t.strat === g("f-str")) &&\n    (!g("f-res") || (g("f-res") === "w" ? pnl(t) > 0 : pnl(t) < 0)) && em.every(e => (t.emo || []).includes(e)));\n  const s = st(list);\n  $("rsum").innerHTML = K(`<span class="${cl(s.net)}">${usd(s.net)}</span>`, "Net P&L") + K(s.n, "Obchody") + K(s.wr == null ? dash : nf(s.wr, 1) + "\\u00a0%", "Úspěšnost") +\n    K(s.pf == null ? dash : nf(s.pf, 2), "Profit factor") + K(s.avgR == null ? dash : sg(s.avgR, 2) + "R", "Průměrné R") + K(usd(s.exp), "Expectancy na obchod") +\n    K(usd(s.best), "Nejlepší") + K(usd(s.worst), "Nejhorší") + K(s.mw, "Série výher") + K(s.ml, "Série proher") + K(nf(s.avgW) + " $", "Prům. výhra") + K(s.hold == null ? dash : nf(s.hold, 0) + " min", "Prům. délka");\n  const hr = t => new Date(when(t)).getHours(), wd = t => (new Date(when(t)).getDay() + 6) % 7;\n  $("rbars").innerHTML = bars("Podle hodiny otevření", [...Array(24).keys()].map(h => [String(h).padStart(2, "0") + ":00", list.filter(t => hr(t) === h)])) +\n    bars("Podle dne v týdnu", ["Po","Út","St","Čt","Pá","So","Ne"].map((n, i) => [n, list.filter(t => wd(t) === i)])) +\n    bars("Podle emoce", EMO.map(([i, n]) => [i + " " + n, list.filter(t => (t.emo || []).includes(n))])) +\n    bars("Podle strategie", [...new Set(list.map(t => t.strat).filter(Boolean))].map(n => [n, list.filter(t => t.strat === n)])) +\n    bars("Podle dodržení plánu", [["Dodržel plán", list.filter(t => t.plan === "ano")], ["Nedodržel plán", list.filter(t => t.plan === "ne")]]) +\n    bars("Podle chyby", MIS.map(n => [n, list.filter(t => (t.mis || []).includes(n))]));\n}\n\nlet ALL = [];\nasync function render() {\n  ALL = await tx("readonly", s => s.getAll());\n  if (BT && !calSet && ALL.length) { const l = [...ALL].map(day).sort().pop(); calD = new Date(+l.slice(0, 4), +l.slice(5, 7) - 1, 1); calSet = true; }\n  const rows = [...ALL].sort((a, b) => when(b).localeCompare(when(a)));\n  over(ALL);\n  $("open").innerHTML = table(rows.filter(t => t.exit == null), true);\n  $("list").innerHTML = table(rows.filter(t => t.exit != null), false);\n  const keep = [$("f-sym").value, $("f-str").value], opt = (a, all) => `<option value="">${all}</option>` + a.map(x => `<option>${esc(x)}</option>`).join("");\n  const strs = [...new Set(ALL.map(t => t.strat).filter(Boolean))];\n  $("f-sym").innerHTML = opt([...new Set(ALL.map(t => t.inst))], "Všechny"); $("f-str").innerHTML = opt(strs, "Všechny");\n  $("f-sym").value = keep[0]; $("f-str").value = keep[1];\n  $("accs").innerHTML = [...new Set(ALL.map(t => t.acc).filter(Boolean))].map(s => `<option value="${esc(s)}">`).join("");\n  reports();\n}\n\nconst chips = (box, name) => $(box).innerHTML = EMO.map(([i, n]) => `<label class="chip"><input type="checkbox" ${name ? `name="${name}"` : ""} value="${n}">${i} ${n}</label>`).join("");\nchips("d-emo", "emo"); $("d-mis").innerHTML = MIS.map(n => `<label class="chip"><input type="checkbox" name="mis" value="${n}">${n}</label>`).join(""); chips("f-emo");\ndocument.querySelectorAll(".tabs button").forEach(b => b.onclick = () => {\n  document.querySelectorAll(".tabs button").forEach(x => x.setAttribute("aria-selected", x === b));\n  ["over", "trades", "rep", "ai", "disc"].forEach(k => $("t-" + k).hidden = k !== b.dataset.tab); if (b.dataset.tab === "ai") analysis(); });\n$("flt").addEventListener("input", reports); $("f-emo").addEventListener("input", reports);\n$("f-reset").onclick = () => { document.querySelectorAll("#flt input,#flt select").forEach(i => i.value = ""); document.querySelectorAll("#f-emo input").forEach(i => i.checked = false); reports(); };\n\nconst NEWS = ["m1a", "m5a", "m1b", "m5b"];\nconst SLOTS = [["m1a", "Vstup: 1 minuta"], ["m5a", "Vstup: 5 minut"], ["m1b", "Výsledek: 1 minuta"], ["m5b", "Výsledek: 5 minut"], ["tf", "Timeframe, na kterém jsem obchod vzal (starší)"], ["m1", "1 minuta (starší)"], ["m5", "5 minut (starší)"], ["m15", "15 minut (starší)"]];\nconst ENTRY = [["Základní", ["ES divergence", "wOpen", "dOpen", "Trend", "Stocks"]], ["Indikátory", ["VWAP", "RSI – cross / div"]], ["HTF – 1H", ["OB", "FVG / iFVG / BPR", "VRVP / SVP"]], ["LTF – 1/3/5min", ["FVG / iFVG / BPR", "CISD"]]];\nconst CONDS = ["Killzone – NY seance", "Max 1 % risk", "Max. 1 SL tento den"];\nlet slotsD = {}, curSlot = null, slotUrls = [];\nlet curConds = CONDS;\nconst stratOf = n => LS.get("jr:pb", []).find(p => p.name.toLowerCase() === String(n || "").trim().toLowerCase());\nfunction buildList(name, conf, cond, saved) {\n  const p = stratOf(name), cs_ = p && p.conds && p.conds.length ? [...p.conds] : [...CONDS];\n  const gr = (p && p.groups && p.groups.length ? p.groups : ENTRY).map(([g, a]) => [g, a.map(n => [g + "|" + n, n])]);\n  (cond || []).forEach(c => { if (!cs_.includes(c)) cs_.push(c); });\n  const known = new Set(); gr.forEach(([g, a]) => a.forEach(x => known.add(x[0])));\n  const extra = Object.keys(conf || {}).filter(k => !known.has(k));\n  if (extra.length) gr.push(["Dříve zapsané", extra.map(k => [k, k.split("|").slice(1).join("|") || k])]);\n  curConds = cs_;\n  $("d-cond").innerHTML = cs_.map(n => `<label class="chip"><input type="checkbox" name="cond" value="${esc(n)}">${esc(n)}</label>`).join("");\n  $("d-conf").innerHTML = gr.map(([g, a]) => `<div class="cfg"><b>${esc(g)}</b>` + a.map(([k, n]) => `<div class="cfr"><span>${esc(n)}</span><label class="chip"><input type="checkbox" data-cf="${esc(k)}" data-v="pro">Pro</label><label class="chip"><input type="checkbox" data-cf="${esc(k)}" data-v="proti">Proti</label></div>`).join("") + "</div>").join("");\n  document.querySelectorAll("#d-cond input").forEach(i => i.checked = (cond || []).includes(i.value));\n  document.querySelectorAll("#d-conf input").forEach(i => i.checked = (conf || {})[i.dataset.cf] === i.dataset.v);\n  if (!saved && p && p.pre !== false && ((p.conds && p.conds.length) || (p.groups && p.groups.length))) {\n    document.querySelectorAll("#d-cond input").forEach(i => i.checked = true);\n    document.querySelectorAll(\'#d-conf input[data-v="pro"]\').forEach(i => i.checked = true);\n  }\n  confSum();\n}\nfunction onStrat(v, isNew) {\n  buildList(v, {}, [], false);\n  const p = stratOf(v), fe = $("f").elements;\n  if (p && p.def && isNew) { if (p.def.tfm) fe.tfm.value = p.def.tfm; if (p.def.otype) fe.otype.value = p.def.otype; if (p.def.size) fe.size.value = p.def.size;\n    if (p.def.stop) { $("sd").value = p.def.stop; $("sd").dispatchEvent(new Event("input")); } }\n}\nfunction confGet() { const o = {}; document.querySelectorAll("#d-conf input:checked").forEach(i => o[i.dataset.cf] = i.dataset.v); return o; }\nfunction confSum() {\n  const c = confGet(), v = Object.values(c), pro = v.filter(x => x === "pro").length, con = v.length - pro, ck = [...document.querySelectorAll("[name=cond]:checked")].length;\n  $("cfsum").innerHTML = `Souhrnný počet konfluencí: Pro <b>${pro}</b> · Proti <b>${con}</b> · Celkově <b class="${cl(pro - con)}">${sg(pro - con)}</b>. Podmínky: <b>${ck} ze ${curConds.length}</b> splněno.`;\n}\n$("d-conf").addEventListener("change", e => { const i = e.target; if (i.checked) document.querySelectorAll(`#d-conf input[data-cf="${i.dataset.cf}"]`).forEach(o => { if (o !== i) o.checked = false; }); confSum(); });\n$("d-cond").addEventListener("change", confSum);\nfunction fillStrat(cur) {\n  const names = [...new Set([...LS.get("jr:pb", []).map(p => p.name), ...ALL.map(t => t.strat)].filter(Boolean))];\n  if (cur && !names.includes(cur)) names.push(cur);\n  $("strat").innerHTML = \'<option value="">– vyber –</option>\' + names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join("") + \'<option value="__new__">➕ Nová strategie…</option>\';\n  $("strat").value = cur || ""; $("strat").dispatchEvent(new Event("input"));\n}\n$("strat").addEventListener("change", () => { if ($("strat").value !== "__new__") { onStrat($("strat").value, !$("f").elements.id.value); return; }\n  const n = (prompt("Název nové strategie (například Silver Bullet)?") || "").trim();\n  if (n) { const P = LS.get("jr:pb", []); if (!P.some(p => p.name.toLowerCase() === n.toLowerCase())) { P.push({name: n, desc: "", rules: ""}); LS.set("jr:pb", P); try { disc(); } catch (x) {} } fillStrat(n); } else fillStrat(""); });\nfunction drawSlots() {\n  slotUrls.forEach(u => URL.revokeObjectURL(u)); slotUrls = [];\n  $("slots").innerHTML = SLOTS.filter(([k]) => NEWS.includes(k) || slotsD[k]).map(([k, n]) => { const b = slotsD[k]; let u = ""; if (b) { u = URL.createObjectURL(b); slotUrls.push(u); }\n    return `<div class="slot${curSlot === k ? " on" : ""}" data-slot="${k}" tabindex="0"><b>${n}</b>` + (b ? `<img src="${u}" alt="${n}"><button type="button" class="ghost sm" data-sx="${k}">Smazat</button>` : `<span class="empty">Klikni sem a vlož Ctrl+V</span><input type="file" accept="image/*" data-sf="${k}">`) + "</div>"; }).join("");\n  const c = Object.values(slotsD).filter(Boolean).length + shots.length; $("shotinfo").textContent = c ? c + " screenshotů připraveno." : "";\n}\nfunction putSlot(file, k) { k = k || curSlot || (NEWS.map(k => [k]).find(x => !slotsD[x[0]]) || [])[0]; if (!k) { shots.push(file); } else { slotsD[k] = file; curSlot = (NEWS.map(k => [k]).find(x => !slotsD[x[0]]) || [])[0] || null; } drawSlots(); }\n$("slots").addEventListener("click", e => { const x = e.target.closest("[data-sx]"); if (x) { delete slotsD[x.dataset.sx]; drawSlots(); return; }\n  const s = e.target.closest(".slot"); if (s) { curSlot = s.dataset.slot; document.querySelectorAll("#slots .slot").forEach(o => o.classList.toggle("on", o === s)); } });\n$("slots").addEventListener("change", e => { const k = e.target.dataset.sf; if (k && e.target.files[0]) putSlot(e.target.files[0], k); });\n$("slots").addEventListener("dragover", e => e.preventDefault());\n$("slots").addEventListener("drop", e => { e.preventDefault(); const fs = [...e.dataTransfer.files].filter(f => f.type.startsWith("image/")).sort((a, b) => a.lastModified - b.lastModified), s = e.target.closest(".slot"); fs.forEach((f, i) => putSlot(f, i === 0 && s ? s.dataset.slot : null)); });\n$("shotmulti").addEventListener("change", async e => { const fs = await Promise.all([...e.target.files].sort((a, b) => a.lastModified - b.lastModified).map(memBlob)); fs.forEach(f => putSlot(f)); e.target.value = ""; });\ndocument.addEventListener("paste", e => { const f = [...(e.clipboardData?.files || [])].filter(f => f.type.startsWith("image/"));\n  if ($("dlg").open && f.length) { e.preventDefault(); f.forEach(x => putSlot(x)); } });\n\nconst pvOf = () => PV[$("f").elements.inst.value.toUpperCase()] || 1;\nfunction outcome() {\n  const f = $("f").elements, oc = f.outc.value, e = parseFloat(f.entry.value), s = parseFloat(f.stop.value), t1 = parseFloat(f.target.value), t2 = parseFloat(f.target2.value), size = Math.max(1, parseInt(f.size.value) || 1);\n  if (!oc) return null;\n  const ok = x => isNaN(x) ? null : {exit: x};\n  if (oc === "sl") return ok(s); if (oc === "be") return ok(e); if (oc === "tp1") return ok(t1); if (oc === "other") return ok(parseFloat(f.exit.value));\n  let n1 = parseInt(f.n1.value); if (isNaN(n1)) n1 = Math.max(1, Math.floor(size / 2)); n1 = Math.min(Math.max(1, n1), size);\n  const rest = size - n1, rp = oc === "tp1be" ? e : oc === "tp1trail" ? parseFloat(f.trp.value) : t2;\n  if (isNaN(t1) || (rest > 0 && isNaN(rp))) return null;\n  return {exit: (n1 * t1 + rest * (rest ? rp : 0)) / size, n1, rest, rp};\n}\nfunction outUI() {\n  const fe = $("f").elements, oc = fe.outc.value, size = Math.max(1, parseInt(fe.size.value) || 1), note = $("outnote");\n  $("n1w").style.display = (oc === "tp1be" || oc === "tp1tp2" || oc === "tp1trail") ? "" : "none"; $("trw").style.display = oc === "tp1trail" ? "" : "none"; $("exw").style.display = oc === "other" ? "" : "none";\n  fe.n1.placeholder = "např. " + Math.max(1, Math.floor(size / 2)); fe.n1.max = size;\n  if (!oc) { note.style.display = "none"; return; } note.style.display = "";\n  const o = outcome(); if (!o) { note.textContent = "Doplň vstup, stop a take profity (u vlastního výstupu a u trailu i cenu), ať jde výsledek spočítat."; return; }\n  const e = parseFloat(fe.entry.value), s = parseFloat(fe.stop.value), sgn = fe.dir.value === "short" ? -1 : 1, p = (o.exit - e) * sgn * size * pvOf(), r = e === s ? null : (o.exit - e) * sgn / Math.abs(e - s);\n  let txt = "";\n  if (o.rest === 0) txt = "Celá pozice vyšla na TP1. ";\n  else if (o.rest != null) txt = `Na TP1 vyšlo ${o.n1} ks (${nf(parseFloat(fe.target.value), 2)}), zbylých ${o.rest} ks ${oc === "tp1be" ? "na break even (vstup " + nf(e, 2) + ")" : (oc === "tp1trail" ? "vystopováno na " + nf(o.rp, 2) : "na TP2 (" + nf(o.rp, 2) + ")")}. `;\n  note.innerHTML = txt + `Průměrná výstupní cena ${nf(o.exit, 2)}, výsledek <b class="${cl(p)}">${usd(p)}</b>${r == null ? "" : " (" + sg(r, 2) + " R)"}.`;\n}\nif (!BT) $("tfw").style.display = "none"; else $("tfnote").style.display = "";\nconst nowT = () => localNow().slice(11, 16);\nfunction dlg(t, toOut) {\n  const f = $("f"), fe = f.elements; f.reset();\n  shots = t ? [...(t.shots || (t.shot ? [t.shot] : []))] : []; slotsD = t && t.slots ? {...t.slots} : {}; curSlot = null;\n  touched = t ? {target: 1, target2: 1} : {}; dist = t ? (Math.abs(t.entry - t.stop) || null) : null; $("sd").value = lsGet("defStop35") || 35;\n  $("dt").textContent = t ? "Upravit obchod" : "Nový backtest obchod";\n  const o = t ? when(t) : (BT ? (LS.get("bt:lastd", "") + "T") : localNow()); fe.od.value = /^\\d{4}-/.test(o) ? o.slice(0, 10) : ""; fe.ot.value = o.slice(11, 16); fe.acc.value = lsGet("lastAcc") || "Hlavní";\n  fillStrat(t ? t.strat : "");\n  if (t) { for (const k of ["id","inst","dir","size","pv","entry","stop","target","target2","plan","rate","notes","trend","acc","otype","tfm"]) fe[k].value = t[k] ?? "";\n    if (t.exit != null) { fe.outc.value = t.outc || "other"; fe.n1.value = t.n1 ?? ""; fe.trp.value = t.trp ?? ""; if (fe.outc.value === "other") fe.exit.value = t.exit; }\n    if (t.closed) { fe.cd.value = t.closed.slice(0, 10); fe.ct.value = t.closed.slice(11, 16); }\n    f.querySelectorAll(\'[name=emo]\').forEach(c => c.checked = (t.emo || []).includes(c.value));\n    f.querySelectorAll(\'[name=mis]\').forEach(c => c.checked = (t.mis || []).includes(c.value));\n    f.querySelectorAll(\'[name=cond]\').forEach(c => c.checked = (t.cond || []).includes(c.value));\n    buildList(t.strat, t.conf, t.cond, true); }\n  if (!t) { if (!fe.strat.value) { const ls = LS.get("lastStrat" + (BT ? "bt" : "jr"), ""); if (ls && stratOf(ls)) fillStrat(ls); } onStrat(fe.strat.value, true); }\n  confSum(); drawSlots(); rr(); $("dlg").showModal(); entryAuto = false; $("entrynote").textContent = ""; if (!t) fillEntry();\n  if (toOut) { fe.outc.focus(); fe.outc.scrollIntoView({block: "center"}); }\n}\n$("add").onclick = () => dlg(); $("cancel").onclick = () => $("dlg").close();\n(function () {\n  const lb = document.createElement("dialog"); lb.id = "lb"; lb.className = "lb";\n  lb.innerHTML = \'<div class="lbn"><b id="lbt"></b><span><button type="button" class="ghost sm" id="lbp">‹ Předchozí</button> <button type="button" class="ghost sm" id="lbn">Další ›</button> <button type="button" class="sm" id="lbx">Zavřít ✕</button></span></div><img id="lbi" alt="">\';\n  document.body.appendChild(lb);\n  let list = [], idx = 0;\n  const show = () => { const im = list[idx]; $("lbi").src = im.src; $("lbt").textContent = (im.alt || "Screenshot") + (list.length > 1 ? "  (" + (idx + 1) + " z " + list.length + ")" : ""); };\n  const go = d => { if (list.length < 2) return; idx = (idx + d + list.length) % list.length; show(); };\n  document.addEventListener("click", e => {\n    const im = e.target.closest && e.target.closest("#vbody img, #slots img, .skc img, #sk-imgs img");\n    if (im) { list = [...im.closest("#vbody, #slots, .skc, #sk-imgs").querySelectorAll("img")]; idx = Math.max(0, list.indexOf(im)); show(); lb.showModal(); return; }\n    if (!lb.open) return; const id = e.target.id;\n    if (id === "lbp") go(-1); else if (id === "lbn") go(1); else if (id === "lbx" || id === "lbi" || e.target === lb) lb.close();\n  });\n  document.addEventListener("keydown", e => { if (!lb.open) return; if (e.key === "ArrowLeft") go(-1); else if (e.key === "ArrowRight") go(1); });\n})();\n$("f").onsubmit = async e => {\n  e.preventDefault(); const f = e.target.elements, n = k => f[k].value === "" ? null : parseFloat(f[k].value), oc = f.outc.value, o = outcome();\n  if (oc && !o) { alert("Doplň vstup, stop a take profity (u vlastního výstupu i cenu), ať jde spočítat výsledek."); return; }\n  const closed = oc ? (f.cd.value || (BT ? f.od.value : localNow().slice(0, 10))) + "T" + (f.ct.value || (BT ? (f.ot.value || "00:00") : nowT())) : null;\n  const t = {opened: f.od.value + "T" + (f.ot.value || "00:00"), closed, inst: f.inst.value.toUpperCase(), dir: f.dir.value, size: n("size") || 1, pv: n("pv"), otype: f.otype.value,\n    entry: n("entry"), stop: n("stop"), target: n("target"), target2: n("target2"), exit: o ? o.exit : null, outc: oc, n1: o && o.n1 != null ? o.n1 : null, trp: oc === "tp1trail" ? n("trp") : null, tfm: f.tfm.value,\n    strat: f.strat.value === "__new__" ? "" : f.strat.value, trend: f.trend.value, acc: f.acc.value.trim() || "Hlavní", notes: f.notes.value,\n    emo: [...e.target.querySelectorAll("[name=emo]:checked")].map(c => c.value), plan: f.plan.value, rate: n("rate"),\n    mis: [...e.target.querySelectorAll("[name=mis]:checked")].map(c => c.value), cond: [...e.target.querySelectorAll("[name=cond]:checked")].map(c => c.value), conf: confGet(), slots: slotsD, shots};\n  if (f.id.value) t.id = parseInt(f.id.value);\n  LS.set("lastStrat" + (BT ? "bt" : "jr"), t.strat || ""); if (BT) LS.set("bt:lastd", f.od.value); try { localStorage.setItem("lastAcc", JSON.stringify(t.acc)); } catch (x) {} await tx("readwrite", s => s.put(t)); $("dlg").close(); render();\n};\nfunction pickLevels(text, dir) {\n  const raw = (String(text).match(/\\d{4,6}(?:[.,]\\d{1,2})?/g) || []).map(x => parseFloat(x.replace(",", "."))).filter(x => x > 1000);\n  if (!raw.length) return {found: []};\n  const srt = [...raw].sort((a, b) => a - b), med = srt[Math.floor(srt.length / 2)];\n  const found = [...new Set(raw.filter(x => Math.abs(x - med) / med < 0.03))].sort((a, b) => a - b);\n  if (found.length < 3 || found.length > 4) return {found};\n  const a = dir === "short" ? [...found].reverse() : found;\n  return {found, stop: a[0], entry: a[1], tp1: a[2], tp2: a[3] ?? null};\n}\n$("ocr").onclick = async () => {\n  const b = slotsD.m1a || slotsD.m5a || slotsD.m1b || slotsD.m5b || slotsD.tf || slotsD.m1 || slotsD.m5 || slotsD.m15 || shots[0], info = $("shotinfo");\n  if (!b) { info.textContent = "Nejdřív vlož screenshot."; return; }\n  info.textContent = "Čtu čísla ze screenshotu… při prvním použití se stahuje čtečka, chvíli to trvá.";\n  try {\n    if (!window.Tesseract) await new Promise((ok, no) => { const s = document.createElement("script"); s.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"; s.onload = ok; s.onerror = () => no(new Error("load")); document.head.appendChild(s); });\n    const w = await Tesseract.createWorker("eng"); await w.setParameters({tessedit_char_whitelist: "0123456789.,", tessedit_pageseg_mode: "11"});\n    const r = await w.recognize(b); await w.terminate(); const fe = $("f").elements, res = pickLevels(r.data.text, fe.dir.value);\n    if (res.stop == null) { info.textContent = res.found.length ? "Našel jsem tato čísla: " + res.found.join(", ") + ". Nepodařilo se je spolehlivě přiřadit, vyplň ceny ručně." : "Na screenshotu jsem nenašel žádné ceny. Vyplň je ručně."; return; }\n    fe.entry.value = res.entry; fe.stop.value = res.stop; fe.target.value = res.tp1; touched.stop = touched.target = 1; dist = Math.abs(res.entry - res.stop);\n    if (res.tp2 != null) { fe.target2.value = res.tp2; touched.target2 = 1; } else { touched.target2 = 0; fe.target2.value = rnd(res.entry + (fe.dir.value === "short" ? -1 : 1) * 2.5 * dist); }\n    entryAuto = false; $("entrynote").textContent = "Ceny jsou vyčtené ze screenshotu (experiment). Zkontroluj je!"; rr(); info.textContent = "Hotovo. Vstup, stop a cíle jsou vyplněné, zkontroluj je.";\n  } catch (x) { info.textContent = "Čtečka se nepodařila načíst (je potřeba internet). Vyplň ceny ručně."; }\n};\n\ndocument.addEventListener("click", async e => {\n  if (e.target.closest("input,select,label")) return; const b = e.target.closest("[data-a]"); if (!b) return; const t = ALL.find(x => x.id == b.dataset.id), a = b.dataset.a;\n  if ($("view").open && (a === "edit" || a === "del")) $("view").close();\n  if (a === "edit") dlg(t);\n  else if (a === "del") { if (confirm2("Smazat tento obchod?")) { await tx("readwrite", s => s.delete(t.id)); render(); } }\n  else if (a === "close") dlg(t, true);\n  else if (a === "view") { const cf = Object.entries(t.conf || {}), pro = cf.filter(x => x[1] === "pro"), con = cf.filter(x => x[1] !== "pro"), p = pnl(t), r = real(t), nfx = x => x == null ? dash : nf(x, 2);\n    const chip = (x, c) => `<span class="bdg ${c || "n"}">${esc(x)}</span>`;\n    $("vbody").innerHTML = `<div class="vh"><div><h2>${esc(t.inst)} ${t.dir === "short" ? "Short" : "Long"} ×${nf(t.size || 1, 0)}</h2><p class="empty" style="margin:0">${esc(when(t).replace("T", " "))}${t.closed ? " → " + esc(t.closed.replace("T", " ")) : ""}${t.otype ? " · " + esc(t.otype) : ""}${t.tfm ? " · " + t.tfm : ""}${t.acc ? " · " + esc(t.acc) : ""}</p></div>` +\n      (p == null ? "" : `<div class="vpl ${cl(p)}">${usd(p)}<small>${r == null ? "" : sg(r, 2) + " R"}</small></div>`) + `</div>` +\n      `<div class="dash">${K(nfx(t.entry), "Vstup")}${K(nfx(t.stop), "Stop loss")}${K(nfx(t.target), "TP1")}${K(nfx(t.target2), "TP2")}${K(nfx(t.exit), "Výstup")}${K(OUTL[t.outc] || dash, "Výsledek" + (t.n1 != null ? " (TP1: " + t.n1 + " ks)" : ""))}</div>` +\n      `<div class="tags">${t.strat ? chip("📌 " + t.strat, "up") : ""}${t.trend ? chip(t.trend === "with" ? "S trendem" : "Proti trendu") : ""}${t.plan ? chip(t.plan === "ano" ? "Plán dodržen" : "Plán porušen", t.plan === "ano" ? "up" : "down") : ""}${t.rate ? chip("Hodnocení " + t.rate + "/5") : ""}${(t.emo || []).map(x => chip(((EMO.find(y => y[1] === x) || [""])[0]) + " " + x)).join("")}${(t.mis || []).map(x => chip("⚠ " + x, "down")).join("")}</div>` +\n      (cf.length || (t.cond || []).length ? `<h3>Vstupní model</h3><div class="tags">${chip("Podmínky " + (t.cond || []).length + " ze 3")}${pro.map(x => chip("＋ " + x[0].split("|")[1], "up")).join("")}${con.map(x => chip("− " + x[0].split("|")[1], "down")).join("")}${chip("Celkově " + sg(pro.length - con.length))}</div>` : "") +\n      `<h3>Poznámka</h3><p>${esc(t.notes || "Bez poznámky.")}</p>`;\n    const sh = document.createElement("div"); sh.className = "shots";\n    const add = (b, n) => { const d = document.createElement("div"), h = document.createElement("h3"), i = document.createElement("img"); h.textContent = n; i.src = URL.createObjectURL(b); i.alt = n; d.append(h, i); sh.appendChild(d); };\n    SLOTS.forEach(([k, n]) => { if ((t.slots || {})[k]) add(t.slots[k], n); }); (t.shots || (t.shot ? [t.shot] : [])).forEach(b => add(b, "Další screenshot"));\n    if (sh.children.length) { const h = document.createElement("h3"); h.textContent = "Screenshoty"; $("vbody").append(h, sh); }\n    const ac = document.createElement("div"); ac.className = "row vact"; ac.innerHTML = `<button type="button" class="ghost" data-vclose>Zavřít</button><button type="button" data-a="edit" data-id="${t.id}">Upravit obchod</button><button type="button" class="ghost vdel" data-a="del" data-id="${t.id}">Smazat</button>`; $("vbody").appendChild(ac); if (window.__fd) { const bk = document.createElement("button"); bk.type = "button"; bk.className = "ghost vback"; bk.dataset.dayback = window.__fd; bk.textContent = "‹ Zpět na den"; ac.appendChild(bk); } if (!$("view").open) $("view").showModal(); }\n});\n\n\nfunction bulkUI() { const n = document.querySelectorAll("[data-sel]:checked").length; $("bulk").style.display = n ? "flex" : "none"; $("bn").textContent = n;\n  if (n) { const names = [...new Set([...LS.get("jr:pb", []).map(p => p.name), ...ALL.map(t => t.strat)].filter(Boolean))]; if (!$("bstrat").dataset.f) { $("bstrat").innerHTML = names.map(x => `<option>${esc(x)}</option>`).join(""); $("bstrat").dataset.f = 1; } } }\ndocument.addEventListener("change", async e => { const t = e.target;\n  if (t.matches && t.matches("[data-selall]")) { document.querySelectorAll("[data-sel]").forEach(c => c.checked = t.checked); bulkUI(); }\n  else if (t.matches && t.matches("[data-sel]")) bulkUI(); });\n$("bapply").onclick = async () => { const v = $("bstrat").value; if (!v) return; for (const c of document.querySelectorAll("[data-sel]:checked")) { const t = ALL.find(x => x.id == c.dataset.sel); if (t) { t.strat = v; await tx("readwrite", s => s.put(t)); } } $("bstrat").dataset.f = ""; await render(); bulkUI(); };\n$("bdel").onclick = async () => { const ids = [...document.querySelectorAll("[data-sel]:checked")].map(c => +c.dataset.sel); if (!ids.length || !confirm("Smazat " + ids.length + " vybraných obchodů?")) return; for (const id of ids) await tx("readwrite", s => s.delete(id)); await render(); bulkUI(); };\nconst toUrl = b => new Promise(r => { const f = new FileReader(); f.onload = () => r(f.result); f.readAsDataURL(b); });\n$("exp").onclick = async () => {\n  const out = []; for (const t of ALL) out.push({...t, shot: undefined, shots: await Promise.all((t.shots || []).map(toUrl)), slots: Object.fromEntries(await Promise.all(Object.entries(t.slots || {}).filter(x => x[1]).map(async ([k, v]) => [k, await toUrl(v)])))});\n  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(out)], {type: "application/json"}));\n  a.download = (BT ? "zaloha-backtest-" : "zaloha-denik-") + new Date().toISOString().slice(0, 10) + ".json"; a.click();\n};\n$("imp").onclick = () => $("impf").click();\n$("impf").onchange = async e => {\n  try { const ts = JSON.parse(await e.target.files[0].text());\n    for (const t of ts) { t.shots = await Promise.all((t.shots || []).map(async u => (await fetch(u)).blob())); t.slots = Object.fromEntries(await Promise.all(Object.entries(t.slots || {}).map(async ([k, u]) => [k, await (await fetch(u)).blob()]))); delete t.id; await tx("readwrite", s => s.add(t)); }\n    render();\n  } catch { alert("Soubor se nepodařilo načíst. Je to záloha z tohoto deníku?"); }\n  e.target.value = "";\n};\nconst rnd = x => Math.round(x * 4) / 4;\nfunction rr() {\n  const f = $("f").elements, e = parseFloat(f.entry.value), s = parseFloat(f.stop.value), n = parseFloat(f.size.value) || 1, pv = pvOf();\n  const t1 = parseFloat(f.target.value), t2 = parseFloat(f.target2.value), ok = !(isNaN(e) || isNaN(s) || e === s), d = ok ? Math.abs(e - s) : 0;\n  $("r1").textContent = ok && !isNaN(t1) ? "(1:" + nf(Math.abs(t1 - e) / d, 1) + ")" : ""; $("r2").textContent = ok && !isNaN(t2) ? "(1:" + nf(Math.abs(t2 - e) / d, 1) + ")" : "";\n  if (!ok) { $("rr").textContent = "Zadej vstupní cenu a stop loss a oba take profity se doplní samy."; outUI(); return; }\n  $("rr").innerHTML = `Riskuješ <b>${nf(d, 2)} bodů</b> = <b>${nf(d * pv * n)} $</b> (${nf(n, 0)} mikro). ` +\n    (isNaN(t1) ? "" : `TP1: <b class="up">+${nf(Math.abs(t1 - e) * pv * n)} $</b>. `) + (isNaN(t2) ? "" : `TP2: <b class="up">+${nf(Math.abs(t2 - e) * pv * n)} $</b>.`);\n  outUI();\n}\nfunction auto(src) {\n  const f = $("f").elements, e = parseFloat(f.entry.value), sg = f.dir.value === "short" ? -1 : 1;\n  if (src === "stop") touched.stop = 1;\n  if (isNaN(e)) return rr();\n  if (src === "sd") { dist = null; touched.stop = 0; }\n  const s0 = parseFloat(f.stop.value);\n  if ((src === "stop" || (touched.stop && dist == null)) && !isNaN(s0) && s0 !== e) dist = Math.abs(e - s0);\n  const d = dist || parseFloat($("sd").value) || 35;\n  if (src !== "stop") f.stop.value = rnd(e - sg * d);\n  if (!touched.target) f.target.value = rnd(e + sg * 2 * d);\n  if (!touched.target2) f.target2.value = rnd(e + sg * 2.5 * d);\n  rr();\n}\n{ const fe = $("f").elements;\n  fe.entry.addEventListener("input", () => auto("entry")); fe.dir.addEventListener("change", () => auto("dir")); fe.stop.addEventListener("input", () => auto("stop"));\n  fe.target.addEventListener("input", () => { touched.target = 1; rr(); }); fe.target2.addEventListener("input", () => { touched.target2 = 1; rr(); });\n  fe.size.addEventListener("input", rr); fe.inst.addEventListener("input", rr); fe.n1.addEventListener("input", outUI); fe.trp.addEventListener("input", outUI); fe.exit.addEventListener("input", outUI);\n  fe.outc.addEventListener("change", () => { if (fe.outc.value && !fe.cd.value) { fe.cd.value = BT ? fe.od.value : localNow().slice(0, 10); fe.ct.value = BT ? fe.ot.value : nowT(); } outUI(); });\n  $("sd").addEventListener("input", () => { try { localStorage.setItem("defStop35", JSON.stringify($("sd").value)); } catch (e) {} auto("sd"); }); }\nlet HIST = [], radar = null, yearc = null;\nfetch("history.json", {cache: "no-store"}).then(r => r.ok ? r.json() : []).then(h => { HIST = Array.isArray(h) ? h : []; }).catch(() => {});\nfunction biasOf(t) { const h = HIST.find(x => x.date === day(t)); if (!h) return null; const b = (h.label || "").toLowerCase(); return b.includes("bullish") ? 1 : b.includes("bearish") ? -1 : 0; }\nfunction grp(list, fn) { const w = [], a = []; list.forEach(t => { const r = fn(t); if (r === 1) w.push(t); else if (r === -1) a.push(t); }); return [w, a]; }\nfunction score(s, list) {\n  const pf = s.pf == null ? 0 : Math.min(100, s.pf / 2 * 100), wr = s.wr == null ? 0 : Math.min(100, s.wr / 60 * 100);\n  const planned = list.filter(t => t.plan); const pl = planned.length ? planned.filter(t => t.plan === "ano").length / planned.length * 100 : 50;\n  const rs = list.map(real).filter(x => x !== null); const rr2 = rs.length ? Math.min(100, Math.max(0, sum(rs) / rs.length * 100 + 40)) : 0;\n  const dd = s.net > 0 ? Math.min(100, Math.max(0, 100 - Math.abs(s.dd) / Math.max(1, s.net) * 40)) : 20;\n  const emoBad = list.filter(t => (t.emo || []).some(e => ["FOMO", "Revenge", "Tilt", "Chamtivost", "Netrpělivost"].includes(e))).length;\n  const calm = list.length ? 100 - emoBad / list.length * 100 : 50;\n  return [["Profit factor", pf], ["Úspěšnost", wr], ["Dodržení plánu", pl], ["Poměr zisku k riziku", rr2], ["Kontrola ztrát", dd], ["Klid a emoce", calm]].map(x => [x[0], Math.round(x[1])]);\n}\nfunction grade(sc) { const m = sum(sc.map(x => x[1])) / sc.length; return m >= 80 ? ["A", m] : m >= 65 ? ["B", m] : m >= 50 ? ["C", m] : m >= 35 ? ["D", m] : ["E", m]; }\nfunction analysis() {\n  const list = ALL.filter(t => pnl(t) !== null), s = st(list);\n  if (s.n < 3) { $("coach").innerHTML = \'<p class="empty">Přidej aspoň 3 uzavřené obchody a objeví se hodnocení.</p>\'; return; }\n  const sc = score(s, list), [g, m] = grade(sc), good = [], bad = [];\n  if (s.pf != null && s.pf >= 1.5) good.push("Profit factor " + nf(s.pf, 2) + ": výhry jsou větší než ztráty."); else if (s.pf != null && s.pf < 1) bad.push("Profit factor " + nf(s.pf, 2) + " je pod 1, ztráty převažují nad zisky.");\n  if (s.wr != null && s.wr >= 50) good.push("Úspěšnost " + nf(s.wr, 0) + " %."); else if (s.wr != null) bad.push("Úspěšnost je jen " + nf(s.wr, 0) + " %. Zpřísni výběr setupů.");\n  const np = list.filter(t => t.plan === "ne"), yp = list.filter(t => t.plan === "ano");\n  if (np.length) bad.push("Plán jsi nedodržel u " + np.length + " obchodů, jejich výsledek " + usd(sum(np.map(pnl))) + ".");\n  if (yp.length) good.push("Podle plánu jsi obchodoval " + yp.length + "× s výsledkem " + usd(sum(yp.map(pnl))) + ".");\n  if (s.avgR != null && s.avgR > 0.3) good.push("Průměrné R je " + sg(s.avgR, 2) + ".");\n  if (s.ml >= 3) bad.push("Série " + s.ml + " proher za sebou. Po dvou ztrátách si udělej pauzu.");\n  const bt = {}; list.forEach(t => (t.emo || []).forEach(e => bt[e] = (bt[e] || 0) + pnl(t)));\n  const worst = Object.entries(bt).sort((a, b) => a[1] - b[1])[0]; if (worst && worst[1] < 0) bad.push("Nejdražší emoce: " + worst[0] + " (" + usd(worst[1]) + ").");\n  const ms = {}; list.forEach(t => (t.mis || []).forEach(e => ms[e] = (ms[e] || 0) + 1)); const mm = Object.entries(ms).sort((a, b) => b[1] - a[1])[0]; if (mm) bad.push("Nejčastější chyba: " + mm[0] + " (" + mm[1] + "×).");\n  if (s.n < 20) bad.push("Zatím jen " + s.n + " obchodů. Známka je orientační, spolehlivá bude od 20 obchodů.");\n  if (!good.length) good.push("Zatím málo dat na silné stránky. Pokračuj v zápisech."); if (!bad.length) bad.push("Žádná výrazná slabina. Drž proces.");\n  const li = a => a.map(x => `<li>${esc(x)}</li>`).join("");\n  $("coach").innerHTML = `<div class="two"><div class="k"><b style="font-size:46px">${g}</b><span>Známka (${nf(m, 0)} ze 100)</span></div><div><h3>Silné stránky</h3><ul class="facts">${li(good)}</ul><h3 style="margin-top:12px">Slabé stránky</h3><ul class="facts">${li(bad)}</ul></div></div>`;\n  if (radar) radar.destroy(); if (window.Chart) radar = new Chart($("c-radar"), {type: "radar", data: {labels: sc.map(x => x[0]), datasets: [{data: sc.map(x => x[1]), borderColor: "#8B7CFF", backgroundColor: "rgba(139,124,255,.25)", pointBackgroundColor: "#38BDF8"}]},\n    options: {maintainAspectRatio: false, plugins: {legend: {display: false}}, scales: {r: {min: 0, max: 100, ticks: {display: false}, grid: {color: "rgba(255,255,255,.1)"}, angleLines: {color: "rgba(255,255,255,.1)"}}}}});\n  const [tw, ta] = grp(list, t => t.trend === "with" ? 1 : t.trend === "against" ? -1 : 0);\n  $("trendbars").innerHTML = bars("Trend", [["S trendem", tw], ["Proti trendu", ta]]);\n  const [fw, fa] = grp(list, t => { const b = biasOf(t); if (b === null || b === 0) return 0; return b === dir(t) ? 1 : -1; });\n  $("alignbars").innerHTML = bars("Fundament", [["Se směrem biasu", fw], ["Proti biasu", fa]]) + (HIST.length ? "" : \'<p class="empty">Historie biasu se začne plnit po prvním běhu robota.</p>\');\n  const ym = {}; list.forEach(t => { const k = day(t).slice(0, 7); ym[k] = (ym[k] || 0) + pnl(t); }); const yk = Object.keys(ym).sort();\n  if (yearc) yearc.destroy(); if (window.Chart && yk.length) yearc = new Chart($("c-year"), {type: "bar", data: {labels: yk, datasets: [{data: yk.map(k => ym[k]), borderRadius: 6, backgroundColor: yk.map(k => ym[k] >= 0 ? "#2EE6A6" : "#FF6B8A")}]},\n    options: {maintainAspectRatio: false, plugins: {legend: {display: false}, tooltip: {callbacks: {label: x => usd(x.parsed.y)}}}, scales: {x: {grid: {display: false}}, y: {ticks: {callback: v => nf(v) + " $"}}}}});\n  $("yeartab").innerHTML = yk.length ? `<div class="wrap"><table><thead><tr><th>Měsíc</th><th class="n">Obchodů</th><th class="n">Výsledek</th></tr></thead><tbody>${yk.map(k => `<tr><td>${k}</td><td class="n">${list.filter(t => day(t).slice(0, 7) === k).length}</td><td class="n ${cl(ym[k])}">${usd(ym[k])}</td></tr>`).join("")}</tbody></table></div>` : "";\n  $("accbars").innerHTML = bars("Podle účtu", [...new Set(list.map(t => t.acc || "Hlavní"))].map(a => [a, list.filter(t => (t.acc || "Hlavní") === a)]));\n}\n$("csvb").onclick = () => $("csvf").click();\n$("csvf").onchange = async e => {\n  try { const lines = (await e.target.files[0].text()).trim().split(/\\r?\\n/), sep = lines[0].includes(";") ? ";" : ",", h = lines[0].toLowerCase().split(sep).map(x => x.trim()); let n = 0;\n    const ix = k => h.findIndex(x => x.startsWith(k));\n    for (const ln of lines.slice(1)) { const c = ln.split(sep), v = k => c[ix(k)], num = k => { const x = parseFloat(String(v(k) ?? "").replace(",", ".")); return isNaN(x) ? null : x; };\n      if (!v("dat") || num("vst") == null) continue; const d = String(v("dat")).trim().slice(0, 10), dr = /^short|^s$/i.test((v("sm") || v("dir") || "").trim()) ? "short" : "long";\n      const inst = (v("sym") || "MNQ").toUpperCase(), e0 = num("vst"), st0 = num("stop"), d0 = st0 != null ? Math.abs(e0 - st0) : 35, sg2 = dr === "short" ? -1 : 1;\n      await tx("readwrite", s => s.add({opened: d + "T09:30", closed: d + "T10:00", inst, dir: dr, size: num("kontr") || 1, entry: e0, stop: st0 ?? rnd(e0 - sg2 * d0), target: rnd(e0 + sg2 * 2 * d0), target2: rnd(e0 + sg2 * 2.5 * d0), exit: num("vyst"), fee: num("poplat"), acc: "Import", emo: [], mis: [], shots: []})); n++; }\n    alert("Načteno obchodů: " + n); render();\n  } catch (x) { alert("CSV se nepodařilo načíst."); } e.target.value = "";\n};\n$("cp").onclick = async () => {\n  const list = ALL.filter(t => pnl(t) !== null), s = st(list);\n  const rows = list.map(t => [day(t), t.inst, t.dir, t.size, t.entry, t.stop, t.exit, Math.round(pnl(t)), t.trend || "", t.plan || "", (t.emo || []).join("/"), (t.mis || []).join("/"), t.strat || "", t.acc || ""].join(";")).join("\\n");\n  const txt = `Rozeber mi můj obchodní deník (mikro kontrakty MNQ). Dej mi známku, silné a slabé stránky a 3 konkrétní kroky.\\nSouhrn: obchodů ${s.n}, výsledek ${Math.round(s.net)} $, úspěšnost ${s.wr == null ? "-" : Math.round(s.wr)} %, profit factor ${s.pf == null ? "-" : s.pf.toFixed(2)}.\\nSloupce: datum;symbol;směr;kontrakty;vstup;stop;výstup;výsledek $;trend;plán;emoce;chyby;strategie;účet\\n${rows}`;\n  try { await navigator.clipboard.writeText(txt); $("cpmsg").textContent = "Zkopírováno. Vlož do chatu na claude.ai."; } catch (x) { prompt("Zkopíruj text:", txt); }\n};\n(function () {\n  if (!$("tvb")) return;\n  const parse = txt => { const rows = []; let r = [], c = "", q = false;\n    for (let i = 0; i < txt.length; i++) { const ch = txt[i];\n      if (q) { if (ch === \'"\') { if (txt[i + 1] === \'"\') { c += \'"\'; i++; } else q = false; } else c += ch; }\n      else if (ch === \'"\') q = true; else if (ch === ",") { r.push(c); c = ""; }\n      else if (ch === "\\n" || ch === "\\r") { if (ch === "\\r" && txt[i + 1] === "\\n") i++; r.push(c); c = ""; if (r.length > 1 || r[0] !== "") rows.push(r); r = []; } else c += ch; }\n    if (c !== "" || r.length) { r.push(c); rows.push(r); } return rows; };\n  $("tvb").onclick = () => $("tvf").click();\n  const run = async file => {\n    try {\n      const rows = parse((await file.text()).replace(/^\ufeff/, "")), h = rows[0].map(x => x.trim().toLowerCase()), ix = k => h.findIndex(x => x.startsWith(k));\n      const I = {n: ix("trade number"), ty: ix("type"), dt: ix("date and time"), sig: ix("signal"), pr: ix("price"), q: ix("size (qty)"), cm: ix("commission")};\n      if (Object.values(I).some(v => v < 0)) throw new Error("hlavicka");\n      const trs = []; { const by = {}; rows.slice(1).forEach(r => { const k = r[I.n]; (by[k] = by[k] || {})[/^entry/i.test(r[I.ty]) ? "en" : "ex"] = r; });\n        for (const k of Object.keys(by)) { const {en, ex} = by[k]; if (!en || !ex) continue;\n          trs.push({dirS: /short/i.test(en[I.ty]) ? -1 : 1, entry: parseFloat(en[I.pr]), exit: parseFloat(ex[I.pr]), qty: parseFloat(en[I.q]) || 1, fee: parseFloat(en[I.cm]) || 0,\n            od: en[I.dt].trim().replace(" ", "T").slice(0, 16), cd: ex[I.dt].trim().replace(" ", "T").slice(0, 16), sigEn: en[I.sig].trim(), sigEx: ex[I.sig].trim()}); } }\n      const grp = new Map(); trs.forEach(x => { const g = x.od + "|" + x.entry + "|" + x.dirS; if (!grp.has(g)) grp.set(g, []); grp.get(g).push(x); });\n      const fm = (file.name.match(/CME_MINI_([A-Z]+?)1(?:[_!.]|$)/) || [])[1] || "", mnqFile = fm === "MNQ", mnqChk = $("tvm").checked, dflt = parseFloat(lsGet("defStop35")) || 35, pb = LS.get("jr:pb", []);\n      let ok = 0, skip = 0, upd = 0;\n      for (const L of grp.values()) {\n        L.sort((a, b) => a.cd.localeCompare(b.cd)); const f0 = L[0], dirS = f0.dirS, entry = f0.entry, od = f0.od, key = od + "|" + entry;\n        const qty = L.reduce((a, x) => a + x.qty, 0), fee = L.reduce((a, x) => a + x.fee, 0), cd = L[L.length - 1].cd, sig = f0.sigEn;\n        const mk = x => (x.exit - entry) * dirS, size = (mnqChk && !mnqFile && fm !== "MNQ") ? qty * 10 : qty;\n        const inst = mnqFile || mnqChk ? "MNQ" : (fm === "NQ" ? "NQ" : (fm || "NQ"));\n        let stop, outc, target, target2 = null, exit, n1 = null, trp = null;\n        if (L.length === 1) { const mv = mk(f0); exit = f0.exit; target = exit;\n          if (mv === 0) { outc = "be"; stop = entry - dirS * dflt; target = entry + dirS * 2 * dflt; }\n          else if (mv < 0) { outc = "sl"; stop = exit; target = entry + dirS * 2 * Math.abs(mv); }\n          else { outc = "other"; stop = entry - dirS * dflt; } }\n        else { const a = L[0], rest = L.slice(1), rq = rest.reduce((s_, x) => s_ + x.qty, 0), rp = rest.reduce((s_, x) => s_ + x.exit * x.qty, 0) / rq, mv1 = mk(a);\n          n1 = a.qty; exit = (a.exit * a.qty + rp * rq) / qty; target = a.exit; stop = entry - dirS * dflt;\n          if (mv1 > 0) { const mvr = (rp - entry) * dirS;\n            if (Math.abs(rp - entry) < 0.01) outc = "tp1be"; else if (mvr > mv1) { outc = "tp1tp2"; target2 = rp; } else { outc = "tp1trail"; trp = rp; } }\n          else { outc = "other"; target = entry + dirS * 2 * dflt; n1 = null; } }\n        const kind = (f0.sigEn.match(/\\b(limit|market|stop)\\b/i) || [])[1], otype = kind ? kind.toLowerCase() : "", isOrd = /\\b(buy|sell)\\b/i.test(f0.sigEn) && kind;\n        const mm = isOrd ? null : sig.match(/^[LS]\\s+(.*?)(?:\\s+(US|LON|ASIA))?$/), strat = isOrd ? "" : (mm ? mm[1].trim() : sig), sess = mm && mm[2] ? mm[2] : "";\n        const ex = L.map(x => x.sigEx).join(" / ");\n        const old = ALL.find(t => t.tv === key);\n        if (old) { if (old.size === size && Math.abs((old.exit ?? 0) - exit) < 0.001 && old.outc === outc) { skip++; continue; }\n          Object.assign(old, {size, exit, outc, n1, trp, target, target2, closed: cd, fee}); await tx("readwrite", s => s.put(old)); upd++; continue; }\n        const t = {opened: od, closed: cd, inst, dir: dirS < 0 ? "short" : "long", size, pv: null, otype, entry, stop, target, target2, exit, outc, n1, trp, tfm: "",\n          fee, strat, trend: "", acc: "TradingView", emo: [], plan: "", rate: null, mis: +od.slice(11, 13) === 18 ? ["Vstup mezi 18. a 19. hodinou"] : [], cond: [], conf: {}, slots: {}, shots: [], tv: key,\n          notes: "Import z TradingView. Signál vstupu: " + sig + ". Signál výstupu: " + ex + ". " + (sess ? "Seance: " + sess + ". " : "") + (L.length > 1 ? "Pozice měla " + L.length + " výstupy. " : "") + "Stop a cíle nejsou v souboru: " + (outc === "sl" ? "stop je nastavený na cenu výstupu." : "stop je odhadnutý (" + dflt + " bodů), oprav ho podle grafu.")};\n        await tx("readwrite", s => s.add(t)); ok++;\n        if (strat && !pb.some(p => p.name.toLowerCase() === strat.toLowerCase())) pb.push({name: strat, desc: "Z importu z TradingView", rules: ""}); }\n      LS.set("jr:pb", pb); calSet = false; await render();\n      alert("Načteno obchodů: " + ok + (upd ? ". Aktualizováno (přibyl další výstup): " + upd : "") + (skip ? ". Přeskočeno (už tam byly): " + skip : "") + ".");\n    } catch (x) { console.error("IMPORT", x); alert("Soubor se nepodařilo načíst. Je to CSV z Replay Trading nebo ze Strategy Testeru?"); }\n  };\n  $("tvf").onchange = e => { if (e.target.files[0]) run(e.target.files[0]); e.target.value = ""; };\n  window.addEventListener("dragover", e => { if ([...(e.dataTransfer?.types || [])].includes("Files")) e.preventDefault(); });\n  window.addEventListener("drop", e => { const f = [...(e.dataTransfer?.files || [])].find(x => /\\.csv$/i.test(x.name)); if (f) { e.preventDefault(); run(f); } });\n})();\nlet PR = {}, entryAuto = false;\nfetch("prices.json", {cache: "no-store"}).then(r => r.ok ? r.json() : {}).then(p => { PR = p || {}; if ($("dlg").open && !$("f").elements.id.value) fillEntry(); }).catch(() => {});\nfunction fillEntry() {\n  const f = $("f").elements, d = f.od.value || "";\n  if (BT || f.id.value || !/^(MNQ|NQ)/i.test(f.inst.value)) return;\n  let v = PR.p && PR.p[d], txt = "";\n  if (v != null) txt = "Vstupní cena je předvyplněná cenou Nasdaq futures dne " + d + " v 15:00 pražského času. Můžeš ji přepsat.";\n  else if (PR.last && PR.last.d === d) { v = PR.last.v; txt = "Cena v 15:00 ještě není k dispozici. Předvyplněna je poslední známá cena (" + PR.last.t + "). Můžeš ji přepsat."; }\n  if (v == null) { $("entrynote").textContent = "Cena v 15:00 pro tento den není uložená. Zadej vstup ručně."; return; }\n  f.entry.value = rnd(v); entryAuto = true; $("entrynote").textContent = txt; auto("entry");\n}\n$("f").elements.entry.addEventListener("input", () => { entryAuto = false; $("entrynote").textContent = ""; });\n$("f").elements.od.addEventListener("change", () => { if (entryAuto || !$("f").elements.entry.value) fillEntry(); });\n$("f").elements.inst.addEventListener("change", () => { if (!$("f").elements.entry.value) fillEntry(); });\n/* ===== Disciplína, playbook, zmeškané obchody, rozbor týdne, záloha ===== */\nconst LS = {get: (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } }, set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }};\nconst todayS = () => localNow().slice(0, 10);\nconst weekKey = (d0) => { const d = new Date(d0 + "T12:00"); const wd = (d.getDay() + 6) % 7; d.setDate(d.getDate() - wd); return d.toISOString().slice(0, 10); };\nconst REASONS = ["Nesplnil jsem podmínky setupu", "Čekal jsem na větší timeframe", "Byl jsem na denním limitu", "Nebyl čas nebo klid", "Bál jsem se (chyba, setup byl platný)", "Jiný důvod"];\nconst tbl = (head, rows) => `<div class="wrap"><table><thead><tr>${head.map((h, i) => `<th${i ? " class=\\"n\\"" : ""}>${h}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table></div>`;\nconst rowH = a => "<tr>" + a.map((c, i) => `<td${i ? " class=\\"n\\"" : ""}>${c}</td>`).join("") + "</tr>";\nconst cs = x => `<span class="${cl(x)}">${usd(x)}</span>`;\n\nfunction tilt(closed) {\n  if (!closed.length) return "<p class=\\"empty\\">Zatím žádné uzavřené obchody. Tiltmeter se začne kreslit po prvním obchodu.</p>";\n  const n = closed.length, W = Math.max(n, 12) * 14, H = 110; let c = 0; const eqv = closed.map(t => c += pnl(t));\n  const mn = Math.min(0, ...eqv), mx = Math.max(0, ...eqv), rg = (mx - mn) || 1, y = v => 8 + (1 - (v - mn) / rg) * 64;\n  const pts = eqv.map((v, i) => `${i * 14 + 7},${y(v).toFixed(1)}`).join(" ");\n  const cells = closed.map((t, i) => `<rect x="${i * 14 + 1}" y="88" width="12" height="16" rx="3" fill="${t.plan === "ano" ? "#2EE6A6" : t.plan === "ne" ? "#FF6B8A" : "#5B6785"}"><title>${day(t)}: ${usd(pnl(t))}${t.plan ? ", plán " + t.plan : ""}</title></rect>`).join("");\n  let cur = 0, curT = null; for (let i = n - 1; i >= 0; i--) { const p = closed[i].plan; if (p !== "ano" && p !== "ne") break; if (curT === null) curT = p; if (p !== curT) break; cur++; }\n  let best = 0, run = 0; closed.forEach(t => { if (t.plan === "ano") { run++; best = Math.max(best, run); } else run = 0; });\n  const msg = curT === "ano" ? `Aktuální série: ${cur}× po sobě jsi dodržel plán.` : curT === "ne" ? `Pozor: poslední ${cur}× jsi plán nedodržel. Zastav se a dej si pauzu.` : "U posledního obchodu není vyplněno, jestli jsi dodržel plán.";\n  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:130px"><line x1="0" x2="${W}" y1="${y(0).toFixed(1)}" y2="${y(0).toFixed(1)}" stroke="rgba(255,255,255,.25)" stroke-dasharray="4 4"/><polyline points="${pts}" fill="none" stroke="#8B7CFF" stroke-width="2.5" vector-effect="non-scaling-stroke"/>${cells}</svg>` +\n    `<p class="hint">Fialová čára je křivka účtu. Zelené čtverečky dole jsou obchody podle plánu, červené mimo plán, šedé bez odpovědi. ${msg} Nejdelší série podle plánu: ${best}.</p>`;\n}\n\nfunction missedHtml() {\n  const L = LS.get("bt:missed", []), ok = L.filter(x => x.ok).length;\n  return `<div class="grid"><label>Datum<input type="date" id="ms-d" value="${todayS()}"></label><label>Setup<input id="ms-s" list="pbl" placeholder="např. Break and retest"></label>` +\n    `<label>Proč jsem ho nevzal<select id="ms-r">${REASONS.map(r => `<option>${r}</option>`).join("")}</select></label></div>` +\n    `<label class="chip" style="margin-top:8px"><input type="checkbox" id="ms-ok" checked>Správně jsem počkal (byl jsem v souladu s plánem)</label><div class="row"><button type="button" id="ms-add">Zapsat zmeškaný obchod</button></div>` +\n    (L.length ? `<p class="hint">Celkem ${L.length} zmeškaných obchodů, z toho ${ok}× jsi správně počkal.</p>` + tbl(["Datum", "Setup", "Důvod", "Správně", ""], [...L].reverse().map(x => rowH([x.d, esc(x.s), esc(x.r), x.ok ? "<span class=\\"up\\">ano</span>" : "<span class=\\"down\\">ne</span>", `<button class="ghost sm" data-ms="${x.id}">Smazat</button>`]))) : "<p class=\\"empty\\">Zatím nic. Když uvidíš dobrý setup a nevezmeš ho, zapiš proč. Čekání je taky výsledek.</p>");\n}\n\nfunction reviewHtml(closed) {\n  const wk = weekKey(todayS()), R = LS.get("bt:rev", {}), cur = R[wk] || {}, tr = closed.filter(t => weekKey(day(t)) === wk), net = sum(tr.map(pnl));\n  const pl = tr.filter(t => t.plan === "ano").length, pn = tr.filter(t => t.plan === "ne").length, ms = LS.get("bt:missed", []).filter(x => weekKey(x.d) === wk && x.ok).length;\n  const stats = `<div class="kpis">${K(tr.length, "obchodů tento týden")}${K(cs(net), "výsledek týdne")}${K(pl + pn ? nf(pl / (pl + pn) * 100) + "&nbsp;%" : dash, "dodržení plánu")}${K(ms, "správně počkáno")}</div>`;\n  const q = [["a", "Co se mi tento týden dařilo?"], ["b", "Kde jsem porušil pravidla a proč?"], ["c", "Co zlepším příští týden? (jedna věc)"]];\n  const old = Object.keys(R).filter(k => k !== wk).sort().reverse().slice(0, 8);\n  return stats + q.map(([k, l]) => `<label style="margin-top:10px">${l}<textarea rows="2" data-rv="${k}">${esc(cur[k] || "")}</textarea></label>`).join("") +\n    `<label style="margin-top:10px;max-width:260px">Známka týdne<select data-rv="g"><option value="">–</option>${[1, 2, 3, 4, 5].map(i => `<option${String(cur.g) === String(i) ? " selected" : ""}>${i}</option>`).join("")}</select></label><p class="empty">Týden od ${wk}. Ukládá se samo. Nejlepší čas je neděle večer.</p>` +\n    (old.length ? `<details style="margin-top:10px"><summary>Dřívější rozbory (${old.length})</summary>${old.map(k => `<p class="hint"><b>Týden od ${k}</b>${R[k].g ? " (známka " + R[k].g + ")" : ""}<br>${esc(R[k].a || "")}<br>${esc(R[k].b || "")}<br><i>${esc(R[k].c || "")}</i></p>`).join("")}</details>` : "");\n}\n\nfunction pbLib() {\n  const P = LS.get("jr:pb", []), gm = new Map(), cs_ = new Set(CONDS);\n  ENTRY.forEach(([g, a]) => { if (!gm.has(g)) gm.set(g, new Set()); a.forEach(n => gm.get(g).add(n)); });\n  P.forEach(p => { (p.conds || []).forEach(c => cs_.add(c)); (p.groups || []).forEach(([g, a]) => { if (!gm.has(g)) gm.set(g, new Set()); a.forEach(n => gm.get(g).add(n)); }); });\n  return {conds: [...cs_], groups: [...gm].map(([g, a]) => [g, [...a]])};\n}\nfunction pickHtml() {\n  const L = pbLib();\n  return `<details class="pbpick" open><summary>Vybrat z nabídky: podmínky a konfluence (zaškrtni, co ke strategii patří)</summary>\n<h4>Podmínky vstupu</h4><div class="chips">${L.conds.map(c => `<label class="chip"><input type="checkbox" name="pbc" value="${esc(c)}">${esc(c)}</label>`).join("")}</div>\n<h4>Konfluence</h4><div class="cfgrid">${L.groups.map(([g, a]) => `<div class="cfg"><b>${esc(g)}</b><div class="chips">${a.map(n => `<label class="chip"><input type="checkbox" name="pbg" data-g="${esc(g)}" value="${esc(n)}">${esc(n)}</label>`).join("")}</div></div>`).join("")}</div></details>\n<details class="pbpick"><summary>Přidat vlastní body, které v nabídce nejsou (psaním)</summary>\n<label>Podmínky vstupu (každá na nový řádek)<textarea id="pb-c" rows="3" placeholder="např. Max 2 obchody denně"></textarea></label>\n<label>Konfluence (jedna skupina na řádek, tvar: Název skupiny: bod, bod)<textarea id="pb-g" rows="3" placeholder="např. Moje skupina: nový bod, další bod"></textarea></label></details>`;\n}\nfunction playbookHtml(closed) {\n  const P = LS.get("jr:pb", []);\n  const rows = P.map(p => { const l = closed.filter(t => (t.strat || "").toLowerCase() === p.name.toLowerCase()), s = st(l), nc = (p.conds || []).length, ng = (p.groups || []).reduce((a, g) => a + g[1].length, 0);\n    return rowH([`<b>${esc(p.name)}</b><br><span class="empty">${esc(p.desc || "")}</span><br><span class="empty">Podmínky: ${nc}, konfluence: ${ng}</span>`, s.n, s.wr == null ? dash : nf(s.wr) + "&nbsp;%", cs(s.net), `<button class="ghost sm" data-pbe="${esc(p.name)}">Upravit</button> <button class="ghost sm" data-pbd="${esc(p.name)}">Smazat</button>`]); });\n  return `<p class="hint">Tady jednou nastavíš strategii, její podmínky a konfluence. Ve formuláři obchodu pak stačí vybrat strategii a všechny kolonky se objeví a předvyplní samy. Ty odklikneš jen výjimky.</p>\n<div class="grid"><label>Název strategie<input id="pb-n" placeholder="např. ICT 15m RSI Cross + CISD"></label><label>Popis<input id="pb-d" placeholder="co to je"></label></div>\n${pickHtml()}\n<div class="grid"><label>Výchozí timeframe<select id="pb-tf"><option value="">–</option><option value="1m">1 minuta</option><option value="2m">2 minuty</option><option value="3m">3 minuty</option><option value="5m">5 minut</option><option value="15m">15 minut</option></select></label>\n<label>Výchozí typ vstupu<select id="pb-ot"><option value="">–</option><option value="market">Market</option><option value="limit">Limit</option><option value="stop">Stop (průraz)</option></select></label>\n<label>Výchozí stop (body)<input id="pb-st" type="number" step="any"></label><label>Výchozí počet kontraktů<input id="pb-sz" type="number" min="1"></label></div>\n<label class="chk"><input type="checkbox" id="pb-pre" checked>Po výběru strategie předvyplnit všechny podmínky a konfluence jako splněné (Pro)</label>\n<div class="row"><button type="button" id="pb-add">Uložit strategii</button> <button type="button" class="ghost" id="pb-clr">Vyčistit formulář</button></div>` +\n    (P.length ? tbl(["Strategie", "Obchodů", "Úspěšnost", "Výsledek", ""], rows) : "<p class=\\"empty\\">Zatím tu žádná strategie není. Vyplň formulář výše a ulož.</p>") + `<datalist id="pbl">${P.map(p => `<option value="${esc(p.name)}">`).join("")}</datalist>`;\n}\n\nfunction pbClear() { ["pb-n", "pb-d", "pb-c", "pb-g", "pb-tf", "pb-ot", "pb-st", "pb-sz"].forEach(i => $(i).value = ""); document.querySelectorAll("#d-pb [name=pbc],#d-pb [name=pbg]").forEach(i => i.checked = false); $("pb-pre").checked = true; $("pb-add").textContent = "Uložit strategii"; }\nfunction pbEdit(name) { const p = LS.get("jr:pb", []).find(x => x.name === name); if (!p) return; pbClear();\n  $("pb-n").value = p.name; $("pb-d").value = p.desc || ""; const cl_ = p.conds && p.conds.length ? p.conds : (p.rules ? p.rules.split(",").map(x => x.trim()) : []);\n  const miss = []; cl_.forEach(c => { const i = [...document.querySelectorAll("#d-pb [name=pbc]")].find(x => x.value === c); if (i) i.checked = true; else miss.push(c); }); $("pb-c").value = miss.join("\\n");\n  const gmiss = []; (p.groups || []).forEach(([g, a]) => { const rest = []; a.forEach(n => { const i = [...document.querySelectorAll("#d-pb [name=pbg]")].find(x => x.dataset.g === g && x.value === n); if (i) i.checked = true; else rest.push(n); }); if (rest.length) gmiss.push(g + ": " + rest.join(", ")); }); $("pb-g").value = gmiss.join("\\n");\n  const d = p.def || {}; $("pb-tf").value = d.tfm || ""; $("pb-ot").value = d.otype || ""; $("pb-st").value = d.stop || ""; $("pb-sz").value = d.size || ""; $("pb-pre").checked = p.pre !== false;\n  $("pb-add").textContent = "Uložit změny"; $("pb-n").scrollIntoView({block: "center"}); $("pb-n").focus(); }\nfunction disc() {\n  const closed = ALL.filter(t => pnl(t) !== null).sort((a, b) => when(a).localeCompare(when(b))), s = st(closed);\n  const broken = closed.filter(t => t.plan === "ne"), leak = sum(broken.map(pnl)), ans = closed.filter(t => t.plan === "ano" || t.plan === "ne").length;\n  $("d-tilt").innerHTML = tilt(closed);\n  $("d-leak").innerHTML = closed.length ? `<div class="kpis">${K(cs(leak), "cena obchodů mimo plán (" + broken.length + "×)")}${K(cs(s.net - leak), "výsledek bez nich")}${K(ans ? nf((ans - broken.length) / ans * 100) + "&nbsp;%" : dash, "dodržení plánu")}</div><p class="hint">${leak < 0 ? "Kdybys těchto obchodů nevzal, měl bys na účtu o " + nf(Math.abs(leak)) + " $ víc. To je cena netrpělivosti." : broken.length ? "Obchody mimo plán dopadly dobře, ale jsou riziko. Dlouhodobě vždy platí plán." : "Zatím žádný obchod mimo plán. Skvělé."}</p>` : "<p class=\\"empty\\">Zatím žádné obchody.</p>";\n  const cost = (names, key) => names.map(n => { const l = closed.filter(t => (t[key] || []).includes(n)); return [n, l.length, sum(l.map(pnl))]; }).filter(x => x[1]).sort((a, b) => a[2] - b[2]);\n  const emo = cost(EMO.map(e => e[1]), "emo").map(x => [(EMO.find(e => e[1] === x[0]) || [""])[0] + " " + x[0], x[1], x[2]]), mis = cost(MIS, "mis");\n  const ct = r => r.length ? tbl(["", "Obchodů", "Součet", "Průměr"], r.map(x => rowH([x[0], x[1], cs(x[2]), cs(x[2] / x[1])]))) : "<p class=\\"empty\\">Zatím nic. Při zápisu obchodu zaškrtni emoce a chyby.</p>";\n  $("d-emoc").innerHTML = "<h3>Kolik tě stojí emoce</h3>" + ct(emo) + "<h3 style=\\"margin-top:16px\\">Nejdražší chyby</h3>" + ct(mis);\n  $("d-miss").innerHTML = missedHtml(); $("d-rev").innerHTML = reviewHtml(closed); $("d-pb").innerHTML = playbookHtml(closed);\n  const strs = [...new Set([...ALL.map(t => t.strat), ...LS.get("jr:pb", []).map(p => p.name)].filter(Boolean))];\n  bkInfo();\n}\nfunction bkInfo() {\n  const last = LS.get("bt:lastbk", null), days = last ? Math.floor((Date.now() - last) / 864e5) : null, need = ALL.length && (days === null || days >= 7);\n  $("bk").innerHTML = ALL.length ? `<div class="note" style="margin-bottom:12px${need ? ";border-color:#FF6B8A" : ""}">${last ? "Poslední záloha: před " + days + " dny." : "Deník ještě nikdy nebyl zálohovaný."} ${need ? "Doporučuju zálohovat teď. Deník je jen v tomto prohlížeči." : "Vše v pořádku."} <button class="ghost sm" id="bk-now" type="button">Zálohovat teď</button></div>` : "";\n  if ($("bk-now")) $("bk-now").onclick = () => $("exp").click();\n}\ndocument.addEventListener("click", e => {\n  const t = e.target, g = a => t.getAttribute && t.getAttribute(a);\n  if (t.id === "ms-add") { const s = $("ms-s").value.trim(); if (!s) { $("ms-s").focus(); return; } const L = LS.get("bt:missed", []); L.push({id: Date.now(), d: $("ms-d").value || todayS(), s, r: $("ms-r").value, ok: $("ms-ok").checked}); LS.set("bt:missed", L); disc(); }\n  else if (g("data-ms")) { LS.set("bt:missed", LS.get("bt:missed", []).filter(x => String(x.id) !== g("data-ms"))); disc(); }\n  else if (t.id === "pb-add") { const n = $("pb-n").value.trim(); if (!n) { $("pb-n").focus(); return; }\n    const conds = [...document.querySelectorAll("#d-pb [name=pbc]:checked")].map(i => i.value);\n    $("pb-c").value.split("\\n").map(x => x.trim()).filter(Boolean).forEach(c => { if (!conds.includes(c)) conds.push(c); });\n    const gm = new Map(); document.querySelectorAll("#d-pb [name=pbg]:checked").forEach(i => { const g = i.dataset.g; if (!gm.has(g)) gm.set(g, []); gm.get(g).push(i.value); });\n    $("pb-g").value.split("\\n").map(x => x.trim()).filter(Boolean).forEach(l => { const k = l.indexOf(":"), g = k < 0 ? "Konfluence" : l.slice(0, k).trim() || "Konfluence", a = (k < 0 ? l : l.slice(k + 1)).split(",").map(x => x.trim()).filter(Boolean); if (!gm.has(g)) gm.set(g, []); a.forEach(x => { if (!gm.get(g).includes(x)) gm.get(g).push(x); }); });\n    const groups = [...gm].filter(x => x[1].length);\n    const def = {}; if ($("pb-tf").value) def.tfm = $("pb-tf").value; if ($("pb-ot").value) def.otype = $("pb-ot").value; if (parseFloat($("pb-st").value) > 0) def.stop = parseFloat($("pb-st").value); if (parseInt($("pb-sz").value) > 0) def.size = parseInt($("pb-sz").value);\n    const P = LS.get("jr:pb", []).filter(p => p.name.toLowerCase() !== n.toLowerCase()); P.push({name: n, desc: $("pb-d").value.trim(), rules: conds.join(", "), conds, groups, def, pre: $("pb-pre").checked}); LS.set("jr:pb", P); disc(); }\n  else if (t.id === "pb-clr") { pbClear(); }\n  else if (g("data-pbe")) { pbEdit(g("data-pbe")); }\n  else if (g("data-pbd")) { if (confirm("Smazat setup z playbooku? Obchody zůstanou.")) { LS.set("jr:pb", LS.get("jr:pb", []).filter(p => p.name !== g("data-pbd"))); disc(); } }\n});\ndocument.addEventListener("input", e => { const k = e.target.getAttribute && e.target.getAttribute("data-rv"); if (!k) return; const wk = weekKey(todayS()), R = LS.get("bt:rev", {}); R[wk] = R[wk] || {}; R[wk][k] = e.target.value; LS.set("bt:rev", R); });\n$("f").elements.strat.addEventListener("input", e => { const p = LS.get("jr:pb", []).find(x => x.name.toLowerCase() === e.target.value.trim().toLowerCase()); $("pbnote").textContent = p ? "Podmínky tohoto setupu: " + (p.rules || "nevyplněno") + ". Splňuješ je všechny?" : ""; });\n$("exp").onclick = async () => {\n  const out = []; for (const t of ALL) out.push({...t, shot: undefined, shots: await Promise.all((t.shots || []).map(toUrl)), slots: Object.fromEntries(await Promise.all(Object.entries(t.slots || {}).filter(x => x[1]).map(async ([k, v]) => [k, await toUrl(v)])))});\n  const sk_ = await Promise.all(SK.map(async r => ({...r, id: undefined, imgs: await Promise.all((r.imgs || []).map(toUrl))}))); const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify({v: 2, trades: out, extra: {skips: sk_, missed: LS.get("bt:missed", []), pb: LS.get("jr:pb", []), rev: LS.get("bt:rev", {})}})], {type: "application/json"}));\n  a.download = (BT ? "zaloha-backtest-" : "zaloha-denik-") + todayS() + ".json"; a.click(); LS.set("bt:lastbk", Date.now()); bkInfo();\n};\n$("impf").onchange = async e => {\n  try { const raw = JSON.parse(await e.target.files[0].text()), ts = Array.isArray(raw) ? raw : raw.trades;\n    for (const t of ts) { t.shots = await Promise.all((t.shots || []).map(async u => (await fetch(u)).blob())); t.slots = Object.fromEntries(await Promise.all(Object.entries(t.slots || {}).map(async ([k, u]) => [k, await (await fetch(u)).blob()]))); delete t.id; await tx("readwrite", s => s.add(t)); }\n    if (raw.extra) { await skLoad(); for (const r of (raw.extra.skips || [])) { if (SK.some(x => x.date === r.date && x.created === r.created)) continue; r.imgs = await Promise.all((r.imgs || []).map(async u => (await fetch(u)).blob())); delete r.id; await stx("readwrite", s => s.add(r)); }\n      const m = LS.get("bt:missed", []), ids = new Set(m.map(x => x.id)); (raw.extra.missed || []).forEach(x => { if (!ids.has(x.id)) m.push(x); }); LS.set("bt:missed", m);\n      const pb = LS.get("jr:pb", []), nm = new Set(pb.map(p => p.name.toLowerCase())); (raw.extra.pb || []).forEach(p => { if (!nm.has(p.name.toLowerCase())) pb.push(p); }); LS.set("jr:pb", pb);\n      LS.set("bt:rev", Object.assign({}, raw.extra.rev || {}, LS.get("bt:rev", {}))); }\n    render();\n  } catch (x) { alert("Soubor se nepodařilo načíst. Je to záloha z tohoto deníku?"); }\n  e.target.value = "";\n};\n\n/* ===== Dny bez obchodu ===== */\nconst SKR = ["Špatná price action", "Žádný setup podle strategie", "Mimo killzone / špatný čas", "Důležitá zpráva / vysoká volatilita", "Úzký rozsah / nízká likvidita", "Nenabralo", "Jiný důvod"];\nvar SKD = new Set(); let sdb = null, SK = [], skImgs = [], skUrls = [], skEdit = null;\nconst sopen = () => new Promise(res => { try { const r = indexedDB.open("backtest_skips", 1); r.onupgradeneeded = () => r.result.createObjectStore("days", {keyPath: "id", autoIncrement: true}); r.onsuccess = () => res(r.result); r.onerror = () => res(null); } catch (x) { res(null); } });\nconst stx = (m, f) => new Promise((res, rej) => { if (!sdb) return res([]); const t = sdb.transaction("days", m), o = f(t.objectStore("days")); t.oncomplete = () => res(o && o.result); t.onerror = () => rej(t.error); });\nasync function skLoad() { if (!sdb) sdb = await sopen(); SK = (await stx("readonly", s => s.getAll())) || []; SKD = new Set(SK.map(r => r.date)); }\n$("skr").innerHTML = SKR.map(r => `<option>${r}</option>`).join("");\nfunction skDraw() { skUrls.forEach(u => URL.revokeObjectURL(u)); skUrls = [];\n  $("sk-imgs").innerHTML = skImgs.map((b, i) => { const u = URL.createObjectURL(b); skUrls.push(u); return `<div class="slot"><b>Fotka ${i + 1}</b><img src="${u}" alt="Fotka ${i + 1}"><button type="button" class="ghost sm" data-skx="${i}">Smazat</button></div>`; }).join("") || \'<p class="empty">Zatím žádná fotka. Přetáhni ji sem, vlož přes ⌘V nebo klikni na Vybrat fotky.</p>\'; }\nconst memBlob = async f => { try { const b = await f.arrayBuffer(); return new File([b], f.name || "foto.png", {type: f.type || "image/png", lastModified: f.lastModified || Date.now()}); } catch (x) { return f; } };\nconst skAdd = async fs => { fs = await Promise.all(fs.map(memBlob)); fs.forEach(f => { if (skImgs.length < 4) skImgs.push(f); }); skDraw(); $("sk-msg").textContent = ""; };\nfunction skOpen(r) { skEdit = r || null; skImgs = r ? [...(r.imgs || [])] : []; const f = $("skf").elements;\n  f.date.value = r ? r.date : (LS.get("bt:lastd", "") || todayS()); f.reason.value = r ? r.reason : LS.get("bt:lastReason", SKR[0]); f.note.value = r ? (r.note || "") : ""; f.miss.value = r && r.miss != null ? r.miss : ""; f.would.value = r ? (r.would || "") : ""; f.nbdir.value = r && r.dir === "short" ? "short" : "long"; f.nbt.value = r ? (r.time || "") : ""; $("sk-msg").textContent = ""; skNB(); skDraw(); $("skd").showModal(); }\nfunction skNB() { const on = $("skr").value === "Nenabralo"; $("nbw").style.display = on ? "" : "none"; $("skh").textContent = on ? "Nenabralo" : "Den bez obchodu";\n  $("skp").textContent = on ? "Vstup ti nenabralo. Fotka grafu je povinná: ukaž, kde byl tvůj příkaz a kam cena došla." : "Obchod jsi nevzal, protože podmínky byly špatné. Fotka grafu je povinná: uvidíš, že price action opravdu byla špatná."; }\n$("skr").addEventListener("change", skNB);\n$("skadd").onclick = () => skOpen(null); $("skcancel").onclick = () => $("skd").close();\n$("sk-file").onchange = async e => { const fs = [...e.target.files]; await skAdd(fs); e.target.value = ""; };\n$("sk-imgs").addEventListener("click", e => { const x = e.target.closest("[data-skx]"); if (x) { skImgs.splice(+x.dataset.skx, 1); skDraw(); } });\n$("sk-imgs").addEventListener("dragover", e => e.preventDefault());\n$("sk-imgs").addEventListener("drop", e => { e.preventDefault(); skAdd([...e.dataTransfer.files].filter(f => f.type.startsWith("image/")).sort((a, b) => a.lastModified - b.lastModified)); });\ndocument.addEventListener("paste", e => { const f = [...(e.clipboardData?.files || [])].filter(f => f.type.startsWith("image/")); if ($("skd").open && f.length) { e.preventDefault(); skAdd(f); } });\n$("skf").onsubmit = async e => { e.preventDefault(); const f = e.target.elements;\n  if (!skImgs.length) { $("sk-msg").textContent = f.reason.value === "Nenabralo" ? "Nahraj aspoň jednu fotku grafu, ať vidíš, kde byl vstup a kam cena došla." : "Nahraj aspoň jednu fotku grafu. Je to důkaz, že price action opravdu byla špatná."; return; }\n  const hasT = f.reason.value !== "Nenabralo" && ALL.some(t => day(t) === f.date.value);\n  if (hasT && !confirm("V tento den už máš zapsaný obchod. Přesto uložit den bez obchodu?")) return;\n  const r = {date: f.date.value, reason: f.reason.value, note: f.note.value.trim(), imgs: skImgs, created: skEdit ? skEdit.created : Date.now()};\n  if (r.reason === "Nenabralo") { const m = parseFloat(f.miss.value); if (!isNaN(m)) r.miss = m; if (f.would.value) r.would = f.would.value; r.dir = f.nbdir.value; if (f.nbt.value) r.time = f.nbt.value; } if (skEdit) r.id = skEdit.id;\n  await stx("readwrite", s => s.put(r)); LS.set("bt:lastReason", r.reason); LS.set("bt:lastd", r.date); $("skd").close(); render(); };\nconst WDN = ["Neděle", "Pondělí", "Úterý", "Středa", "Čtvrtek", "Pátek", "Sobota"];\nfunction renderSkips() {\n  const tdays = new Set(ALL.map(day)), sdays = new Set(SK.map(r => r.date)), all = new Set([...tdays, ...sdays]), nT = [...tdays].filter(d => !sdays.has(d)).length + [...tdays].filter(d => sdays.has(d)).length;\n  const pure = [...sdays].filter(d => !tdays.has(d)).length, tot = all.size, sel = tot ? Math.round(pure / tot * 100) : null;\n  const tile = (h, v, sub) => `<div class="tile"><h3>${h}</h3><div class="big">${v}</div><div class="hint">${sub}</div></div>`;\n  let h = `<div class="dash">${tile("Dny backtestu", tot, "celkem dnů s obchodem nebo bez")}${tile("Dny s obchodem", tdays.size, "aspoň jeden obchod")}${tile("Dny bez obchodu", pure, "jen zapsané, bez obchodu")}${tile("Podíl dnů bez obchodu", sel == null ? "–" : sel + " %", "čím víc, tím vybíravější jsi")}</div>`;\n  if (SK.length) {\n    const rc = {}; SK.forEach(r => rc[r.reason] = (rc[r.reason] || 0) + 1);\n    h += "<h3>Proč jsi obchod nevzal</h3>" + tbl(["Důvod", "Dnů", "Podíl"], Object.entries(rc).sort((a, b) => b[1] - a[1]).map(([k, n]) => rowH([esc(k), n, Math.round(n / SK.length * 100) + "&nbsp;%"])));\n    const wd = [1, 2, 3, 4, 5].map(d => { const t = [...tdays].filter(x => new Date(x + "T12:00").getDay() === d).length, k = [...sdays].filter(x => new Date(x + "T12:00").getDay() === d && !tdays.has(x)).length; return [WDN[d], t, k, t + k ? Math.round(k / (t + k) * 100) + "&nbsp;%" : "–"]; });\n    const NB_ = SK.filter(r => r.reason === "Nenabralo");\n    if (NB_.length) { const ms = NB_.filter(r => r.miss != null).map(r => r.miss), tp = NB_.filter(r => r.would === "tp").length, sl = NB_.filter(r => r.would === "sl").length, wt = NB_.filter(r => tdays.has(r.date)).length;\n      h += "<h3>⏳ Nenabralo</h3>" + `<div class="dash">${tile("Kolikrát", NB_.length, wt + "× jsi ten den pak vzal jiný obchod")}${tile("Ø chybělo", ms.length ? String(Math.round(ms.reduce((a, b) => a + b, 0) / ms.length * 4) / 4).replace(".", ",") + " b." : "–", "bodů do tvého vstupu")}${tile("Výsledek TP", tp, "ušlé obchody")}${tile("Výsledek SL", sl, "tady tě nenabrání ochránilo")}</div>` +\n        `<p class="hint">${tp > sl && tp >= 3 ? "Častěji ti utíkají dobré obchody. Zkus dát vstup o kousek blíž nebo vstoupit po potvrzení." : sl > tp && sl >= 3 ? "Většinou je dobře, že nenabralo. Na vstupu nic neměň." : "Zapisuj dál a vyplň „Výsledek“. Za pár týdnů uvidíš, jestli máš vstup moc daleko."}</p>`; }\n    h += "<h3>Podle dne v týdnu</h3>" + tbl(["Den", "S obchodem", "Bez obchodu", "Podíl bez obchodu"], wd.map(r => rowH(r)));\n  }\n  $("sk-stats").innerHTML = h;\n  $("sk-list").innerHTML = SK.length ? \'<h3>Všechny dny bez obchodu a nenabralo</h3><div class="wrap"><table class="tt"><thead><tr><th>Den</th><th>Důvod</th><th>Poznámka</th><th></th></tr></thead><tbody>\' + [...SK].sort((a, b) => b.date.localeCompare(a.date)).map(r => { const d = new Date(r.date + "T12:00"), n = (r.imgs || []).length;\n    return `<tr><td>${esc(r.date)}<br><span class="hint">${esc(WDN[d.getDay()])}</span></td><td><span class="bdg down">${r.reason === "Nenabralo" ? "⏳ " : ""}${esc(r.reason)}</span>${r.reason === "Nenabralo" && (r.dir || r.would) ? `<br><span class="hint">${r.dir === "short" ? "Short" : r.dir ? "Long" : ""}${r.would ? " · " + (r.would === "tp" ? "TP" : r.would === "sl" ? "SL" : r.would === "be" ? "BE" : "") : ""}</span>` : ""}${r.miss != null ? `<br><span class="hint">chybělo ${String(r.miss).replace(".", ",")} b.</span>` : ""}</td><td>${r.note ? esc(r.note.length > 70 ? r.note.slice(0, 70) + "…" : r.note) : "–"}</td><td class="act"><div><button type="button" class="ghost sm" data-skv="${r.id}">${n ? "📷 " + n : "Detail"}</button><button type="button" class="ghost sm" data-ske="${r.id}">Upravit</button><button type="button" class="ghost sm" data-skdel="${r.id}">Smazat</button></div></td></tr>`; }).join("") + "</tbody></table></div>" : \'<p class="empty">Zatím žádný den bez obchodu. Klikni nahoře na „Den bez obchodu“.</p>\';\n}\nfunction skView(r) { if (!r) return; const d = new Date(r.date + "T12:00"), n = (r.imgs || []).length;\n  $("vbody").innerHTML = `<div class="vh"><div><h2>${r.reason === "Nenabralo" ? "⏳ Nenabralo" : "Den bez obchodu"}</h2><p class="empty" style="margin:0">${esc(WDN[d.getDay()])} ${esc(r.date)}</p></div></div><div class="row"><span class="bdg down">${esc(r.reason)}</span>${r.dir ? `<span class="bdg">${r.dir === "short" ? "Short" : "Long"}</span>` : ""}${r.time ? `<span class="bdg">${esc(r.time)}</span>` : ""}${r.miss != null ? `<span class="bdg">chybělo ${String(r.miss).replace(".", ",")} bodů</span>` : ""}${r.would ? `<span class="bdg ${r.would === "sl" ? "up" : r.would === "tp" ? "down" : ""}">výsledek ${r.would === "tp" ? "TP" : r.would === "sl" ? "SL" : "BE"}</span>` : ""}</div>` +\n    `<h3>Poznámka</h3><p>${r.note ? esc(r.note) : "Bez poznámky."}</p><h3>Screenshoty</h3><div class="slots">` + (r.imgs || []).map((b, i) => { const u = URL.createObjectURL(b); skUrls.push(u); return `<div class="slot"><img src="${u}" alt="${esc(r.date)}: fotka ${i + 1} z ${n}"></div>`; }).join("") + `</div>` +\n    `<div class="row vact"><button type="button" class="ghost" data-vclose>Zavřít</button><button type="button" data-skve="${r.id}">Upravit</button><button type="button" class="ghost vdel" data-skvdel="${r.id}">Smazat</button></div>`;\n  if (!$("view").open) $("view").showModal(); }\ndocument.addEventListener("click", async e => { const t = e.target, g = a => t.getAttribute && t.getAttribute(a);\n  if (g("data-skv")) { skView(SK.find(r => String(r.id) === g("data-skv"))); }\n  else if (g("data-skve")) { $("view").close(); skOpen(SK.find(r => String(r.id) === g("data-skve"))); }\n  else if (g("data-skvdel")) { if (confirm2("Smazat tento den bez obchodu i s fotkami?")) { await stx("readwrite", s => s.delete(+g("data-skvdel"))); $("view").close(); render(); } }\n  else if (g("data-ske")) { skOpen(SK.find(r => String(r.id) === g("data-ske"))); }\n  else if (g("data-skdel")) { if (confirm2("Smazat tento den bez obchodu i s fotkami?")) { await stx("readwrite", s => s.delete(+g("data-skdel"))); render(); } } });\nconst _render = render; render = async function () { await skLoad(); await _render(); disc(); renderSkips(); if (!BT && window.TDguard) TDguard(); };\n\nasync function cleanup39() { if (LS.get("bt:clean39", false)) return;\n  const all = await tx("readonly", s => s.getAll()); for (const t of all) if (t.tv) await tx("readwrite", s => s.delete(t.id));\n  LS.set("jr:pb", LS.get("jr:pb", []).filter(p => p.desc !== "Z importu z TradingView")); LS.set("bt:clean39", true); }\nopen().then(async d => { db = d; try { await cleanup39(); } catch (x) {} render(); });\n</script><script src="tips.js"></script><script>\n(function () {\n  const pad = n => String(n).padStart(2, "0"), iso = d => d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());\n  const MN = ["leden", "únor", "březen", "duben", "květen", "červen", "červenec", "srpen", "září", "říjen", "listopad", "prosinec"];\n  let box = null, cur = null, vy = 0, vm = 0;\n  const ng = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");\n  const cz = x => /^\\d{4}-\\d{2}-\\d{2}$/.test(x || "") ? (+x.slice(8)) + ". " + (+x.slice(5, 7)) + ". " + x.slice(0, 4) : (x || "");\n  const parse = t => { t = String(t || "").trim(); if (!t) return ""; let m = t.match(/^(\\d{4})-(\\d{1,2})-(\\d{1,2})$/), d, mo, y;\n    if (m) { y = +m[1]; mo = +m[2]; d = +m[3]; } else { m = t.match(/^(\\d{1,2})\\s*[.\\/-]\\s*(\\d{1,2})\\s*[.\\/-]\\s*(\\d{4})\\.?$/); if (!m) return null; d = +m[1]; mo = +m[2]; y = +m[3]; }\n    const dt = new Date(y, mo - 1, d); if (dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d) return null; return iso(dt); };\n  const prep = el => { if (el.dataset.dp) return; el.dataset.dp = "1"; const v = el.value; el.type = "text";\n    Object.defineProperty(el, "value", {configurable: true, get() { const r = parse(ng.get.call(el)); return r == null ? "" : r; }, set(x) { ng.set.call(el, cz(x)); }});\n    el.value = v; el.placeholder = "d. m. rrrr"; el.setAttribute("inputmode", "numeric"); el.autocomplete = "off";\n    el.addEventListener("input", () => { el.setCustomValidity(parse(ng.get.call(el)) == null ? "Napiš datum například 25. 10. 2026" : ""); });\n    if (el.form) el.form.addEventListener("reset", () => setTimeout(() => { const r = parse(ng.get.call(el)); ng.set.call(el, cz(r == null ? "" : r)); }, 0)); };\n  const scan = () => document.querySelectorAll(\'input[type="date"]\').forEach(prep);\n  const close = () => { if (box) { box.remove(); box = null; cur = null; } };\n  const draw = () => {\n    const sel = /^\\d{4}-\\d{2}-\\d{2}$/.test(cur.value) ? cur.value : "", td = iso(new Date());\n    const first = new Date(vy, vm, 1), off = (first.getDay() + 6) % 7, start = new Date(vy, vm, 1 - off);\n    let h = \'<div class="dph"><button type="button" data-a="py">«</button><button type="button" data-a="pm">‹</button><b>\' + MN[vm] + " " + vy + \'</b><button type="button" data-a="nm">›</button><button type="button" data-a="ny">»</button></div><div class="dpg">\';\n    ["P", "Ú", "S", "Č", "P", "S", "N"].forEach(x => h += \'<div class="dpw">\' + x + "</div>");\n    for (let i = 0; i < 42; i++) { const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i), k = iso(d);\n      h += \'<button type="button" class="dpd\' + (d.getMonth() !== vm ? " o" : "") + (k === td ? " t" : "") + (k === sel ? " s" : "") + \'" data-d="\' + k + \'">\' + d.getDate() + "</button>"; }\n    h += \'</div><div class="dpf"><button type="button" data-a="today">Dnes</button><button type="button" data-a="x">Zavřít</button></div>\';\n    box.innerHTML = h;\n  };\n  const open = el => {\n    close(); cur = el; const dlg = el.closest("dialog"), v = /^\\d{4}-\\d{2}-\\d{2}$/.test(el.value) ? new Date(el.value + "T12:00") : new Date();\n    vy = v.getFullYear(); vm = v.getMonth(); box = document.createElement("div"); box.className = "dp"; (dlg || document.body).appendChild(box); draw();\n    const r = el.getBoundingClientRect(), bh = box.offsetHeight, bw = box.offsetWidth;\n    let top = r.bottom + 6; if (top + bh > innerHeight - 8) top = Math.max(8, r.top - bh - 6);\n    box.style.top = top + "px"; box.style.left = Math.max(8, Math.min(r.left, innerWidth - bw - 8)) + "px";\n  };\n  const pick = k => { cur.value = k; cur.dispatchEvent(new Event("input", {bubbles: true})); cur.dispatchEvent(new Event("change", {bubbles: true})); close(); };\n  document.addEventListener("click", e => {\n    const t = e.target; if (!t || !t.closest) return;\n    const inp = t.closest("input[data-dp]"); if (inp) { if (!box || cur !== inp) open(inp); return; }\n    const b = t.closest(".dp"); if (!b) { close(); return; }\n    const x = t.closest("button"); if (!x) return; e.preventDefault();\n    if (x.dataset.d) return pick(x.dataset.d);\n    const a = x.dataset.a;\n    if (a === "pm") { vm--; if (vm < 0) { vm = 11; vy--; } } else if (a === "nm") { vm++; if (vm > 11) { vm = 0; vy++; } } else if (a === "py") vy--; else if (a === "ny") vy++;\n    else if (a === "today") return pick(iso(new Date())); else if (a === "x") return close();\n    draw();\n  });\n  document.addEventListener("keydown", e => { if (e.key === "Escape" && box) { e.stopPropagation(); close(); } if (e.key === "Tab") close(); }, true);\n  new MutationObserver(scan).observe(document.documentElement, {childList: true, subtree: true}); scan();\n})();\n</script>\n<script>\n(function () {\n  const N = 6, open = {};\n  const apply = id => {\n    const box = document.getElementById(id); if (!box) return; const tb = box.querySelector("table.tt tbody"); if (!tb || tb.dataset.col) return; tb.dataset.col = "1";\n    const rows = [...tb.querySelectorAll(":scope > tr")]; if (rows.length <= N) return;\n    const btn = document.createElement("button"); btn.type = "button"; btn.className = "moreb";\n    const paint = () => { rows.forEach((r, i) => r.hidden = i >= N && !open[id]); btn.textContent = open[id] ? "▴ Zobrazit jen posledních " + N : "▾ Zobrazit všech " + rows.length + " (dalších " + (rows.length - N) + ")"; };\n    btn.onclick = () => { open[id] = !open[id]; paint(); }; paint();\n    box.querySelector(".wrap").insertAdjacentElement("afterend", btn);\n  };\n  const run = () => { apply("list"); apply("sk-list"); };\n  document.addEventListener("click", e => { if (e.target.closest && e.target.closest("[data-selall]") && !open.list) { open.list = true; const b = document.querySelector("#list .moreb"); if (b) { document.querySelectorAll("#list tbody tr").forEach(r => r.hidden = false); b.textContent = "▴ Zobrazit jen posledních " + N; } } }, true);\n  ["list", "sk-list"].forEach(id => { const el = document.getElementById(id); if (el) new MutationObserver(run).observe(el, {childList: true}); });\n  run();\n})();\n</script>\n<script>\n(function () {\n  let menu = null, cur = null;\n  const label = sel => { const o = sel.options[sel.selectedIndex]; return o ? o.textContent : ""; };\n  const sync = sel => { const b = sel._b; if (!b) return; b.firstElementChild.textContent = label(sel) || "Vyber…"; b.disabled = sel.disabled; };\n  const enhance = sel => {\n    if (sel.dataset.big || sel.multiple || !sel.closest("dialog")) return; sel.dataset.big = "1";\n    const w = document.createElement("div"); w.className = "selw"; sel.parentNode.insertBefore(w, sel);\n    sel.style.cssText = "position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;left:0;bottom:0"; sel.tabIndex = -1;\n    const b = document.createElement("button"); b.type = "button"; b.className = "selb"; b.innerHTML = "<span></span><span aria-hidden=\\"true\\">▾</span>"; w.appendChild(b); w.appendChild(sel); sel._b = b; sync(sel);\n    b.onclick = e => { e.preventDefault(); if (menu && cur === sel) { close(); return; } open(sel); };\n  };\n  const close = () => { if (menu) { menu.remove(); menu = null; cur = null; } };\n  const open = sel => {\n    close(); cur = sel; menu = document.createElement("div"); menu.className = "selm"; menu.setAttribute("role", "listbox");\n    const add = (o, box) => { const x = document.createElement("button"); x.type = "button"; x.textContent = o.textContent; x.disabled = o.disabled; if (o === sel.options[sel.selectedIndex]) x.classList.add("on");\n      x.onclick = () => { sel.value = o.value; sel.selectedIndex = [...sel.options].indexOf(o); sel.dispatchEvent(new Event("input", {bubbles: true})); sel.dispatchEvent(new Event("change", {bubbles: true})); sync(sel); close(); }; box.appendChild(x); };\n    [...sel.children].forEach(c => { if (c.tagName === "OPTGROUP") { const g = document.createElement("div"); g.className = "selg"; g.textContent = c.label; menu.appendChild(g); [...c.children].forEach(o => add(o, menu)); } else add(c, menu); });\n    (sel.closest("dialog") || document.body).appendChild(menu);\n    const r = sel._b.getBoundingClientRect(); menu.style.minWidth = r.width + "px";\n    let top = r.bottom + 6; const h = menu.offsetHeight; if (top + h > innerHeight - 8) top = Math.max(8, r.top - h - 6);\n    menu.style.top = top + "px"; menu.style.left = Math.max(8, Math.min(r.left, innerWidth - menu.offsetWidth - 8)) + "px";\n    const on = menu.querySelector(".on"); if (on) on.scrollIntoView({block: "nearest"});\n  };\n  document.addEventListener("click", e => { if (menu && !e.target.closest(".selm") && !e.target.closest(".selb")) close(); });\n  document.addEventListener("keydown", e => { if (e.key === "Escape" && menu) { e.stopPropagation(); close(); } }, true);\n  const scan = () => document.querySelectorAll("dialog select").forEach(enhance);\n  new MutationObserver(scan).observe(document.documentElement, {childList: true, subtree: true}); scan();\n  setInterval(() => document.querySelectorAll("select[data-big]").forEach(sync), 300);\n})();\n</script>\n<script>\n(function () {\n  const czd = x => (+x.slice(8)) + ". " + (+x.slice(5, 7)) + ". " + x.slice(0, 4);\n  const openDay = date => {\n    const ts = ALL.filter(t => day(t) === date).sort((a, b) => String(when(a)).localeCompare(String(when(b)))), sk = (typeof SK !== "undefined" ? SK : []).filter(r => r.date === date);\n    const click = (attr, val, extra) => { const b = document.createElement("button"); b.hidden = true; b.setAttribute(attr, attr === "data-a" ? "view" : val); if (attr === "data-a") b.dataset.id = val; if (extra) b.dataset.fromday = date; document.body.appendChild(b); b.click(); b.remove(); };\n    if (ts.length === 1 && !sk.length) { window.__fd = null; return click("data-a", ts[0].id, false); }\n    if (!ts.length && sk.length === 1) { window.__fd = null; return click("data-skv", sk[0].id, false); }\n    if (!ts.length && !sk.length) return;\n    const tot = ts.reduce((a, t) => a + (pnl(t) || 0), 0), d = new Date(date + "T12:00");\n    $("vbody").innerHTML = `<div class="vh"><div><h2>${esc(WDN[d.getDay()])} ${czd(date)}</h2><p class="empty" style="margin:0">${ts.length ? ts.length + (ts.length === 1 ? " obchod" : ts.length < 5 ? " obchody" : " obchodů") + " · celkem " : ""}${ts.length ? `<b class="${cl(tot)}">${usd(tot)}</b>` : ""}${sk.length ? (ts.length ? " · " : "") + (sk.every(r => r.reason === "Nenabralo") ? "nenabralo " + sk.length + "×" : "den bez obchodu") : ""}</p></div></div>` +\n      ts.map(t => { const p = pnl(t); return `<div class="dl"><span>${esc(String(when(t)).slice(11, 16))} · <b>${esc(t.inst)} ${t.dir === "short" ? "Short" : "Long"} ×${nf(t.size || 1, 0)}</b>${t.strat ? " · " + esc(t.strat) : ""}</span><span class="${cl(p)}"><b>${p == null ? "–" : usd(p)}</b></span><button type="button" class="ghost sm" data-a="view" data-id="${t.id}" data-fromday="${date}">Detail ›</button></div>`; }).join("") +\n      sk.map(r => `<div class="dl"><span>${r.reason === "Nenabralo" ? "⏳ Nenabralo" + (r.dir ? " · " + (r.dir === "short" ? "Short" : "Long") : "") + (r.time ? " · " + esc(r.time) : "") + (r.miss != null ? " · chybělo " + String(r.miss).replace(".", ",") + " b." : "") + (r.would ? " · výsledek " + (r.would === "tp" ? "TP" : r.would === "sl" ? "SL" : r.would === "be" ? "BE" : "") : "") : "🚫 Den bez obchodu · " + esc(r.reason)}</span><button type="button" class="ghost sm" data-skv="${r.id}">Detail ›</button></div>`).join("");\n    if (!$("view").open) $("view").showModal();\n  };\n  document.addEventListener("click", e => {\n    const v = e.target.closest && e.target.closest(\'[data-a="view"]\'); if (v) window.__fd = v.dataset.fromday || null;\n    const bk = e.target.closest && e.target.closest("[data-dayback]"); if (bk) { openDay(bk.dataset.dayback); return; }\n    const c = e.target.closest && e.target.closest(".dayc[data-day]"); if (c) openDay(c.dataset.day);\n  }, true);\n  document.addEventListener("keydown", e => { if ((e.key === "Enter" || e.key === " ") && e.target.matches && e.target.matches(".dayc[data-day]")) { e.preventDefault(); openDay(e.target.dataset.day); } });\n})();\n</script>\n<script>\nwindow.confirm2 = t => confirm(t + "\\n\\nTohle nejde vrátit zpět.") && confirm("Opravdu? Poslední kontrola: smazat to natrvalo?");\ndocument.addEventListener("click", e => { if (e.target.closest && e.target.closest("[data-vclose]")) { const d = document.getElementById("view"); if (d && d.open) d.close(); } });\n</script>\n</body></html>'
+
+STYLE_CSS += """
+.lede.warn{color:#FFB454;text-shadow:0 0 40px rgba(255,180,84,.4)}
+.badge.warn{background:rgba(255,180,84,.2);color:#FFB454}
+.tile.ev{background:rgba(255,255,255,.05)}.tile.ev.soon{background:rgba(255,180,84,.18);border-color:rgba(255,180,84,.5)}
+.kpis .k b.warn{color:#FFB454}
+"""
+
+STYLE_CSS += """
+/* v9 */
+.video{position:relative;padding-top:56.25%;border-radius:14px;overflow:hidden;border:1px solid var(--rule)}.video iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.scens{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:10px}
+.scen{border:1px solid var(--rule);border-radius:14px;padding:12px 14px;background:var(--glass)}.scen b{display:block;margin-bottom:4px}.scen span{font-size:13px;color:var(--muted)}
+.scen.up{border-color:rgba(46,230,166,.5);background:rgba(46,230,166,.08)}.scen.down{border-color:rgba(255,107,138,.5);background:rgba(255,107,138,.08)}.scen.warn{border-color:rgba(255,180,84,.5);background:rgba(255,180,84,.08)}
+.evh{margin-bottom:6px}.cat{border-top:1px solid var(--rule);padding:12px 0}.cat:first-child{border-top:0}.cath{display:flex;justify-content:space-between;align-items:center;gap:10px}
+#cats.brief .det{display:none}#cats.full .det{display:block}.det ul li.up::marker{color:#2EE6A6}.det ul li.down::marker{color:#FF6B8A}
+.glos{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px}.gl{border:1px solid var(--rule);border-radius:12px;padding:10px 14px;background:var(--glass)}.gl b{display:block}.gl span{font-size:13px;color:var(--muted)}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.side a span{font-size:12px;width:16px;text-align:center;opacity:.8}.side a{gap:9px;padding:9px 12px;font-size:14px}
+.brand small{display:block;font-size:11px;font-weight:500;letter-spacing:.04em;margin-top:2px;-webkit-text-fill-color:var(--muted);color:var(--muted)}
+.exm{margin:6px 0 0;font-size:14px}details summary{cursor:pointer}
+"""
+
+STYLE_CSS += """
+/* v12 */
+.side{width:268px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}.gword{font-size:20px;font-weight:700;letter-spacing:.02em}.gword.up{color:var(--up)}.gword.down{color:var(--down)}.gdyn{margin:10px 0 4px;display:flex;justify-content:center}.holov{position:fixed;inset:0;z-index:2000;background:rgba(5,8,20,.72);display:flex;align-items:center;justify-content:center;padding:16px}.holpop{max-width:480px;width:100%;background:#0C1124;color:#EEF1FA;border:1px solid rgba(255,180,84,.8);border-radius:20px;padding:24px;box-shadow:0 30px 80px -20px rgba(0,0,0,.9);font-size:17px;line-height:1.5}.holpop h3{margin:0 0 12px;font-size:22px;color:#FFB454}.holpop p{margin:10px 0}.holpop .holnote{color:#C9D1E8;font-size:15px}.holpop button{margin-top:8px;width:100%;padding:13px;font-size:17px}html[data-theme=light] .holpop{background:#fff;color:#161B33}html[data-theme=light] .holpop h3{color:#B86E00}html[data-theme=light] .holpop .holnote{color:#3B4668}.themebtn{display:flex;align-items:center;gap:12px;width:100%;margin-top:14px;padding:11px 14px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.22);border-radius:12px;color:var(--ink);font-size:16px;font-weight:600;cursor:pointer}.themebtn span{font-size:18px}.themebtn:hover{background:rgba(139,124,255,.25)}\n.guard{margin:0 0 14px;padding:14px 18px;border-radius:16px;font-size:17px;line-height:1.45;border:1px solid}.guard.pause{background:rgba(255,180,84,.16);border-color:rgba(255,180,84,.7)}.guard.stop{background:rgba(255,107,138,.18);border-color:rgba(255,107,138,.75)}\n.mebar{display:grid;grid-template-columns:90px 1fr 56px;gap:12px;align-items:center;margin:8px 0}.mebar i{display:block;height:14px;border-radius:99px;background:rgba(255,255,255,.12);overflow:hidden}.mebar u{display:block;height:100%;border-radius:99px;text-decoration:none}.mebar b{text-align:right}\n.rstep{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;margin:8px 0;border-radius:14px;border:1px solid var(--rule);background:rgba(255,255,255,.04);cursor:pointer}.rstep input{width:22px;height:22px;margin:2px 0 0;flex:none}.rstep.on{border-color:var(--up);background:rgba(46,230,166,.12)}.rstep b{display:block}.rstep a{font-size:14px;color:#7DD3FC}\n.bigok{width:100%;padding:18px;font-size:20px;border-radius:16px}.okline{font-size:20px;font-weight:700;text-align:center;margin-top:10px}\n#navbtn,#navov{display:none}\n@media (max-width:760px){\n#navbtn{display:flex!important;position:fixed;top:10px;left:10px;z-index:90;width:46px;height:46px;padding:0;align-items:center;justify-content:center;font-size:22px;border-radius:14px}\n.app{flex-direction:column!important}\n.side{position:fixed!important;top:0;left:0;height:100vh!important;width:min(300px,86vw)!important;z-index:100;transform:translateX(-105%);transition:transform .25s;overflow-y:auto!important;padding:18px 14px!important;border-right:1px solid var(--rule)!important;border-bottom:0!important}\n.side.open{transform:none}\n.side .brand,.side .clock,.side .grp{display:block!important}\n.side nav{display:block!important;overflow:visible!important;flex-direction:column!important}\n.side a{white-space:normal!important}\n#navov.on{display:block!important;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:95}\n.content{padding-top:62px!important;margin-left:0!important}\n.guard{font-size:16px}\nhtml,body{overflow-x:hidden}@supports (overflow-x:clip){html,body{overflow-x:clip}}.bar.wide{grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;overflow:visible!important;row-gap:2px}.bar.wide b{grid-column:1/-1;display:block}.bar.wide em{display:inline!important;white-space:normal!important}.bar span{white-space:normal}.bar{min-width:0;max-width:100%}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))!important}.k{min-width:0}.k b{font-size:20px!important}.tabs{display:flex;flex-wrap:wrap;max-width:100%;overflow:visible;white-space:normal}.pills{flex-wrap:wrap!important;max-width:100%}.pills button{flex:1 1 auto}.head{flex-wrap:wrap}\n}\nhtml[data-theme=light]{--bg:#F1F4FB;--ink:#161B33;--muted:#465070;--rule:rgba(20,30,70,.18);--up:#0A8F63;--down:#D02A52;--acc:#6D5DF0;--glass:rgba(255,255,255,.85);--field:#fff;color-scheme:light}\nhtml[data-theme=light] body{background:radial-gradient(1000px 520px at 10% -12%,rgba(139,124,255,.20),transparent 62%),radial-gradient(800px 480px at 96% 2%,rgba(56,189,248,.16),transparent 60%),#EEF2FA fixed;color:#161B33}\nhtml[data-theme=light] body::before{filter:invert(1);opacity:.14}\nhtml[data-theme=light] .side{background:rgba(255,255,255,.97);border-right:1px solid rgba(20,30,70,.15)}\nhtml[data-theme=light] .side a{color:#26304F}html[data-theme=light] .side a:hover{background:rgba(109,93,240,.12);color:#161B33}\nhtml[data-theme=light] .side a[aria-current]{background:linear-gradient(135deg,rgba(109,93,240,.22),rgba(56,189,248,.16));color:#161B33;border-color:rgba(109,93,240,.5)}\nhtml[data-theme=light] .brand{background:linear-gradient(90deg,#161B33,#6D5DF0);-webkit-background-clip:text;background-clip:text;color:transparent}\nhtml[data-theme=light] .brand small{color:#465070;-webkit-text-fill-color:#465070}html[data-theme=light] .brand small.mot{color:#1B63A8;-webkit-text-fill-color:#1B63A8}\nhtml[data-theme=light] .clock{background:rgba(109,93,240,.08);border-color:rgba(20,30,70,.18);color:#26304F}html[data-theme=light] .clock b{color:#161B33}\nhtml[data-theme=light] .themebtn{background:rgba(109,93,240,.1);border-color:rgba(20,30,70,.22)}\nhtml[data-theme=light] section,html[data-theme=light] .k,html[data-theme=light] .step{background:#fff;border:1px solid rgba(20,30,70,.14);box-shadow:0 14px 30px -24px rgba(20,30,70,.45)}\nhtml[data-theme=light] h2{color:#161B33}html[data-theme=light] .pagehead h1{background:linear-gradient(90deg,#161B33,#5B4BE0);-webkit-background-clip:text;background-clip:text;color:transparent}\nhtml[data-theme=light] .hint,html[data-theme=light] .facts,html[data-theme=light] .empty,html[data-theme=light] .bar span,html[data-theme=light] .bar em,html[data-theme=light] thead th,html[data-theme=light] footer,html[data-theme=light] .step span:last-child,html[data-theme=light] .day span,html[data-theme=light] .gnum span,html[data-theme=light] .gcap,html[data-theme=light] .brand small{color:#3B4668}\nhtml[data-theme=light] input,html[data-theme=light] select,html[data-theme=light] textarea{background:#fff;border-color:rgba(20,30,70,.28);color:#161B33}\nhtml[data-theme=light] select option{background:#fff;color:#161B33}\nhtml[data-theme=light] dialog{background:#fff;color:#161B33}html[data-theme=light] dialog::backdrop{background:rgba(20,30,70,.45)}\nhtml[data-theme=light] .toast,html[data-theme=light] #tipbox{background:#fff;color:#161B33;border-color:#6D5DF0}\nhtml[data-theme=light] .ring::before{background:#fff}html[data-theme=light] .ring,html[data-theme=light] .xpbar,html[data-theme=light] .mebar i{background:rgba(20,30,70,.14)}\nhtml[data-theme=light] .tile span,html[data-theme=light] .tile.ev span{color:#26304F}html[data-theme=light] .tile{color:#161B33}\nhtml[data-theme=light] .pill-off{color:#26304F!important;border-color:rgba(20,30,70,.3)!important}\nhtml[data-theme=light] .chip,html[data-theme=light] button.ghost,html[data-theme=light] .day,html[data-theme=light] .rstep{border-color:rgba(20,30,70,.28)}\nhtml[data-theme=light] .rstep{background:#fff}html[data-theme=light] .rstep.on{background:rgba(10,143,99,.1)}html[data-theme=light] .rstep a{color:#1B63A8}\nhtml[data-theme=light] .tabs button{color:#3B4668}html[data-theme=light] .tabs button[aria-selected=true]{color:#fff}\nhtml[data-theme=light] .gauge g line{stroke:#161B33}html[data-theme=light] .gauge circle{fill:#161B33}\nhtml[data-theme=light] .tip{border-bottom-color:#1B63A8}html[data-theme=light] .tip sup{color:#1B63A8}\nhtml[data-theme=light] .note{color:#161B33}html[data-theme=light] .facts li,html[data-theme=light] p,html[data-theme=light] li,html[data-theme=light] td,html[data-theme=light] th,html[data-theme=light] label{color:#161B33}\nhtml[data-theme=light] .empty,html[data-theme=light] .hint,html[data-theme=light] thead th,html[data-theme=light] .brand small{color:#3B4668}\nhtml[data-theme=light] .up{color:#0A8F63}html[data-theme=light] .down{color:#D02A52}\nhtml[data-theme=light] .guard.pause{background:#FFF1DA}html[data-theme=light] .guard.stop{background:#FFE3EA}\nhtml[data-theme=light] .warn{color:#B86E00}\nhtml[data-theme=light] .k span,html[data-theme=light] .tile .k span{color:#3B4668}html[data-theme=light] .side a span{opacity:1}.clock{margin:0 0 12px;padding:10px 14px}.clock b{font-size:26px}.brand{padding-bottom:14px}
+.tip{border-bottom:1px dotted #C9D1E8;cursor:help;position:relative}.tip sup{color:#38BDF8;font-size:.7em;margin-left:1px;font-weight:700}
+.tip:hover::after,.tip:focus::after{content:attr(data-tip);position:absolute;left:0;top:calc(100% + 6px);z-index:60;width:max-content;max-width:260px;white-space:normal;text-align:left;background:#0C1124;border:1px solid rgba(139,124,255,.7);color:#EEF1FA;padding:10px 12px;border-radius:10px;font-size:14px;font-weight:400;font-style:normal;line-height:1.4;box-shadow:0 14px 34px -8px rgba(0,0,0,.9)}
+.tip.r:hover::after,.tip.r:focus::after{left:auto;right:0}
+.lede .tip sup,.k b .tip sup{font-size:.32em}
+.xptop{display:flex;justify-content:space-between;gap:10px;margin-top:16px;align-items:baseline;flex-wrap:wrap}.xpbar{height:12px;border-radius:99px;background:rgba(255,255,255,.1);overflow:hidden;margin-top:6px}
+.xpbar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#8B7CFF,#38BDF8,#2EE6A6);border-radius:99px;transition:width .6s}
+.ringbox{display:flex;flex-direction:column;align-items:center;gap:6px;flex:0 0 auto!important}.ring{width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;position:relative}
+.ring::before{content:"";position:absolute;inset:12px;border-radius:50%;background:#0C1124}.ring b{position:relative;font-size:26px}.ring.big{width:230px;height:230px}.ring.big::before{inset:16px}
+.center2{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:14px 0}.bigbtn{padding:18px 30px;font-size:19px;border-radius:99px;box-shadow:0 0 50px -10px rgba(139,124,255,.9)}
+.orb2{width:120px;height:120px;border-radius:50%;margin:20px auto;background:radial-gradient(circle at 35% 30%,#B3A9FF,#38BDF8 60%,#2B3A8F);box-shadow:0 0 50px rgba(139,124,255,.5);transform:scale(.7);transition:transform 4s ease-in-out}.orb2.big{transform:scale(1.15)}
+.holdwrap{position:relative;width:230px;height:230px}.holdwrap .ring{position:absolute;inset:0}.holdbtn{position:absolute;inset:34px;border-radius:50%;font-size:24px;touch-action:none;user-select:none;-webkit-user-select:none;background:linear-gradient(135deg,#8B7CFF,#38BDF8);transition:transform .15s}.holdbtn.on{transform:scale(.94)}
+.qopts{display:grid;gap:10px;margin:14px 0}.qopt{text-align:left;padding:14px 16px;font-weight:500;line-height:1.35}.qopt.good{border-color:#2EE6A6!important;background:rgba(46,230,166,.16)!important}.qopt.bad{border-color:#FF6B8A!important;background:rgba(255,107,138,.16)!important}
+.badges{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px}.bd{border:1px solid var(--rule);border-radius:16px;padding:14px;text-align:center;filter:grayscale(1);opacity:.4}.bd.on{filter:none;opacity:1;border-color:rgba(139,124,255,.7);background:rgba(139,124,255,.12)}
+.bd span{display:block;font-size:34px}.bd b{display:block;margin-top:4px}.bd em{display:block;font-style:normal;font-size:13px;color:var(--muted)}
+.conf{position:fixed;top:-30px;font-size:26px;z-index:90;animation:fall 2s ease-in forwards;pointer-events:none}@keyframes fall{to{transform:translateY(110vh) rotate(360deg);opacity:.2}}
+.toast{position:fixed;left:50%;bottom:40px;transform:translateX(-50%);background:#0C1124;border:1px solid #8B7CFF;border-radius:14px;padding:14px 22px;font-weight:600;z-index:95;box-shadow:0 20px 50px -10px rgba(0,0,0,.9)}
+.lede.warn{color:#FFB454}
+"""
+STYLE_CSS = re.sub(r"font-size:(\d+(?:\.\d+)?)px", lambda m: "font-size:%spx" % (round(float(m.group(1)) * 1.14, 1) if float(m.group(1)) <= 30 else m.group(1)), STYLE_CSS)
+STYLE_CSS += """
+/* v14 čitelnost */
+:root{--muted:#C9D1E8;--rule:rgba(255,255,255,.18);--ink:#FFFFFF}
+body{font-size:17px;background:radial-gradient(1000px 520px at 10% -12%,rgba(139,124,255,.38),transparent 62%),radial-gradient(800px 480px at 96% 2%,rgba(56,189,248,.24),transparent 60%),radial-gradient(700px 500px at 50% 112%,rgba(244,114,182,.18),transparent 60%),#121A33 fixed}
+.side{background:rgba(22,30,58,.94);border-right:1px solid rgba(255,255,255,.14)}
+.side a{color:#DCE2F4;font-size:16.5px}.side a:hover{background:rgba(255,255,255,.1);color:#fff}
+.grp{color:#9FD8FF;opacity:1;font-size:13.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.brand{font-size:21px}.brand small{font-size:13px;color:#C9D1E8;-webkit-text-fill-color:#C9D1E8}
+.clock{background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.2);color:#DCE2F4;font-size:14.5px}.clock b{color:#fff}
+section,.k,.step{background:linear-gradient(160deg,rgba(255,255,255,.12),rgba(255,255,255,.06));border:1px solid rgba(255,255,255,.2)}
+h2{font-size:20px;color:#fff}h2::before{content:"";display:inline-block;width:5px;height:18px;border-radius:3px;margin-right:10px;vertical-align:-2px;background:linear-gradient(#8B7CFF,#38BDF8)}
+h3{font-size:16.5px;color:#7DD3FC}
+.hint{color:#D5DCEF;font-size:16px}.facts{color:#E3E8F6}.facts li{margin:7px 0}.empty{color:#C9D1E8}
+.pagehead p{color:#D5DCEF;font-size:17px}label{color:#DCE2F4;font-size:15px}.k span{color:#D5DCEF;font-size:15px}
+th,td{font-size:16px}thead th{color:#C9D1E8}.bar span{color:#E3E8F6}.bar em{color:#C9D1E8}.tile span{color:rgba(255,255,255,.88)}footer{color:#C9D1E8}
+.pill-off{color:#DCE2F4!important;border-color:rgba(255,255,255,.28)!important}
+input,select,textarea{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.25)}button.ghost{border-color:rgba(255,255,255,.3)}
+.chip{border-color:rgba(255,255,255,.3);font-size:15px}.tip{border-bottom-color:#7DD3FC}.step span:last-child{color:#D5DCEF;font-size:15px}
+.badge{font-size:13.5px}.day{border-color:rgba(255,255,255,.2)}.day span{color:#D5DCEF}
+"""
+
+STYLE_CSS += """
+/* v15 pozadí */
+body::before{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;background-repeat:no-repeat}
+body.bg-chart::before{background-image:url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 1600 900%27 preserveAspectRatio=%27xMidYMax slice%27%3E%3Cdefs%3E%3ClinearGradient id=%27g%27 x1=%270%27 x2=%271%27%3E%3Cstop offset=%270%27 stop-color=%27%238B7CFF%27/%3E%3Cstop offset=%271%27 stop-color=%27%232EE6A6%27/%3E%3C/linearGradient%3E%3ClinearGradient id=%27a%27 x1=%270%27 y1=%270%27 x2=%270%27 y2=%271%27%3E%3Cstop offset=%270%27 stop-color=%27%238B7CFF%27 stop-opacity=%27.55%27/%3E%3Cstop offset=%271%27 stop-color=%27%238B7CFF%27 stop-opacity=%270%27/%3E%3C/linearGradient%3E%3C/defs%3E%3Cline x1=%270%27 y1=%27100%27 x2=%271600%27 y2=%27100%27 stroke=%27%23fff%27 stroke-opacity=%27.25%27 stroke-width=%271%27/%3E%3Cline x1=%270%27 y1=%27230%27 x2=%271600%27 y2=%27230%27 stroke=%27%23fff%27 stroke-opacity=%27.25%27 stroke-width=%271%27/%3E%3Cline x1=%270%27 y1=%27360%27 x2=%271600%27 y2=%27360%27 stroke=%27%23fff%27 stroke-opacity=%27.25%27 stroke-width=%271%27/%3E%3Cline x1=%270%27 y1=%27490%27 x2=%271600%27 y2=%27490%27 stroke=%27%23fff%27 stroke-opacity=%27.25%27 stroke-width=%271%27/%3E%3Cline x1=%270%27 y1=%27620%27 x2=%271600%27 y2=%27620%27 stroke=%27%23fff%27 stroke-opacity=%27.25%27 stroke-width=%271%27/%3E%3Cline x1=%270%27 y1=%27750%27 x2=%271600%27 y2=%27750%27 stroke=%27%23fff%27 stroke-opacity=%27.25%27 stroke-width=%271%27/%3E%3Cline x1=%270%27 y1=%27880%27 x2=%271600%27 y2=%27880%27 stroke=%27%23fff%27 stroke-opacity=%27.25%27 stroke-width=%271%27/%3E%3Cpath d=%27M0 549 L40 546 L80 574 L120 563 L160 557 L200 556 L240 523 L280 516 L320 519 L360 536 L400 495 L440 471 L480 430 L520 448 L560 456 L600 411 L640 443 L680 475 L720 480 L760 482 L800 446 L840 398 L880 393 L920 349 L960 316 L1000 287 L1040 240 L1080 230 L1120 217 L1160 238 L1200 232 L1240 237 L1280 229 L1320 235 L1360 224 L1400 200 L1440 234 L1480 267 L1520 288 L1560 298 L1600 275 L1600 900 L0 900 Z%27 fill=%27url%28%23a%29%27/%3E%3Cline x1=%2720%27 y1=%27522%27 x2=%2720%27 y2=%27568%27 stroke=%27%23FF6B8A%27 stroke-width=%273%27/%3E%3Crect x=%2710%27 y=%27532%27 width=%2720%27 height=%277%27 rx=%273%27 fill=%27%23FF6B8A%27/%3E%3Cline x1=%2760%27 y1=%27520%27 x2=%2760%27 y2=%27605%27 stroke=%27%23FF6B8A%27 stroke-width=%273%27/%3E%3Crect x=%2750%27 y=%27540%27 width=%2720%27 height=%2730%27 rx=%273%27 fill=%27%23FF6B8A%27/%3E%3Cline x1=%27100%27 y1=%27529%27 x2=%27100%27 y2=%27632%27 stroke=%27%232EE6A6%27 stroke-width=%273%27/%3E%3Crect x=%2790%27 y=%27544%27 width=%2720%27 height=%2754%27 rx=%273%27 fill=%27%232EE6A6%27/%3E%3Cline x1=%27140%27 y1=%27541%27 x2=%27140%27 y2=%27603%27 stroke=%27%23FF6B8A%27 stroke-width=%273%27/%3E%3Crect x=%27130%27 y=%27562%27 width=%2720%27 height=%2734%27 rx=%273%27 fill=%27%23FF6B8A%27/%3E%3Cline x1=%27180%27 y1=%27548%27 x2=%27180%27 y2=%27584%27 stroke=%27%23FF6B8A%27 stroke-width=%273%27/%3E%3Crect x=%27170%27 y=%27564%27 width=%2720%27 height=%2712%27 rx=%273%27 fill=%27%23FF6B8A%27/%3E%3Cline x1=%27220%27 y1=%27514%27 x2=%27220%27 y2=%27596%27 stroke=%27%23FF6B8A%27 stroke-width=%273%27/%3E%3Crect x=%27210%27 y=%27546%27 width=%2720%27 height=%2741%27 rx=%273%27 fill=%27%23FF6B8A%27/%3E%3Cline x1=%27260%27 y1=%27489%27 x2=%27260%27 y2=%27541%27 stroke=%27%232EE6A6%27 stroke-width=%273%27/%3E%3Crect x=%27250%27 y=%27499%27 width=%2720%27 height=%2712%27 rx=%273%27 fill=%27%232EE6A6%27/%3E%3Cline x1=%27300%27 y1=%27474%27 x2=%27300%27 y2=%27534%27 stroke=%27%23FF6B8A%27 stroke-width=%273%27/%3E%3Crect x=%27290%27 y=%27497%27 width=%2720%27 height=%2726%27 rx=%273%27 fill=%27%23FF6B8A%27/%3E%3Cline x1=%27340%27 y1=%27469%27 x2=%27340%27 y2=%27545%27 stroke=%27%232EE6A6%27 stroke-width=%273%27/%3E%3Crect x=%27330%27 y=%27497%27 width=%2720%27 height=%2739%27 rx=%273%27 fill=%27%232EE6A6%27/%3E%3Cline x1=%27380%27 y1=%27502%27 x2=%27380%27 y2=%27570%27 stroke=%27%232EE6A6%27 stroke-width=%273%27/%3E%3Crect x=%27370%27 y=%27519%27 width=%2720%27 height=%2715%27 rx=%273%27 fill=%27%232EE6A6%27/%3E%3Cline x1=%27420%27 y1=%27447%27 x2=%27420%27 y2=%27528%27 stroke=%27%232EE6A6%27 stroke-width=%273%27/%3E%3Crect x=%27410%27 y=%27483%27 width=%2720%27 height=%2733%27 rx=%273%27 fill=%27%232EE6A6%27/%3E%3Cline x1=%27460%27 y1=%27436%27 x2=%27460%27 y2=%27504%27 stroke=%27%23FF6B8A%27 stroke-width=%273%27/%3E%3Crect x=%27450%27 y=%27465%27 width=%2720%27 height=%2731%27 rx=%273%27 fill=%27%23FF6B8A%27/%3E%3Cline x1=%27500%27 y1=%27396%27 x2=%27500%27 y2=%27492%27 stroke=%27%232EE6A6%27 stroke-width=%273%27/%3E%3Crect x=%27490%27 y=%27412%27 width=%2720%27 height=%2750%27 rx=%273%27 fill=%27%232EE6A6%27/%3E%3Cline x1=%27540%27 y1=%27425%27 x2=%27540%27 y2=%27449%27 stroke=%27%232EE6A6%27 stroke-width=%273%27/%3E%3Crect x=%27530%27 y=%27436%27 width=%2720%27 height=%275%27 rx=%273%27 fill=%27%232EE6A6%27/%3E%3Cline x1=%27580%27 y1=%27414%27 x2=%27580%27 y2=%27481%27 stroke=%27%232EE6A6%27 stroke-width=%273%27/%3E%3Crect x=%27570%27 y=%27441%27 width=%2720%27 height=%2723%27 rx=%273%27 fill=%27%232EE6A6%27/%3E%3Cline x1=%27620%27 y1=%27385%27 x2=%27620%27 y2=%27465%27 stroke=%27%23FF6B8A%27 stroke-width=%273%27/%3E%3Crect x=%27610%27 y=%27408%27 width=%2720%27 height=%2733%27 rx=%273%27 fill=%27%23FF6B8A%27/%3E%3Cline x1=%27660%27 y1=%27411%27 x2=%27660%27 y2=%27503%27 stroke=%27%232EE6A6%27 stroke-width=%273%27/%3E%3Crect x=%27650%27 y=%27424%27 width=%2720%27 height=%2744%27 rx=%273%27 fill=%27%232EE6A6%27/%3E%3Cline x1=%27700%27 y1=%27445%27 x2=%27700%27 y2=%27525%27 stroke=%27%232EE6A6%27 stroke-width=%273%27/%3E%3Crect x=%27690%27 y=%27460%27 width=%2720%27 height=%2737%27 rx=%273%27 fill=%27%232EE6A6%27/%3E%3Cline x1=%27740%27 y1=%27423%27 x2=%27740%27 y2=%27542%27 stroke=%27%232EE6A6%27 stroke-width=%273%27/%3E%3Crect x=%27730%27 y=%27462%27 width=%2720%27 height=%2748%27 rx=%273%27 fill=%27%232EE6A6%27/%3E%3Cline x1=%27780%27 y1=%27466%27 x2=%27780%27 y2=%27497%27 stroke=%27%232EE6A6%27 stroke-width=%273%27/%3E%3Crect x=%27770%27 y=%27477%27 width=%2720%27 height=%2714%27 rx=%273%27 fill=%27%232EE6A6%27/%3E%3Cline x1=%27820%27 y1=%27400%27 x2=%27820%27 y2=%27490%27 stroke=%27%232EE6A6%27 stroke-width=%273%27/%3E%3Crect x=%27810%27 y=%27430%27 width=%2720%27 height=%2746%27 rx=%273%27 fill=%27%232EE6A6%27/%3E%3Cline x1=%27860%27 y1=%27387%27 x2=%27860%27 y2=%27431%27 stroke=%27%232EE6A6%27 stroke-width=%273%27/%3E%3Crect x=%27850%27 y=%27404%27 width=%2720%27 height=%2717%27 rx=%273%27 fill=%27%232EE6A6%27/%3E%3Cline x1=%27900%27 y1=%27352%27 x2=%27900%27 y2=%27432%27 stroke=%27%232EE6A6%27 stroke-width=%273%27/%3E%3Crect x=%27890%27 y=%27367%27 width=%2720%27 height=%2742%27 rx=%273%27 fill=%27%232EE6A6%27/%3E%3Cline x1=%27940%27 y1=%27339%27 x2=%27940%27 y2=%27408%27 stroke=%27%232EE6A6%27 stroke-width=%273%27/%3E%3Crect x=%27930%27 y=%27356%27 width=%2720%27 height=%2717%27 rx=%273%27 fill=%27%232EE6A6%27/%3E%3Cline x1=%27980%27 y1=%27270%27 x2=%27980%27 y2=%27320%27 stroke=%27%232EE6A6%27 stroke-width=%273%27/%3E%3Crect x=%27970%27 y=%27287%27 width=%2720%27 height=%2714%27 rx=%273%27 fill=%27%232EE6A6%27/%3E%3Cline x1=%271020%27 y1=%27241%27 x2=%271020%27 y2=%27294%27 stroke=%27%23FF6B8A%27 stroke-width=%273%27/%3E%3Crect x=%271010%27 y=%27261%27 width=%2720%27 height=%2710%27 rx=%273%27 fill=%27%23FF6B8A%27/%3E%3Cline x1=%271060%27 y1=%27182%27 x2=%271060%27 y2=%27271%27 stroke=%27%23FF6B8A%27 stroke-width=%273%27/%3E%3Crect x=%271050%27 y=%27218%27 width=%2720%27 height=%2717%27 rx=%273%27 fill=%27%23FF6B8A%27/%3E%3Cline x1=%271100%27 y1=%27213%27 x2=%271100%27 y2=%27254%27 stroke=%27%23FF6B8A%27 stroke-width=%273%27/%3E%3Crect x=%271090%27 y=%27239%27 width=%2720%27 height=%275%27 rx=%273%27 fill=%27%23FF6B8A%27/%3E%3Cline x1=%271140%27 y1=%27151%27 x2=%271140%27 y2=%27220%27 stroke=%27%232EE6A6%27 stroke-width=%273%27/%3E%3Crect x=%271130%27 y=%27189%27 width=%2720%27 height=%274%27 rx=%273%27 fill=%27%232EE6A6%27/%3E%3Cline x1=%271180%27 y1=%27181%27 x2=%271180%27 y2=%27290%27 stroke=%27%232EE6A6%27 stroke-width=%273%27/%3E%3Crect x=%271170%27 y=%27210%27 width=%2720%27 height=%2759%27 rx=%273%27 fill=%27%232EE6A6%27/%3E%3Cline x1=%271220%27 y1=%27182%27 x2=%271220%27 y2=%27257%27 stroke=%27%232EE6A6%27 stroke-width=%273%27/%3E%3Crect x=%271210%27 y=%27222%27 width=%2720%27 height=%2728%27 rx=%273%27 fill=%27%232EE6A6%27/%3E%3Cline x1=%271260%27 y1=%27203%27 x2=%271260%27 y2=%27282%27 stroke=%27%23FF6B8A%27 stroke-width=%273%27/%3E%3Crect x=%271250%27 y=%27239%27 width=%2720%27 height=%2714%27 rx=%273%27 fill=%27%23FF6B8A%27/%3E%3Cline x1=%271300%27 y1=%27204%27 x2=%271300%27 y2=%27266%27 stroke=%27%23FF6B8A%27 stroke-width=%273%27/%3E%3Crect x=%271290%27 y=%27241%27 width=%2720%27 height=%278%27 rx=%273%27 fill=%27%23FF6B8A%27/%3E%3Cline x1=%271340%27 y1=%27210%27 x2=%271340%27 y2=%27280%27 stroke=%27%23FF6B8A%27 stroke-width=%273%27/%3E%3Crect x=%271330%27 y=%27246%27 width=%2720%27 height=%2716%27 rx=%273%27 fill=%27%23FF6B8A%27/%3E%3Cline x1=%271380%27 y1=%27215%27 x2=%271380%27 y2=%27274%27 stroke=%27%23FF6B8A%27 stroke-width=%273%27/%3E%3Crect x=%271370%27 y=%27241%27 width=%2720%27 height=%277%27 rx=%273%27 fill=%27%23FF6B8A%27/%3E%3Cline x1=%271420%27 y1=%27165%27 x2=%271420%27 y2=%27216%27 stroke=%27%23FF6B8A%27 stroke-width=%273%27/%3E%3Crect x=%271410%27 y=%27193%27 width=%2720%27 height=%2715%27 rx=%273%27 fill=%27%23FF6B8A%27/%3E%3Cline x1=%271460%27 y1=%27206%27 x2=%271460%27 y2=%27295%27 stroke=%27%23FF6B8A%27 stroke-width=%273%27/%3E%3Crect x=%271450%27 y=%27242%27 width=%2720%27 height=%2724%27 rx=%273%27 fill=%27%23FF6B8A%27/%3E%3Cline x1=%271500%27 y1=%27234%27 x2=%271500%27 y2=%27304%27 stroke=%27%23FF6B8A%27 stroke-width=%273%27/%3E%3Crect x=%271490%27 y=%27261%27 width=%2720%27 height=%2724%27 rx=%273%27 fill=%27%23FF6B8A%27/%3E%3Cline x1=%271540%27 y1=%27231%27 x2=%271540%27 y2=%27317%27 stroke=%27%232EE6A6%27 stroke-width=%273%27/%3E%3Crect x=%271530%27 y=%27263%27 width=%2720%27 height=%2748%27 rx=%273%27 fill=%27%232EE6A6%27/%3E%3Cline x1=%271580%27 y1=%27281%27 x2=%271580%27 y2=%27334%27 stroke=%27%232EE6A6%27 stroke-width=%273%27/%3E%3Crect x=%271570%27 y=%27297%27 width=%2720%27 height=%2710%27 rx=%273%27 fill=%27%232EE6A6%27/%3E%3Cline x1=%271620%27 y1=%27237%27 x2=%271620%27 y2=%27298%27 stroke=%27%23FF6B8A%27 stroke-width=%273%27/%3E%3Crect x=%271610%27 y=%27275%27 width=%2720%27 height=%2710%27 rx=%273%27 fill=%27%23FF6B8A%27/%3E%3Cpath d=%27M0 549 L40 546 L80 574 L120 563 L160 557 L200 556 L240 523 L280 516 L320 519 L360 536 L400 495 L440 471 L480 430 L520 448 L560 456 L600 411 L640 443 L680 475 L720 480 L760 482 L800 446 L840 398 L880 393 L920 349 L960 316 L1000 287 L1040 240 L1080 230 L1120 217 L1160 238 L1200 232 L1240 237 L1280 229 L1320 235 L1360 224 L1400 200 L1440 234 L1480 267 L1520 288 L1560 298 L1600 275%27 fill=%27none%27 stroke=%27url%28%23g%29%27 stroke-width=%277%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E');background-size:cover;background-position:center bottom;opacity:.17}
+body.bg-yinyang::before{background-image:url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 500 500%27%3E%3Ccircle cx=%27250%27 cy=%27250%27 r=%27240%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%278%27/%3E%3Cpath d=%27M250 10 A240 240 0 0 1 250 490 A120 120 0 0 1 250 250 A120 120 0 0 0 250 10 Z%27 fill=%27%23fff%27/%3E%3Ccircle cx=%27250%27 cy=%27130%27 r=%2732%27 fill=%27%23fff%27/%3E%3Ccircle cx=%27250%27 cy=%27370%27 r=%2732%27 fill=%27%23121A33%27/%3E%3C/svg%3E');background-size:min(78vh,720px);background-position:right 6% center;opacity:.13}
+body.bg-buddha::before{background-image:url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 500 520%27%3E%3Cg fill=%27none%27 stroke=%27%23B3A9FF%27 stroke-width=%273%27 stroke-dasharray=%276 10%27%3E%3Ccircle cx=%27250%27 cy=%27160%27 r=%27120%27/%3E%3Ccircle cx=%27250%27 cy=%27160%27 r=%27170%27/%3E%3Ccircle cx=%27250%27 cy=%27160%27 r=%27220%27/%3E%3C/g%3E%3Cg fill=%27%23fff%27%3E%3Ccircle cx=%27250%27 cy=%2772%27 r=%2714%27/%3E%3Ccircle cx=%27250%27 cy=%27125%27 r=%2746%27/%3E%3Cpath d=%27M195 190 Q250 160 305 190 L330 300 Q250 322 170 300 Z%27/%3E%3Cpath d=%27M180 295 Q250 350 320 295 L345 335 Q250 395 155 335 Z%27/%3E%3Cellipse cx=%27250%27 cy=%27370%27 rx=%27165%27 ry=%2746%27/%3E%3C/g%3E%3Cg fill=%27%2338BDF8%27%3E%3Cellipse cx=%27150%27 cy=%27440%27 rx=%2770%27 ry=%2720%27/%3E%3Cellipse cx=%27350%27 cy=%27440%27 rx=%2770%27 ry=%2720%27/%3E%3Cellipse cx=%27250%27 cy=%27450%27 rx=%2790%27 ry=%2724%27/%3E%3C/g%3E%3C/svg%3E');background-size:min(86vh,760px);background-position:right 5% center;opacity:.15}
+body.bg-target::before{background-image:url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 500 500%27%3E%3Cg fill=%27none%27 stroke=%27%23fff%27 stroke-width=%278%27%3E%3Ccircle cx=%27250%27 cy=%27250%27 r=%27230%27/%3E%3Ccircle cx=%27250%27 cy=%27250%27 r=%27160%27/%3E%3Ccircle cx=%27250%27 cy=%27250%27 r=%2790%27/%3E%3C/g%3E%3Ccircle cx=%27250%27 cy=%27250%27 r=%2728%27 fill=%27%23FF6B8A%27/%3E%3Cg stroke=%27%2338BDF8%27 stroke-width=%278%27%3E%3Cline x1=%27250%27 y1=%270%27 x2=%27250%27 y2=%27120%27/%3E%3Cline x1=%27250%27 y1=%27380%27 x2=%27250%27 y2=%27500%27/%3E%3Cline x1=%270%27 y1=%27250%27 x2=%27120%27 y2=%27250%27/%3E%3Cline x1=%27380%27 y1=%27250%27 x2=%27500%27 y2=%27250%27/%3E%3C/g%3E%3C/svg%3E');background-size:min(76vh,680px);background-position:right 6% center;opacity:.12}
+body.bg-mountain::before{background-image:url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 1600 700%27 preserveAspectRatio=%27xMidYMax slice%27%3E%3Cpath d=%27M0 700 L260 360 L420 500 L700 170 L960 460 L1180 260 L1600 640 L1600 700 Z%27 fill=%27%238B7CFF%27 fill-opacity=%27.7%27/%3E%3Cpath d=%27M0 700 L200 520 L420 640 L640 450 L900 640 L1200 500 L1600 700 Z%27 fill=%27%2338BDF8%27 fill-opacity=%27.5%27/%3E%3Cpath d=%27M700 170 L700 90 L770 115 L700 140%27 fill=%27%232EE6A6%27 stroke=%27%232EE6A6%27 stroke-width=%276%27/%3E%3C/svg%3E');background-size:cover;background-position:center bottom;opacity:.16}
+@media (max-width:760px){body::before{opacity:.09!important}}
+.brand small.mot{font-style:italic;color:#9FD8FF;-webkit-text-fill-color:#9FD8FF;margin-top:6px;line-height:1.35}.brand small{line-height:1.35}
+"""
+STYLE_CSS += """
+/* v16 pozadí podle skupin */
+body.bg-analysis::before{background-image:url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 1600 900%27 preserveAspectRatio=%27xMidYMid slice%27%3E%3Crect x=%2780%27 y=%27520%27 width=%2746%27 height=%27180%27 rx=%278%27 fill=%27%2338BDF8%27/%3E%3Crect x=%27150%27 y=%27440%27 width=%2746%27 height=%27260%27 rx=%278%27 fill=%27%238B7CFF%27/%3E%3Crect x=%27220%27 y=%27550%27 width=%2746%27 height=%27150%27 rx=%278%27 fill=%27%2338BDF8%27/%3E%3Crect x=%27290%27 y=%27360%27 width=%2746%27 height=%27340%27 rx=%278%27 fill=%27%238B7CFF%27/%3E%3Crect x=%27360%27 y=%27280%27 width=%2746%27 height=%27420%27 rx=%278%27 fill=%27%2338BDF8%27/%3E%3Crect x=%27430%27 y=%27400%27 width=%2746%27 height=%27300%27 rx=%278%27 fill=%27%238B7CFF%27/%3E%3Crect x=%27500%27 y=%27220%27 width=%2746%27 height=%27480%27 rx=%278%27 fill=%27%2338BDF8%27/%3E%3Crect x=%27570%27 y=%27320%27 width=%2746%27 height=%27380%27 rx=%278%27 fill=%27%238B7CFF%27/%3E%3Ccircle cx=%271200%27 cy=%27380%27 r=%2780%27 fill=%27none%27 stroke=%27%23fff%27 stroke-opacity=%27.5%27 stroke-width=%273%27/%3E%3Ccircle cx=%271200%27 cy=%27380%27 r=%27160%27 fill=%27none%27 stroke=%27%23fff%27 stroke-opacity=%27.5%27 stroke-width=%273%27/%3E%3Ccircle cx=%271200%27 cy=%27380%27 r=%27240%27 fill=%27none%27 stroke=%27%23fff%27 stroke-opacity=%27.5%27 stroke-width=%273%27/%3E%3Cline x1=%271200%27 y1=%27380%27 x2=%271440%27 y2=%27380%27 stroke=%27%23fff%27 stroke-opacity=%27.5%27 stroke-width=%273%27/%3E%3Cline x1=%271200%27 y1=%27380%27 x2=%271320%27 y2=%27588%27 stroke=%27%23fff%27 stroke-opacity=%27.5%27 stroke-width=%273%27/%3E%3Cline x1=%271200%27 y1=%27380%27 x2=%271080%27 y2=%27588%27 stroke=%27%23fff%27 stroke-opacity=%27.5%27 stroke-width=%273%27/%3E%3Cline x1=%271200%27 y1=%27380%27 x2=%27960%27 y2=%27380%27 stroke=%27%23fff%27 stroke-opacity=%27.5%27 stroke-width=%273%27/%3E%3Cline x1=%271200%27 y1=%27380%27 x2=%271080%27 y2=%27172%27 stroke=%27%23fff%27 stroke-opacity=%27.5%27 stroke-width=%273%27/%3E%3Cline x1=%271200%27 y1=%27380%27 x2=%271320%27 y2=%27172%27 stroke=%27%23fff%27 stroke-opacity=%27.5%27 stroke-width=%273%27/%3E%3Cpolygon points=%271400,380 1275,510 1090,571 1080,380 1105,215 1285,233%27 fill=%27%232EE6A6%27 fill-opacity=%27.45%27 stroke=%27%232EE6A6%27 stroke-width=%275%27/%3E%3Ccircle cx=%27880%27 cy=%27560%27 r=%2790%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%2714%27/%3E%3Cline x1=%27945%27 y1=%27625%27 x2=%271010%27 y2=%27690%27 stroke=%27%23fff%27 stroke-width=%2718%27 stroke-linecap=%27round%27/%3E%3C/svg%3E');background-size:cover;background-position:center;opacity:0.16}
+body.bg-equity::before{background-image:url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 1600 900%27 preserveAspectRatio=%27xMidYMax slice%27%3E%3Cpath d=%27M0 766 L100 742 L200 735 L300 704 L400 672 L500 695 L600 724 L700 670 L800 674 L900 681 L1000 611 L1100 594 L1200 541 L1300 523 L1400 489 L1500 504 L1600 471%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%278%27 stroke-linejoin=%27round%27 stroke-dasharray=%271 0%27/%3E%3Cpath d=%27M100 708 l16 28 h-32 z%27 fill=%27%232EE6A6%27/%3E%3Cpath d=%27M200 701 l16 28 h-32 z%27 fill=%27%232EE6A6%27/%3E%3Cpath d=%27M300 670 l16 28 h-32 z%27 fill=%27%232EE6A6%27/%3E%3Cpath d=%27M400 638 l16 28 h-32 z%27 fill=%27%232EE6A6%27/%3E%3Cpath d=%27M500 729 l16 -28 h-32 z%27 fill=%27%23FF6B8A%27/%3E%3Cpath d=%27M600 758 l16 -28 h-32 z%27 fill=%27%23FF6B8A%27/%3E%3Cpath d=%27M700 636 l16 28 h-32 z%27 fill=%27%232EE6A6%27/%3E%3Cpath d=%27M800 708 l16 -28 h-32 z%27 fill=%27%23FF6B8A%27/%3E%3Cpath d=%27M900 715 l16 -28 h-32 z%27 fill=%27%23FF6B8A%27/%3E%3Cpath d=%27M1000 577 l16 28 h-32 z%27 fill=%27%232EE6A6%27/%3E%3Cpath d=%27M1100 560 l16 28 h-32 z%27 fill=%27%232EE6A6%27/%3E%3Cpath d=%27M1200 507 l16 28 h-32 z%27 fill=%27%232EE6A6%27/%3E%3Cpath d=%27M1300 489 l16 28 h-32 z%27 fill=%27%232EE6A6%27/%3E%3Cpath d=%27M1400 455 l16 28 h-32 z%27 fill=%27%232EE6A6%27/%3E%3Cpath d=%27M1500 538 l16 -28 h-32 z%27 fill=%27%23FF6B8A%27/%3E%3Cpath d=%27M1600 437 l16 28 h-32 z%27 fill=%27%232EE6A6%27/%3E%3Ccircle cx=%271300%27 cy=%27150%27 r=%2728%27 fill=%27none%27 stroke=%27%23FFB454%27 stroke-width=%276%27/%3E%3Ctext x=%271300%27 y=%27162%27 font-size=%2730%27 text-anchor=%27middle%27 fill=%27%23FFB454%27%3E%24%3C/text%3E%3Ccircle cx=%271370%27 cy=%27190%27 r=%2728%27 fill=%27none%27 stroke=%27%23FFB454%27 stroke-width=%276%27/%3E%3Ctext x=%271370%27 y=%27202%27 font-size=%2730%27 text-anchor=%27middle%27 fill=%27%23FFB454%27%3E%24%3C/text%3E%3Ccircle cx=%271440%27 cy=%27150%27 r=%2728%27 fill=%27none%27 stroke=%27%23FFB454%27 stroke-width=%276%27/%3E%3Ctext x=%271440%27 y=%27162%27 font-size=%2730%27 text-anchor=%27middle%27 fill=%27%23FFB454%27%3E%24%3C/text%3E%3Ccircle cx=%271510%27 cy=%27190%27 r=%2728%27 fill=%27none%27 stroke=%27%23FFB454%27 stroke-width=%276%27/%3E%3Ctext x=%271510%27 y=%27202%27 font-size=%2730%27 text-anchor=%27middle%27 fill=%27%23FFB454%27%3E%24%3C/text%3E%3C/svg%3E');background-size:cover;background-position:center bottom;opacity:0.17}
+body.bg-book::before{background-image:url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 1500 800%27 preserveAspectRatio=%27xMidYMid slice%27%3E%3Cpath d=%27M750 150 Q450 90 100 150 L100 700 Q450 640 750 700 Z%27 fill=%27%238B7CFF%27 fill-opacity=%27.35%27 stroke=%27%23fff%27 stroke-width=%278%27/%3E%3Cpath d=%27M750 150 Q1050 90 1400 150 L1400 700 Q1050 640 750 700 Z%27 fill=%27%2338BDF8%27 fill-opacity=%27.30%27 stroke=%27%23fff%27 stroke-width=%278%27/%3E%3Cline x1=%27150%27 y1=%27230%27 x2=%27640%27 y2=%27230%27 stroke=%27%23fff%27 stroke-width=%276%27 stroke-linecap=%27round%27/%3E%3Cline x1=%27860%27 y1=%27230%27 x2=%271350%27 y2=%27230%27 stroke=%27%23fff%27 stroke-width=%276%27 stroke-linecap=%27round%27/%3E%3Cline x1=%27150%27 y1=%27290%27 x2=%27640%27 y2=%27290%27 stroke=%27%23fff%27 stroke-width=%276%27 stroke-linecap=%27round%27/%3E%3Cline x1=%27860%27 y1=%27290%27 x2=%271350%27 y2=%27290%27 stroke=%27%23fff%27 stroke-width=%276%27 stroke-linecap=%27round%27/%3E%3Cline x1=%27150%27 y1=%27350%27 x2=%27640%27 y2=%27350%27 stroke=%27%23fff%27 stroke-width=%276%27 stroke-linecap=%27round%27/%3E%3Cline x1=%27860%27 y1=%27350%27 x2=%271350%27 y2=%27350%27 stroke=%27%23fff%27 stroke-width=%276%27 stroke-linecap=%27round%27/%3E%3Cline x1=%27150%27 y1=%27410%27 x2=%27640%27 y2=%27410%27 stroke=%27%23fff%27 stroke-width=%276%27 stroke-linecap=%27round%27/%3E%3Cline x1=%27860%27 y1=%27410%27 x2=%271350%27 y2=%27410%27 stroke=%27%23fff%27 stroke-width=%276%27 stroke-linecap=%27round%27/%3E%3Cline x1=%27150%27 y1=%27470%27 x2=%27640%27 y2=%27470%27 stroke=%27%23fff%27 stroke-width=%276%27 stroke-linecap=%27round%27/%3E%3Cline x1=%27860%27 y1=%27470%27 x2=%271350%27 y2=%27470%27 stroke=%27%23fff%27 stroke-width=%276%27 stroke-linecap=%27round%27/%3E%3Cline x1=%27150%27 y1=%27530%27 x2=%27640%27 y2=%27530%27 stroke=%27%23fff%27 stroke-width=%276%27 stroke-linecap=%27round%27/%3E%3Cline x1=%27860%27 y1=%27530%27 x2=%271350%27 y2=%27530%27 stroke=%27%23fff%27 stroke-width=%276%27 stroke-linecap=%27round%27/%3E%3Cline x1=%27150%27 y1=%27590%27 x2=%27640%27 y2=%27590%27 stroke=%27%23fff%27 stroke-width=%276%27 stroke-linecap=%27round%27/%3E%3Cline x1=%27860%27 y1=%27590%27 x2=%271350%27 y2=%27590%27 stroke=%27%23fff%27 stroke-width=%276%27 stroke-linecap=%27round%27/%3E%3C/svg%3E');background-size:cover;background-position:center;opacity:0.14}
+body.bg-sliders::before{background-image:url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 1600 800%27 preserveAspectRatio=%27xMidYMid slice%27%3E%3Cline x1=%27200%27 y1=%27220%27 x2=%271400%27 y2=%27220%27 stroke=%27%23fff%27 stroke-width=%2710%27 stroke-linecap=%27round%27 stroke-opacity=%27.7%27/%3E%3Ccircle cx=%27560%27 cy=%27220%27 r=%2738%27 fill=%27%238B7CFF%27 stroke=%27%23fff%27 stroke-width=%278%27/%3E%3Cline x1=%27200%27 y1=%27400%27 x2=%271400%27 y2=%27400%27 stroke=%27%23fff%27 stroke-width=%2710%27 stroke-linecap=%27round%27 stroke-opacity=%27.7%27/%3E%3Ccircle cx=%271040%27 cy=%27400%27 r=%2738%27 fill=%27%238B7CFF%27 stroke=%27%23fff%27 stroke-width=%278%27/%3E%3Cline x1=%27200%27 y1=%27580%27 x2=%271400%27 y2=%27580%27 stroke=%27%23fff%27 stroke-width=%2710%27 stroke-linecap=%27round%27 stroke-opacity=%27.7%27/%3E%3Ccircle cx=%27800%27 cy=%27580%27 r=%2738%27 fill=%27%238B7CFF%27 stroke=%27%23fff%27 stroke-width=%278%27/%3E%3C/svg%3E');background-size:cover;background-position:center;opacity:0.14}
+body.bg-yinyang::before{background-image:url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 500 500%27%3E%3Ccircle cx=%27250%27 cy=%27250%27 r=%27240%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%278%27/%3E%3Cpath d=%27M250 10 A240 240 0 0 1 250 490 A120 120 0 0 1 250 250 A120 120 0 0 0 250 10 Z%27 fill=%27%23fff%27/%3E%3Ccircle cx=%27250%27 cy=%27130%27 r=%2732%27 fill=%27%23fff%27/%3E%3Ccircle cx=%27250%27 cy=%27370%27 r=%2732%27 fill=%27%23121A33%27/%3E%3C/svg%3E');background-size:max(135vh,100vw);background-position:center;opacity:.11}
+"""
+STYLE_CSS += """
+/* v17 velké obrázky přes celou šířku */
+body.bg-yinyang::before{background-size:max(150vh,115vw);background-position:center;opacity:.13}
+body.bg-buddha::before{background-size:max(130vh,100vw);background-position:center 30%;opacity:.15}
+body.bg-target::before{background-size:max(130vh,100vw);background-position:center;opacity:.14}
+body.bg-equity::before{background-size:cover;background-position:center bottom;opacity:.34}
+body.bg-chart::before{opacity:.24}body.bg-analysis::before{opacity:.24}body.bg-mountain::before{opacity:.22}body.bg-book::before{opacity:.2}body.bg-sliders::before{opacity:.2}
+"""
+STYLE_CSS += """
+/* v18 */
+body.bg-diary::before{background-image:url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 1500 900%27 preserveAspectRatio=%27xMidYMid meet%27%3E%3Crect x=%27230%27 y=%27100%27 width=%27900%27 height=%27720%27 rx=%2734%27 fill=%27%238B7CFF%27 fill-opacity=%27.30%27 stroke=%27%23fff%27 stroke-width=%279%27/%3E%3Crect x=%27250%27 y=%27150%27 width=%2760%27 height=%2722%27 rx=%2711%27 fill=%27%23fff%27/%3E%3Crect x=%27250%27 y=%27230%27 width=%2760%27 height=%2722%27 rx=%2711%27 fill=%27%23fff%27/%3E%3Crect x=%27250%27 y=%27310%27 width=%2760%27 height=%2722%27 rx=%2711%27 fill=%27%23fff%27/%3E%3Crect x=%27250%27 y=%27390%27 width=%2760%27 height=%2722%27 rx=%2711%27 fill=%27%23fff%27/%3E%3Crect x=%27250%27 y=%27470%27 width=%2760%27 height=%2722%27 rx=%2711%27 fill=%27%23fff%27/%3E%3Crect x=%27250%27 y=%27550%27 width=%2760%27 height=%2722%27 rx=%2711%27 fill=%27%23fff%27/%3E%3Crect x=%27250%27 y=%27630%27 width=%2760%27 height=%2722%27 rx=%2711%27 fill=%27%23fff%27/%3E%3Crect x=%27250%27 y=%27710%27 width=%2760%27 height=%2722%27 rx=%2711%27 fill=%27%23fff%27/%3E%3Cline x1=%27380%27 y1=%27230%27 x2=%271050%27 y2=%27230%27 stroke=%27%23fff%27 stroke-opacity=%27.8%27 stroke-width=%275%27 stroke-linecap=%27round%27/%3E%3Cline x1=%27380%27 y1=%27300%27 x2=%271050%27 y2=%27300%27 stroke=%27%23fff%27 stroke-opacity=%27.8%27 stroke-width=%275%27 stroke-linecap=%27round%27/%3E%3Cline x1=%27380%27 y1=%27370%27 x2=%271050%27 y2=%27370%27 stroke=%27%23fff%27 stroke-opacity=%27.8%27 stroke-width=%275%27 stroke-linecap=%27round%27/%3E%3Cline x1=%27380%27 y1=%27440%27 x2=%271050%27 y2=%27440%27 stroke=%27%23fff%27 stroke-opacity=%27.8%27 stroke-width=%275%27 stroke-linecap=%27round%27/%3E%3Cline x1=%27380%27 y1=%27510%27 x2=%271050%27 y2=%27510%27 stroke=%27%23fff%27 stroke-opacity=%27.8%27 stroke-width=%275%27 stroke-linecap=%27round%27/%3E%3Cline x1=%27380%27 y1=%27580%27 x2=%271050%27 y2=%27580%27 stroke=%27%23fff%27 stroke-opacity=%27.8%27 stroke-width=%275%27 stroke-linecap=%27round%27/%3E%3Cline x1=%27380%27 y1=%27650%27 x2=%271050%27 y2=%27650%27 stroke=%27%23fff%27 stroke-opacity=%27.8%27 stroke-width=%275%27 stroke-linecap=%27round%27/%3E%3Cpath d=%27M330 235 l16 18 l32 -38%27 fill=%27none%27 stroke=%27%232EE6A6%27 stroke-width=%279%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27/%3E%3Cpath d=%27M330 375 l16 18 l32 -38%27 fill=%27none%27 stroke=%27%232EE6A6%27 stroke-width=%279%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27/%3E%3Cpath d=%27M330 515 l16 18 l32 -38%27 fill=%27none%27 stroke=%27%232EE6A6%27 stroke-width=%279%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27/%3E%3Cg transform=%27rotate%2835 1230 420%29%27%3E%3Crect x=%271190%27 y=%27160%27 width=%2756%27 height=%27440%27 rx=%2714%27 fill=%27%2338BDF8%27/%3E%3Cpolygon points=%271190,600 1246,600 1218,680%27 fill=%27%23FFB454%27/%3E%3Crect x=%271190%27 y=%27160%27 width=%2756%27 height=%2760%27 rx=%2714%27 fill=%27%23fff%27/%3E%3C/g%3E%3Cg fill=%27none%27 stroke=%27%23FFB454%27 stroke-width=%278%27%3E%3Ccircle cx=%271240%27 cy=%27760%27 r=%2752%27/%3E%3Ccircle cx=%271340%27 cy=%27700%27 r=%2752%27/%3E%3C/g%3E%3Ctext x=%271240%27 y=%27782%27 font-size=%2764%27 text-anchor=%27middle%27 fill=%27%23FFB454%27%3E%24%3C/text%3E%3Ctext x=%271340%27 y=%27722%27 font-size=%2764%27 text-anchor=%27middle%27 fill=%27%23FFB454%27%3E%24%3C/text%3E%3C/svg%3E');background-size:contain;background-position:center;opacity:.28}
+body::before{left:268px}
+body.bg-yinyang::before{background-size:max(118vh,calc((100vw - 268px) * .92));background-position:center}
+body.bg-buddha::before{background-size:max(112vh,calc((100vw - 268px) * .85));background-position:center 35%}
+body.bg-target::before{background-size:max(112vh,calc((100vw - 268px) * .85));background-position:center}
+@media (max-width:760px){body::before{left:0}}
+.hero>.gbox{flex:0 0 auto}.gbox{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:230px}
+.gnum{font-size:40px;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums}.gnum span{font-size:17px;font-weight:500;color:#C9D1E8}.gcap{color:#C9D1E8;font-size:15px}
+.tip:hover::after,.tip:focus::after{content:none!important}.tip sup{font-size:.7em;margin-left:1px;color:#7DD3FC}.lede .tip sup,.k b .tip sup{font-size:.34em}
+#tipbox{position:fixed;display:none;margin:0;inset:auto;z-index:2147483000;max-width:min(330px,calc(100vw - 16px));background:#0C1124;border:1px solid rgba(139,124,255,.85);color:#fff;padding:11px 14px;border-radius:12px;font-size:15px;font-weight:400;line-height:1.45;box-shadow:0 18px 44px -8px rgba(0,0,0,.95);pointer-events:none;overflow:visible}
+"""
+STYLE_CSS += """
+/* v19 */
+body.bg-news::before{background-image:url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 1500 900%27 preserveAspectRatio=%27xMidYMid meet%27%3E%3Crect x=%27200%27 y=%27110%27 width=%27860%27 height=%27700%27 rx=%2730%27 fill=%27%2338BDF8%27 fill-opacity=%27.22%27 stroke=%27%23fff%27 stroke-width=%279%27/%3E%3Crect x=%27250%27 y=%27160%27 width=%27760%27 height=%2770%27 rx=%2714%27 fill=%27%23fff%27 fill-opacity=%27.9%27/%3E%3Crect x=%27250%27 y=%27260%27 width=%27330%27 height=%27140%27 rx=%2714%27 fill=%27%238B7CFF%27 fill-opacity=%27.8%27/%3E%3Cline x1=%27620%27 y1=%27290%27 x2=%271000%27 y2=%27290%27 stroke=%27%23fff%27 stroke-width=%2710%27 stroke-linecap=%27round%27/%3E%3Cline x1=%27620%27 y1=%27340%27 x2=%27900%27 y2=%27340%27 stroke=%27%23fff%27 stroke-width=%2710%27 stroke-linecap=%27round%27/%3E%3Cline x1=%27250%27 y1=%27430%27 x2=%27600%27 y2=%27430%27 stroke=%27%23fff%27 stroke-opacity=%27.85%27 stroke-width=%276%27 stroke-linecap=%27round%27/%3E%3Cline x1=%27660%27 y1=%27430%27 x2=%271010%27 y2=%27430%27 stroke=%27%23fff%27 stroke-opacity=%27.85%27 stroke-width=%276%27 stroke-linecap=%27round%27/%3E%3Cline x1=%27250%27 y1=%27486%27 x2=%27600%27 y2=%27486%27 stroke=%27%23fff%27 stroke-opacity=%27.85%27 stroke-width=%276%27 stroke-linecap=%27round%27/%3E%3Cline x1=%27660%27 y1=%27486%27 x2=%271010%27 y2=%27486%27 stroke=%27%23fff%27 stroke-opacity=%27.85%27 stroke-width=%276%27 stroke-linecap=%27round%27/%3E%3Cline x1=%27250%27 y1=%27542%27 x2=%27600%27 y2=%27542%27 stroke=%27%23fff%27 stroke-opacity=%27.85%27 stroke-width=%276%27 stroke-linecap=%27round%27/%3E%3Cline x1=%27660%27 y1=%27542%27 x2=%271010%27 y2=%27542%27 stroke=%27%23fff%27 stroke-opacity=%27.85%27 stroke-width=%276%27 stroke-linecap=%27round%27/%3E%3Cline x1=%27250%27 y1=%27598%27 x2=%27600%27 y2=%27598%27 stroke=%27%23fff%27 stroke-opacity=%27.85%27 stroke-width=%276%27 stroke-linecap=%27round%27/%3E%3Cline x1=%27660%27 y1=%27598%27 x2=%271010%27 y2=%27598%27 stroke=%27%23fff%27 stroke-opacity=%27.85%27 stroke-width=%276%27 stroke-linecap=%27round%27/%3E%3Cline x1=%27250%27 y1=%27654%27 x2=%27600%27 y2=%27654%27 stroke=%27%23fff%27 stroke-opacity=%27.85%27 stroke-width=%276%27 stroke-linecap=%27round%27/%3E%3Cline x1=%27660%27 y1=%27654%27 x2=%271010%27 y2=%27654%27 stroke=%27%23fff%27 stroke-opacity=%27.85%27 stroke-width=%276%27 stroke-linecap=%27round%27/%3E%3Cline x1=%27250%27 y1=%27710%27 x2=%27600%27 y2=%27710%27 stroke=%27%23fff%27 stroke-opacity=%27.85%27 stroke-width=%276%27 stroke-linecap=%27round%27/%3E%3Cline x1=%27660%27 y1=%27710%27 x2=%271010%27 y2=%27710%27 stroke=%27%23fff%27 stroke-opacity=%27.85%27 stroke-width=%276%27 stroke-linecap=%27round%27/%3E%3Cpath d=%27M1130 180 h260 a30 30 0 0 1 30 30 v110 a30 30 0 0 1 -30 30 h-170 l-60 50 v-50 h-30 a30 30 0 0 1 -30 -30 v-110 a30 30 0 0 1 30 -30 z%27 fill=%27%232EE6A6%27 fill-opacity=%27.55%27 stroke=%27%23fff%27 stroke-width=%277%27/%3E%3Cpath d=%27M1180 600 h200 a30 30 0 0 1 30 30 v90 a30 30 0 0 1 -30 30 h-140 l-50 44 v-44 h-10 a30 30 0 0 1 -30 -30 v-90 a30 30 0 0 1 30 -30 z%27 fill=%27%23FF6B8A%27 fill-opacity=%27.55%27 stroke=%27%23fff%27 stroke-width=%277%27/%3E%3Cpolygon points=%271290,235 1330,295 1250,295%27 fill=%27%23fff%27/%3E%3Cpolygon points=%271280,690 1320,640 1240,640%27 fill=%27%23fff%27 transform=%27rotate%28180 1280 665%29%27/%3E%3C/svg%3E');background-size:contain;background-position:center;opacity:.26}
+"""
+MINDSET_HTML = '<!doctype html><html lang="cs"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Mindset</title>\n<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="style.css?v=89"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}window.TDux=function(){try{var u=JSON.parse(localStorage.getItem("ux")||"{}"),c="",F={sys:"-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif",read:"Atkinson Hyperlegible,Verdana,sans-serif",serif:"Newsreader,Georgia,serif",round:"Nunito,Arial Rounded MT Bold,sans-serif",mono:"JetBrains Mono,Menlo,Consolas,monospace"},G={read:"Atkinson+Hyperlegible:wght@400;700",round:"Nunito:wght@400;600;700;800",mono:"JetBrains+Mono:wght@400;600;700"};if(F[u.f]){c+="body,body *{font-family:"+F[u.f]+"!important}";if(G[u.f]&&!document.getElementById("uxf-"+u.f)){var l=document.createElement("link");l.id="uxf-"+u.f;l.rel="stylesheet";l.href="https://fonts.googleapis.com/css2?family="+G[u.f]+"&display=swap";document.head.appendChild(l)}}if(u.z&&u.z!=1)c+="html{zoom:"+u.z+"}";var A={blue:["#38BDF8","#6366F1"],green:["#2EE6A6","#0EA5E9"],orange:["#FFB547","#FF6B8A"],pink:["#F472B6","#8B7CFF"],gold:["#E8C26A","#B9812C"],red:["#FF6B8A","#B91C1C"]};if(A[u.a])c+=":root{--acc:"+A[u.a][0]+"!important}button{background-image:linear-gradient(135deg,"+A[u.a][0]+","+A[u.a][1]+")}h2::before,.side a.on,.side a[aria-current]{border-color:"+A[u.a][0]+"!important}";if(u.bg===0)c+="body::before,body::after{background-image:none!important;opacity:0!important}";if(u.an===0)c+="*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}";if(u.lh)c+="p,li,td,.hint,.facts li{line-height:1.8!important}";if(u.b)c+="body{font-weight:500}b,strong,h1,h2,h3{font-weight:800!important}";var s=document.getElementById("uxs")||document.createElement("style");s.id="uxs";s.textContent=c;document.head.appendChild(s)}catch(e){}};TDux();document.addEventListener("DOMContentLoaded",TDux);</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu">\n<style>\n.orb{width:190px;height:190px;border-radius:50%;margin:26px auto 12px;background:radial-gradient(circle at 35% 30%,#B3A9FF,#38BDF8 60%,#2B3A8F);box-shadow:0 0 70px rgba(139,124,255,.55);transform:scale(.6);transition:transform var(--d,4s) linear}\n.orb.big{transform:scale(1.12)}.timer{font-size:46px;font-weight:700;text-align:center;font-variant-numeric:tabular-nums}.mid{text-align:center}\n.center{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px}.rule{font-size:clamp(20px,3vw,28px);font-weight:600;line-height:1.3;margin:0}\n.video{position:relative;padding-top:56.25%;border-radius:14px;overflow:hidden;border:1px solid var(--rule)}.video iframe{position:absolute;inset:0;width:100%;height:100%;border:0}.steps li{margin:8px 0}.links a{display:block;padding:10px 0;border-bottom:1px solid var(--rule)}input[type=range]{padding:0}\n</style></head>\n<body class="bg-buddha"><div class="app">@@SIDEBAR@@<div class="content"><header class="pagehead"><h1>Mindset</h1><p>Klid, soustředění a rutina před obchodováním</p></header><main>\n<section class="hero"><div><p class="empty" style="margin:0 0 8px">Můj úkol dne</p><p class="rule">Moje práce je čekat na příležitosti, kdy vím, že jsem silný.</p><p class="empty" style="margin:10px 0 0">Netlačím obchod každý den za každou cenu. Když nic neobchoduju a ovládnu se, je to moje výhra.</p><p style="margin:10px 0 0"><a href="trpelivost.html">Otevřít trénink trpělivosti</a></p></div></section>\n<section><h2>Vedená meditace (20 minut), hlavní část přípravy</h2><p class="hint">Zmáčkni přehrávání, zavři oči a poslouchej. Je to vedená meditace ve slovenštině.</p>\n<div class="video"><iframe src="https://www.youtube.com/embed/jd7adPU3JAw" title="Vedená meditácia - ZMENA REALITY" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe></div>\n<p class="mid empty"><a href="https://www.youtube.com/watch?v=jd7adPU3JAw" target="_blank" rel="noopener">Otevřít video na YouTube</a>, kdyby se zde nepřehrálo.</p></section>\n<section><h2>Jak se dnes cítím?</h2><div class="grid">\n<label>Klid: <b id="mv-calm"></b> z 5<input type="range" min="1" max="5" id="m-calm"></label>\n<label>Soustředění: <b id="mv-focus"></b> z 5<input type="range" min="1" max="5" id="m-focus"></label>\n<label>Energie: <b id="mv-energy"></b> z 5<input type="range" min="1" max="5" id="m-energy"></label></div>\n<div class="gdyn" id="gdyn"></div><div class="note" id="mood" style="margin-top:14px"></div></section>\n<section><h2>Dýchání</h2><p class="hint">Vyber způsob dýchání. Kruh roste při nádechu a zmenšuje se při výdechu. Dýchej nosem a pomalu.</p>\n<label style="max-width:360px;margin:0 auto">Způsob<select id="pat"><option value="box">Do čtverce: 4 nádech, 4 zadržet, 4 výdech, 4 zadržet</option><option value="calm">Uklidňující: 4 nádech, 6 výdech</option><option value="478">Spánek a klid: 4 nádech, 7 zadržet, 8 výdech</option></select></label>\n<div class="orb" id="orb"></div><div class="timer" id="otxt">Připraven</div><p class="mid empty" id="ocyc"></p>\n<div class="center"><button onclick="startBreath(1)">1 minuta</button><button onclick="startBreath(3)">3 minuty</button><button onclick="startBreath(5)">5 minut</button><button class="ghost" onclick="stopBreath()">Zastavit</button></div></section>\n<section><h2>Pravidla trpělivosti</h2><ol class="steps" id="pat-rules"></ol></section>\n<section><h2>Rutina před otevřením burzy (asi 20 minut)</h2><ol class="steps">\n<li><b>Voda a pohyb (3 min):</b> napij se a projdi se nebo se protáhni.</li><li><b>Meditace a dýchání (20 min):</b> pusť si video výše, případně jen dýchání.</li>\n<li><b>Ranní briefing (5 min):</b> přečti si záložku Přehled a Fundament. Poznamenej si zprávy a jejich čas.</li><li><b>Plán dne (5 min):</b> v záložce Plán dne vyplň bias, úrovně a limity.</li>\n<li><b>Zavři rušení (1 min):</b> vypni sociální sítě a oznámení až do prvního obchodu.</li><li><b>Řekni si pravidlo:</b> „Dnes dodržím plán, i kdyby nebyl žádný obchod."</li></ol></section>\n<section><h2>Meditace zdarma</h2><div class="links">\n<a href="https://insighttimer.com/" target="_blank" rel="noopener">Insight Timer: velká zdarma knihovna vedených meditací</a>\n<a href="https://www.smilingmind.com.au/" target="_blank" rel="noopener">Smiling Mind: krátké meditace zdarma</a>\n<a href="https://www.youtube.com/results?search_query=meditace+5+minut+%C4%8Desky" target="_blank" rel="noopener">YouTube: meditace na 5 minut česky</a>\n<a href="https://www.youtube.com/results?search_query=meditation+for+traders+calm+focus" target="_blank" rel="noopener">YouTube: meditace pro tradery, klid a soustředění</a></div></section>\n<section><h2>Večerní reflexe</h2>\n<label>Co se mi dnes povedlo?<textarea id="r-a" rows="2"></textarea></label>\n<label style="margin-top:12px">Co příště udělám jinak?<textarea id="r-b" rows="2"></textarea></label>\n<label style="margin-top:12px">Jak jsem zvládl emoce?<textarea id="r-c" rows="2"></textarea></label>\n<p class="empty">Ukládá se do tohoto prohlížeče, pro každý den zvlášť.</p></section>\n<section><h2>Pravidla klidného tradera</h2><ol class="steps" id="rules"></ol></section>\n</main></div></div>\n<script>\nconst $ = id => document.getElementById(id);\nconst today = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };\nconst ls = {get: k => { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }, set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }};\nconst RULES = ["Moje práce není předvídat trh, ale dodržet plán.", "Žádný obchod není tak důležitý, aby stál za porušení pravidel.", "Po ztrátě dýchám. Po výhře dýchám. Velikost pozice se nemění podle emoce.",\n  "Trh tu bude i zítra. Šance nemusím honit.", "Čekání je také pozice.", "Nejlepší obchod dne je často ten, který jsem neudělal.", "Stop je cena za klid, ne porážka.",\n  "Neobchoduji, abych si něco dokázal, ani abych se odrazil ze ztráty.", "Jeden dobrý setup stačí.", "Nejdřív pozoruji emoci, potom jednám. Ne naopak.",\n  "Úspěch měřím dodržením procesu, ne výsledkem jednoho dne.", "Když váhám, nevstupuji."];\n$("rules").innerHTML = RULES.map(r => `<li>${r}</li>`).join("");\nconst PAT_RULES = ["Je to boj jen se sebou samým.", "Myslím na to, co mohu ovlivnit: sám sebe, ne výsledek. Výsledek neovlivním, takže je zbytečné na něj myslet.", "S nikým se neporovnávám. Jen já versus já včera.", "Stačí si počkat na ten můj obchod.", "Trh nezajímá, co chci. Proti ničemu nebojuji, jen čekám.", "Žádné emoce, pouze trpělivost.", "Moje práce není být každý den aktivní a vynucovat nové obchody.", "Moje práce je čekat na příležitosti, kdy vím, že jsem silný.", "Den, kdy sedím u grafu, nic neobchoduju a umím se ovládnout, je moje výhra.", "Trpělivé čekání ukáže, jestli na to mám.", "Snažím se být nejlepší verzí sebe sama.", "Vím, že na to mám. Když vše dodržím, stane se to.", "Když tomu dám všechno na maximum, přijde to.", "Nemám FOMO. Další příležitost přijde vždycky.", "Nemám revenge. Po ztrátě vstanu od grafu.", "Z malých timeframeů nevstupuji. Počkám si na větší.", "Nejdřív větší timeframe pro směr, potom menší pro vstup.", "Neobchoduji, abych něco dokázal, ale proto, že vidím svůj setup.", "Jeden dobrý obchod je víc než deset nucených.", "Čekání je také pozice.", "Nejlepší obchod dne je často ten, který jsem neudělal.", "Dodržet plán je úspěch, i když obchod skončí ztrátou.", "Trh tu bude i zítra."];\n$("pat-rules").innerHTML = PAT_RULES.map(r => `<li>${r}</li>`).join("");\nconst mk = "mood:" + today(); let M = ls.get(mk) || {calm: 3, focus: 3, energy: 3};\nfunction dg(el,v,big,sub,word,cls,cap){var a=Math.max(-1,Math.min(1,v))*80;el.innerHTML=`<div class="gbox"><svg class="gauge" viewBox="0 0 200 110"><defs><linearGradient id="gd"><stop offset="0" stop-color="#FF6B8A"/><stop offset=".5" stop-color="#C9D1E8"/><stop offset="1" stop-color="#2EE6A6"/></linearGradient></defs><path d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke="url(#gd)" stroke-width="14" stroke-linecap="round"/><g transform="rotate(${a} 100 100)"><line x1="100" y1="100" x2="100" y2="34" stroke="#EEF1FA" stroke-width="3" stroke-linecap="round"/></g><circle cx="100" cy="100" r="6" fill="#EEF1FA"/></svg><div class="gnum ${cls}">${big}<span> ${sub}</span></div><div class="gword ${cls}">${word}</div><div class="gcap">${cap}</div></div>`;}function mood() { ["calm", "focus", "energy"].forEach(k => $("mv-" + k).textContent = M[k]); var av = (M.calm + M.focus + M.energy) / 3; dg($("gdyn"), (av - 3) / 2, av.toFixed(1), "z 5", av >= 3.7 ? "Bullish nálada" : av <= 2.3 ? "Bearish nálada" : "Neutral nálada", av >= 3.7 ? "up" : av <= 2.3 ? "down" : "", "tvoje dnešní nálada");\n  $("mood").textContent = (M.calm <= 2 || M.focus <= 2) ? "Dnes nejsi v optimálním stavu. Nejdřív 3 minuty dýchání. Obchoduj jen se zmenšenou velikostí, nebo vůbec."\n    : (M.calm >= 4 && M.focus >= 4 && M.energy >= 3) ? "Skvělé. Drž se plánu a neobchoduj víc, než musíš." : "Dobrý základ. Dej si ještě krátké dýchání a drž se plánu."; }\n["calm", "focus", "energy"].forEach(k => { $("m-" + k).value = M[k]; $("m-" + k).oninput = () => { M[k] = +$("m-" + k).value; ls.set(mk, M); mood(); }; }); mood();\nconst rk = "refl:" + today(), R = ls.get(rk) || {}; ["a", "b", "c"].forEach(k => { $("r-" + k).value = R[k] || ""; $("r-" + k).oninput = () => { R[k] = $("r-" + k).value; ls.set(rk, R); }; });\nfunction chime() { try { const a = new (window.AudioContext || window.webkitAudioContext)(); [0, 0.9, 1.8].forEach((d, i) => { const o = a.createOscillator(), g = a.createGain(); o.frequency.value = [528, 396, 528][i];\n  o.connect(g); g.connect(a.destination); const t = a.currentTime + d; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.25, t + .05); g.gain.exponentialRampToValueAtTime(.001, t + 1.6); o.start(t); o.stop(t + 1.7); }); } catch (e) {} }\nlet br = null;\nconst PAT = {box: [["Nádech", 4, 1], ["Zadrž", 4, 1], ["Výdech", 4, 0], ["Zadrž", 4, 0]], calm: [["Nádech", 4, 1], ["Výdech", 6, 0]], "478": [["Nádech", 4, 1], ["Zadrž", 7, 1], ["Výdech", 8, 0]]};\nfunction startBreath(mins) { stopBreath(); const P = PAT[$("pat").value], total = P.reduce((a, p) => a + p[1], 0), orb = $("orb"); let t = 0, ph = 0, left = P[0][1], cyc = 0;\n  const setPhase = () => { const p = P[ph]; orb.style.setProperty("--d", (p[0] === "Zadrž" ? 0.01 : p[1]) + "s"); if (p[0] === "Nádech") orb.classList.add("big"); if (p[0] === "Výdech") orb.classList.remove("big"); };\n  setPhase();\n  const tick = () => { if (t >= mins * 60) { stopBreath(true); return; }\n    $("otxt").textContent = P[ph][0] + " " + left; $("ocyc").textContent = "Dokončených cyklů: " + cyc; t++; left--;\n    if (left <= 0) { ph = (ph + 1) % P.length; if (ph === 0) cyc++; left = P[ph][1]; setPhase(); } };\n  tick(); br = setInterval(tick, 1000); }\nfunction stopBreath(done) { clearInterval(br); br = null; $("orb").classList.remove("big"); $("otxt").textContent = done ? "Hotovo. Jak se cítíš?" : "Připraven"; if (done) chime(); }\n</script><script src="tips.js"></script></body></html>\n'
+
+PLAN_HTML = '<!doctype html><html lang="cs"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Plán dne</title>\n<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="style.css?v=89"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}window.TDux=function(){try{var u=JSON.parse(localStorage.getItem("ux")||"{}"),c="",F={sys:"-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif",read:"Atkinson Hyperlegible,Verdana,sans-serif",serif:"Newsreader,Georgia,serif",round:"Nunito,Arial Rounded MT Bold,sans-serif",mono:"JetBrains Mono,Menlo,Consolas,monospace"},G={read:"Atkinson+Hyperlegible:wght@400;700",round:"Nunito:wght@400;600;700;800",mono:"JetBrains+Mono:wght@400;600;700"};if(F[u.f]){c+="body,body *{font-family:"+F[u.f]+"!important}";if(G[u.f]&&!document.getElementById("uxf-"+u.f)){var l=document.createElement("link");l.id="uxf-"+u.f;l.rel="stylesheet";l.href="https://fonts.googleapis.com/css2?family="+G[u.f]+"&display=swap";document.head.appendChild(l)}}if(u.z&&u.z!=1)c+="html{zoom:"+u.z+"}";var A={blue:["#38BDF8","#6366F1"],green:["#2EE6A6","#0EA5E9"],orange:["#FFB547","#FF6B8A"],pink:["#F472B6","#8B7CFF"],gold:["#E8C26A","#B9812C"],red:["#FF6B8A","#B91C1C"]};if(A[u.a])c+=":root{--acc:"+A[u.a][0]+"!important}button{background-image:linear-gradient(135deg,"+A[u.a][0]+","+A[u.a][1]+")}h2::before,.side a.on,.side a[aria-current]{border-color:"+A[u.a][0]+"!important}";if(u.bg===0)c+="body::before,body::after{background-image:none!important;opacity:0!important}";if(u.an===0)c+="*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}";if(u.lh)c+="p,li,td,.hint,.facts li{line-height:1.8!important}";if(u.b)c+="body{font-weight:500}b,strong,h1,h2,h3{font-weight:800!important}";var s=document.getElementById("uxs")||document.createElement("style");s.id="uxs";s.textContent=c;document.head.appendChild(s)}catch(e){}};TDux();document.addEventListener("DOMContentLoaded",TDux);</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu"></head>\n<body class="bg-target"><div class="app">@@SIDEBAR@@<div class="content"><header class="pagehead"><h1>Plán dne</h1><p>Checklist, limity a kalkulačka rizika</p></header><main>\n<section class="hero"><div><p class="empty" style="margin:0 0 8px">Pravidla trpělivosti</p><p class="rule" id="pday" style="font-size:clamp(20px,3vw,26px);font-weight:600;margin:0"></p>\n<ul class="facts" id="plist" style="margin-top:12px"></ul>\n<div style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button id="pbtn">Dnes jsem se ovládl</button><span class="empty" id="pstreak"></span><a href="trpelivost.html">Trénink trpělivosti</a></div></div></section>\n<section><h2>Dnešní limity (živě z tvého deníku)</h2><p class="hint">Čísla se berou z deníku obchodů a obnovují se sama. Nastav limity v plánu níže.</p><div class="kpis" id="live"></div><div id="warn"></div></section>\n<section><h2>Plán na dnešek</h2><div class="grid">\n<label>Můj bias<select id="p-bias"><option value="">–</option><option>Bullish</option><option>Bearish</option><option>Neutrální</option></select></label>\n<label>Max. počet obchodů<input id="p-maxTrades" type="number"></label><label>Max. denní ztráta ($)<input id="p-maxLoss" type="number"></label><label>Denní cíl ($)<input id="p-goal" type="number"></label></div>\n<label style="margin-top:12px">Klíčové úrovně<textarea id="p-levels" rows="2"></textarea></label>\n<label style="margin-top:12px">Setupy, které dnes obchoduji<textarea id="p-setups" rows="2"></textarea></label>\n<label style="margin-top:12px">Poznámky<textarea id="p-notes" rows="2"></textarea></label>\n<p class="empty">Plán se ukládá do tohoto prohlížeče, pro každý den zvlášť.</p></section>\n<section><h2>Checklist před obchodováním <span id="cprog" class="empty"></span></h2><div class="gdyn" id="gdyn"></div><p class="hint">Zaškrtni, co máš hotové. Když něco chybí, nejdřív to dodělej.</p><div class="chips" id="checks"></div></section>\n<section><h2>Měsíční cíl</h2><div class="grid"><label>Cíl na měsíc ($)<input id="m-goal" type="number"></label></div><div id="mprog" style="margin-top:12px"></div></section>\n<section><h2>Pravidla rizika</h2><ol class="steps"><li>Na jeden obchod riskuji nejvýš 1 % účtu (u účtu 50 000 $ je to 500 $).</li><li>Stop zadám před vstupem a nikdy ho neposouvám dál od vstupu.</li>\n<li>Po dvou ztrátách za sebou dělám pauzu a vstávám od grafu.</li><li>Před důležitou zprávou z USA nevstupuji, počkám na reakci trhu.</li><li>Jestli nevidím svůj setup, neobchoduji. Čekání je také pozice.</li></ol></section>\n<section><h2>Kalkulačka: kolik mikro kontraktů</h2><div class="grid">\n<label>Účet ($)<input id="c-acc" type="number" step="any" value="50000"></label><label>Riziko na obchod (%)<input id="c-risk" type="number" step="any" value="1"></label>\n<label>Vstup<input id="c-entry" type="number" step="any"></label><label>Stop<input id="c-stop" type="number" step="any"></label>\n<label>Hodnota bodu na 1 mikro ($)<input id="c-pv" type="number" step="any" value="2"></label></div><p id="c-out" class="empty" style="margin-top:12px">Vyplň vstup a stop.</p></section>\n</main></div></div>\n<script>\nconst $ = id => document.getElementById(id), nf = (x, d = 0) => x.toLocaleString("cs-CZ", {maximumFractionDigits: d});\nconst sg = x => (x >= 0 ? "+" : "\\u2212") + nf(Math.abs(x)), cl = x => x >= 0 ? "up" : "down";\nconst today = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };\nconst ls = {get: k => { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }, set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }};\nconst PV = {NQ: 20, MNQ: 2, ES: 50, MES: 5, YM: 5, MYM: 0.5};\nconst CHECK = ["Vyspal jsem se a jsem klidný", "Prošel jsem ranní briefing", "Znám důležité zprávy dne a jejich čas", "Mám nakreslené klíčové úrovně", "Vím, kolik riskuji na obchod", "Před vstupem mám připravený stop", "Dnes neobchoduji z vteřinové emoce"];\nconst key = "plan:" + today(), F = ["bias", "levels", "setups", "maxTrades", "maxLoss", "goal", "notes"];\nlet P = ls.get(key) || {checks: []};\nF.forEach(f => { $("p-" + f).value = P[f] ?? ""; $("p-" + f).addEventListener("input", () => { P[f] = $("p-" + f).value; ls.set(key, P); live(); }); });\n$("checks").innerHTML = CHECK.map((t, i) => `<label class="chip"><input type="checkbox" data-i="${i}" ${P.checks.includes(i) ? "checked" : ""}>${t}</label>`).join("");\nfunction dg(el,v,big,sub,word,cls,cap){var a=Math.max(-1,Math.min(1,v))*80;el.innerHTML=`<div class="gbox"><svg class="gauge" viewBox="0 0 200 110"><defs><linearGradient id="gd"><stop offset="0" stop-color="#FF6B8A"/><stop offset=".5" stop-color="#C9D1E8"/><stop offset="1" stop-color="#2EE6A6"/></linearGradient></defs><path d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke="url(#gd)" stroke-width="14" stroke-linecap="round"/><g transform="rotate(${a} 100 100)"><line x1="100" y1="100" x2="100" y2="34" stroke="#EEF1FA" stroke-width="3" stroke-linecap="round"/></g><circle cx="100" cy="100" r="6" fill="#EEF1FA"/></svg><div class="gnum ${cls}">${big}<span> ${sub}</span></div><div class="gword ${cls}">${word}</div><div class="gcap">${cap}</div></div>`;}const prog = () => { $("cprog").textContent = P.checks.length + " z " + CHECK.length; var f = P.checks.length / CHECK.length; dg($("gdyn"), f * 2 - 1, P.checks.length, "z " + CHECK.length, f >= 1 ? "Připraven" : f >= 0.5 ? "Skoro připraven" : "Nepřipraven", f >= 1 ? "up" : f < 0.5 ? "down" : "", "checklist před obchodem"); };\n$("checks").addEventListener("input", e => { const i = +e.target.dataset.i; P.checks = P.checks.filter(x => x !== i); if (e.target.checked) P.checks.push(i); ls.set(key, P); prog(); }); prog();\n$("m-goal").value = ls.get("mgoal") ?? ""; $("m-goal").addEventListener("input", () => { ls.set("mgoal", $("m-goal").value); live(); });\n\nfunction trades() { return new Promise(res => { const r = indexedDB.open("journal", 1);\n  r.onupgradeneeded = () => r.result.createObjectStore("trades", {keyPath: "id", autoIncrement: true});\n  r.onsuccess = () => { const d = r.result; if (!d.objectStoreNames.contains("trades")) return res([]);\n    const q = d.transaction("trades").objectStore("trades").getAll(); q.onsuccess = () => res(q.result); q.onerror = () => res([]); };\n  r.onerror = () => res([]); }); }\nasync function live() {\n  const ts = await trades(), d = today(), mo = d.slice(0, 7), w = t => t.opened || t.date + "T00:00";\n  const pnl = t => t.exit == null ? 0 : (t.exit - t.entry) * (t.dir === "short" ? -1 : 1) * (t.size || 1) * (t.pv || PV[t.inst] || 1) - (t.fee || 0);\n  const td = ts.filter(t => w(t).slice(0, 10) === d), p = td.reduce((s, t) => s + pnl(t), 0), m = ts.filter(t => w(t).slice(0, 7) === mo).reduce((s, t) => s + pnl(t), 0);\n  const ml = +$("p-maxLoss").value || 0, mt = +$("p-maxTrades").value || 0, g = +$("p-goal").value || 0, mg = +$("m-goal").value || 0;\n  const K = (v, l) => `<div class="k"><b>${v}</b><span>${l}</span></div>`;\n  $("live").innerHTML = K(`<span class="${cl(p)}">${sg(p)} $</span>`, "Dnešní výsledek") + K(td.length + (mt ? " z " + mt : ""), "Obchodů dnes") +\n    K(ml ? nf(Math.max(0, ml + Math.min(p, 0))) + " $" : "–", "Zbývá do limitu ztráty") + K(g ? nf(Math.max(0, g - p)) + " $" : "–", "Zbývá do denního cíle");\n  const w2 = []; if (ml && p <= -ml) w2.push("Limit ztráty je dosažen. Dnes už neobchoduj.");\n  if (mt && td.length >= mt) w2.push("Dosáhl jsi maximálního počtu obchodů."); if (g && p >= g) w2.push("Denní cíl je splněn. Zvaž konec dne.");\n  $("warn").innerHTML = w2.map(x => `<div class="note" style="margin-top:12px">${x}</div>`).join("");\n  $("mprog").innerHTML = mg ? `<div class="bar" style="grid-template-columns:90px 1fr auto"><span>Měsíc</span><div class="track ${cl(m)}"><i style="width:${Math.min(100, Math.max(0, m / mg * 100))}%"></i></div><b class="${cl(m)}">${sg(m)} $ z ${nf(mg)} $</b></div>` : \'<p class="empty">Zadej měsíční cíl a uvidíš postup.</p>\';\n}\nlive(); setInterval(live, 15000);\n\nfunction calc() {\n  const g = id => parseFloat($(id).value), a = g("c-acc"), r = g("c-risk"), e = g("c-entry"), s = g("c-stop"), pv = g("c-pv");\n  if ([a, r, e, s, pv].some(isNaN) || e === s) { $("c-out").textContent = "Vyplň vstup a stop."; return; }\n  const money = a * r / 100, size = money / (Math.abs(e - s) * pv), dr = e > s ? 1 : -1;\n  $("c-out").innerHTML = `Riskuješ <b>${nf(money)} $</b>. Počet mikro kontraktů: <b>${nf(Math.floor(size))}</b> (přesně ${nf(size, 2)}). Cíl pro poměr 1:2 je <b>${nf(e + dr * Math.abs(e - s) * 2, 2)}</b>, pro 1:3 <b>${nf(e + dr * Math.abs(e - s) * 3, 2)}</b>.`;\n}\ndocument.querySelectorAll("[id^=c-]").forEach(i => i.addEventListener("input", calc));\n\nconst PL = ["Stačí si počkat na ten můj obchod.", "Trh nezajímá, co chci. Proti ničemu nebojuji, jen čekám.", "Žádné emoce, pouze trpělivost.", "Moje práce není být každý den aktivní a vynucovat nové obchody.", "Moje práce je čekat na příležitosti, kdy vím, že jsem silný.", "Den, kdy sedím u grafu, nic neobchoduju a umím se ovládnout, je moje výhra.", "Trpělivé čekání ukáže, jestli na to mám.", "Snažím se být nejlepší verzí sebe sama.", "Vím, že na to mám. Když vše dodržím, stane se to.", "Když tomu dám všechno na maximum, přijde to.", "Nemám FOMO. Další příležitost přijde vždycky.", "Nemám revenge. Po ztrátě vstanu od grafu.", "Z malých timeframeů nevstupuji. Počkám si na větší.", "Nejdřív větší timeframe pro směr, potom menší pro vstup.", "Neobchoduji, abych něco dokázal, ale proto, že vidím svůj setup.", "Jeden dobrý obchod je víc než deset nucených.", "Čekání je také pozice.", "Nejlepší obchod dne je často ten, který jsem neudělal.", "Dodržet plán je úspěch, i když obchod skončí ztrátou.", "Trh tu bude i zítra."];\n$("pday").textContent = PL[Math.floor(Date.now() / 86400000) % PL.length];\n$("plist").innerHTML = PL.slice(0, 8).map(x => `<li>${x}</li>`).join("");\nconst SET = ls.get("settings") || {}; if (SET.acc) $("c-acc").value = SET.acc; if (SET.risk) $("c-risk").value = SET.risk;\nconst pk = "patience:" + today();\nfunction pstreak() { let n = 0; const d = new Date(); for (let i = 0; i < 365; i++) { const x = new Date(d - i * 86400000); x.setMinutes(x.getMinutes() - x.getTimezoneOffset()); const k = "patience:" + x.toISOString().slice(0, 10);\n  if (ls.get(k)) n++; else if (i > 0) break; } $("pstreak").textContent = ls.get(pk) ? "Dnes splněno. Dní za sebou: " + n : "Zmáčkni na konci dne, když jsi dodržel plán a netlačil obchod."; $("pbtn").textContent = ls.get(pk) ? "Zrušit zápis" : "Dnes jsem se ovládl"; }\n$("pbtn").onclick = () => { ls.set(pk, !ls.get(pk)); pstreak(); }; pstreak();\n</script><script src="tips.js"></script></body></html>\n'
+
+
+if __name__ == "__main__":
+    main()
