@@ -1,4 +1,4 @@
-Datum a čas aktualizace: 31. 10. 2026 13:18 (pražský čas). Obchoduje se MNQ (Micro Nasdaq futures), 1 bod = 2 $. Seance v New Yorku 9:30–16:00 = u nás obvykle 15:30–22:00.
+Datum a čas aktualizace: 31. 10. 2026 13:24 (pražský čas). Obchoduje se MNQ (Micro Nasdaq futures), 1 bod = 2 $. Seance v New Yorku 9:30–16:00 = u nás obvykle 15:30–22:00.
 
 STRÁNKY WEBU:
 - Dnes: Přehled (Ranní souhrn trhu v kostce)
@@ -27,7 +27,7 @@ Posledních 5 dní (bias → skutečný pohyb Nasdaqu): 2026-10-23 Mírně beari
 SENTIMENT ZPRÁV (24 h): skóre -2.6 z 5, bearish.
 - Anthropic's path to the Nasdaq just got a lot bumpier (CNBC)
 - Qatari mediators held talks in Tehran aimed at restarting direct U.S.-Iran negotiations, source says (CNBC)
-- Trump called out Big Oil profits. Here’s how much their refining earnings have surged since (CNBC)
+- ‘Pop-up’ super PACs pour $637 million into 2026 midterm races (CNBC)
 - Automakers like Rivian and Ford are ‘democratizing 3D printing’ to reduce costs and increase speed (CNBC)
 - Gamble on democracy: Inside suspicious election-contracts trading on prediction markets (CNBC)
 - Meta outlook revised downward by S&P on cash flow and capex concerns (CNBC)
