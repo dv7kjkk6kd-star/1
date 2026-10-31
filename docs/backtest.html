@@ -3,7 +3,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Backtest deník</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=86"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}window.TDux=function(){try{var u=JSON.parse(localStorage.getItem("ux")||"{}"),c="",F={sys:"-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif",read:"Atkinson Hyperlegible,Verdana,sans-serif",serif:"Newsreader,Georgia,serif",round:"Nunito,Arial Rounded MT Bold,sans-serif",mono:"JetBrains Mono,Menlo,Consolas,monospace"},G={read:"Atkinson+Hyperlegible:wght@400;700",round:"Nunito:wght@400;600;700;800",mono:"JetBrains+Mono:wght@400;600;700"};if(F[u.f]){c+="body,body *{font-family:"+F[u.f]+"!important}";if(G[u.f]&&!document.getElementById("uxf-"+u.f)){var l=document.createElement("link");l.id="uxf-"+u.f;l.rel="stylesheet";l.href="https://fonts.googleapis.com/css2?family="+G[u.f]+"&display=swap";document.head.appendChild(l)}}if(u.z&&u.z!=1)c+="html{zoom:"+u.z+"}";var A={blue:["#38BDF8","#6366F1"],green:["#2EE6A6","#0EA5E9"],orange:["#FFB547","#FF6B8A"],pink:["#F472B6","#8B7CFF"],gold:["#E8C26A","#B9812C"],red:["#FF6B8A","#B91C1C"]};if(A[u.a])c+=":root{--acc:"+A[u.a][0]+"!important}button{background-image:linear-gradient(135deg,"+A[u.a][0]+","+A[u.a][1]+")}h2::before,.side a.on,.side a[aria-current]{border-color:"+A[u.a][0]+"!important}";if(u.bg===0)c+="body::before,body::after{background-image:none!important;opacity:0!important}";if(u.an===0)c+="*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}";if(u.lh)c+="p,li,td,.hint,.facts li{line-height:1.8!important}";if(u.b)c+="body{font-weight:500}b,strong,h1,h2,h3{font-weight:800!important}";var s=document.getElementById("uxs")||document.createElement("style");s.id="uxs";s.textContent=c;document.head.appendChild(s)}catch(e){}};TDux();document.addEventListener("DOMContentLoaded",TDux);</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><style>
+<link rel="stylesheet" href="style.css?v=87"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}window.TDux=function(){try{var u=JSON.parse(localStorage.getItem("ux")||"{}"),c="",F={sys:"-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif",read:"Atkinson Hyperlegible,Verdana,sans-serif",serif:"Newsreader,Georgia,serif",round:"Nunito,Arial Rounded MT Bold,sans-serif",mono:"JetBrains Mono,Menlo,Consolas,monospace"},G={read:"Atkinson+Hyperlegible:wght@400;700",round:"Nunito:wght@400;600;700;800",mono:"JetBrains+Mono:wght@400;600;700"};if(F[u.f]){c+="body,body *{font-family:"+F[u.f]+"!important}";if(G[u.f]&&!document.getElementById("uxf-"+u.f)){var l=document.createElement("link");l.id="uxf-"+u.f;l.rel="stylesheet";l.href="https://fonts.googleapis.com/css2?family="+G[u.f]+"&display=swap";document.head.appendChild(l)}}if(u.z&&u.z!=1)c+="html{zoom:"+u.z+"}";var A={blue:["#38BDF8","#6366F1"],green:["#2EE6A6","#0EA5E9"],orange:["#FFB547","#FF6B8A"],pink:["#F472B6","#8B7CFF"],gold:["#E8C26A","#B9812C"],red:["#FF6B8A","#B91C1C"]};if(A[u.a])c+=":root{--acc:"+A[u.a][0]+"!important}button{background-image:linear-gradient(135deg,"+A[u.a][0]+","+A[u.a][1]+")}h2::before,.side a.on,.side a[aria-current]{border-color:"+A[u.a][0]+"!important}";if(u.bg===0)c+="body::before,body::after{background-image:none!important;opacity:0!important}";if(u.an===0)c+="*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}";if(u.lh)c+="p,li,td,.hint,.facts li{line-height:1.8!important}";if(u.b)c+="body{font-weight:500}b,strong,h1,h2,h3{font-weight:800!important}";var s=document.getElementById("uxs")||document.createElement("style");s.id="uxs";s.textContent=c;document.head.appendChild(s)}catch(e){}};TDux();document.addEventListener("DOMContentLoaded",TDux);</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><style>
 #f .grid{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}#f .grid>label{min-width:0}#f select,#f input{width:100%;min-width:0;text-overflow:ellipsis}#f input[type=checkbox]{width:auto;flex:none;margin:0}#f .chip{white-space:nowrap;display:inline-flex}
 #f .sec{margin:20px 0 8px;padding-top:12px;border-top:1px solid var(--rule);font-size:16px}#f .sec:first-of-type{border-top:0;margin-top:6px;padding-top:0}
 #f label em{font-style:normal;color:var(--acc);font-weight:600}
@@ -269,6 +269,71 @@ window.TDme=function(){
     e.preventDefault(); e.stopPropagation(); window.TDbackup(); }, true);
   document.addEventListener("change", function (e) { var t = e.target; if (!t || !/^(impf|bk-imp)$/.test(t.id) || !t.files || !t.files[0]) return;
     e.stopPropagation(); window.TDrestore(t.files[0]); t.value = ""; }, true);
+})();
+/* ===== Univerzální přetažení / vložení souborů (v87) ===== */
+(() => {
+  const st = document.createElement("style");
+  st.textContent = ".dz-on{outline:2px dashed #8B7CFF!important;outline-offset:4px;background-color:rgba(139,124,255,.08)!important}";
+  document.head.appendChild(st);
+  const ok = (f, inp) => { const a = (inp.getAttribute("accept") || "").toLowerCase().split(",").map(x => x.trim()).filter(Boolean);
+    if (!a.length) return true; const n = (f.name || "").toLowerCase(), t = (f.type || "").toLowerCase();
+    return a.some(x => x[0] === "." ? n.endsWith(x) : x.endsWith("/*") ? t.startsWith(x.slice(0, -1)) : t === x); };
+  const vis = el => !el.closest("dialog:not([open])");
+  const inputsIn = (root, files) => [...root.querySelectorAll('input[type="file"]')].filter(i => vis(i) && !i.disabled && files.some(f => ok(f, i)));
+  const BIG = el => !el || el === document.body || el === document.documentElement || el.tagName === "MAIN";
+  function pick(start, files) {
+    const dlg = [...document.querySelectorAll("dialog[open]")].pop();
+    for (let el = start && start.nodeType === 1 ? start : null; el && el !== document; el = el.parentElement) {
+      if (dlg && !dlg.contains(el)) break;
+      const c = inputsIn(el, files); if (c.length) return {inp: c[0], zone: el};
+    }
+    if (dlg) { const c = inputsIn(dlg, files); return c.length ? {inp: c[0], zone: dlg} : null; }
+    const c = inputsIn(document, files); return c.length ? {inp: c[0], zone: null} : null;
+  }
+  function give(inp, files) {
+    let fs = files.filter(f => ok(f, inp)).sort((a, b) => (a.lastModified || 0) - (b.lastModified || 0));
+    if (!fs.length) return false;
+    if (inp.dataset.sf && typeof window.putSlot === "function") { fs.forEach(f => window.putSlot(f)); return true; }
+    if (!inp.multiple) fs = fs.slice(0, 1);
+    try { const dt = new DataTransfer(); fs.forEach(f => dt.items.add(f)); inp.files = dt.files; } catch (x) { return false; }
+    inp.dispatchEvent(new Event("change", {bubbles: true})); inp.dispatchEvent(new Event("input", {bubbles: true}));
+    return true;
+  }
+  let hl = null, hlT = 0;
+  const unhl = () => { if (hl) hl.classList.remove("dz-on"); hl = null; };
+  const hasFiles = e => [...(e.dataTransfer?.types || [])].includes("Files");
+  window.addEventListener("dragover", e => {
+    if (!hasFiles(e)) return; e.preventDefault();
+    const dlg = [...document.querySelectorAll("dialog[open]")].pop();
+    let z = null; for (let el = e.target; el && el.nodeType === 1; el = el.parentElement) { if (dlg && !dlg.contains(el)) break; if (el.querySelector('input[type="file"]')) { z = el; break; } }
+    if (!z && dlg) z = dlg;
+    if (BIG(z)) z = null;
+    if (z !== hl) { unhl(); if (z) { hl = z; z.classList.add("dz-on"); } }
+    clearTimeout(hlT); hlT = setTimeout(unhl, 400);
+  });
+  const late = fn => { if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", fn); else setTimeout(fn, 0); };
+  late(() => window.addEventListener("drop", e => {
+    unhl(); if (!hasFiles(e)) return; const pre = e.defaultPrevented; e.preventDefault();
+    if (pre) return;
+    const files = [...e.dataTransfer.files]; if (!files.length) return;
+    const p = pick(e.target, files);
+    if (p) give(p.inp, files); else if (window.toast) toast("Tenhle typ souboru se sem nedá nahrát.");
+  }));
+  let lastEl = null;
+  document.addEventListener("pointerdown", e => { lastEl = e.target; }, true);
+  document.addEventListener("pointermove", e => { lastEl = e.target; }, {passive: true, capture: true});
+  late(() => window.addEventListener("paste", e => {
+    if (e.defaultPrevented) return;
+    const files = [...(e.clipboardData?.items || [])].filter(x => x.kind === "file").map(x => x.getAsFile()).filter(Boolean);
+    if (!files.length) return;
+    const ae = document.activeElement;
+    if (ae && (ae.tagName === "TEXTAREA" || (ae.tagName === "INPUT" && /^(text|search|url|number|)$/.test(ae.type)) || ae.isContentEditable) && (e.clipboardData.types || []).includes("text/plain")) return;
+    const dlg = [...document.querySelectorAll("dialog[open]")].pop();
+    let p = pick(dlg && lastEl && !dlg.contains(lastEl) ? dlg : (lastEl || document.activeElement), files);
+    if (!p) return;
+    if (!dlg && !p.zone) { const all = inputsIn(document, files); if (all.length > 1) p = {inp: all[0]}; }
+    e.preventDefault(); give(p.inp, files);
+  }));
 })();
 </script><script>(function(){
 var L=[["cs","🇨🇿","Čeština","Czech"],["sk","🇸🇰","Slovenčina","Slovak"],["en","🇬🇧","English","English"],["de","🇩🇪","Deutsch","German"],["es","🇪🇸","Español","Spanish"],["it","🇮🇹","Italiano","Italian"],["fr","🇫🇷","Français","French"],["pt","🇵🇹","Português","Portuguese"],["zh-CN","🇨🇳","中文","Chinese (Mandarin)"]];
@@ -1027,7 +1092,7 @@ const stx = (m, f) => new Promise((res, rej) => { if (!sdb) return res([]); cons
 async function skLoad() { if (!sdb) sdb = await sopen(); SK = (await stx("readonly", s => s.getAll())) || []; SKD = new Set(SK.map(r => r.date)); }
 $("skr").innerHTML = SKR.map(r => `<option>${r}</option>`).join("");
 function skDraw() { skUrls.forEach(u => URL.revokeObjectURL(u)); skUrls = [];
-  $("sk-imgs").innerHTML = skImgs.map((b, i) => { const u = URL.createObjectURL(b); skUrls.push(u); return `<div class="slot"><b>Fotka ${i + 1}</b><img src="${u}" alt="Fotka ${i + 1}"><button type="button" class="ghost sm" data-skx="${i}">Smazat</button></div>`; }).join("") || '<p class="empty">Zatím žádná fotka. Vlož ji přes Ctrl+V.</p>'; }
+  $("sk-imgs").innerHTML = skImgs.map((b, i) => { const u = URL.createObjectURL(b); skUrls.push(u); return `<div class="slot"><b>Fotka ${i + 1}</b><img src="${u}" alt="Fotka ${i + 1}"><button type="button" class="ghost sm" data-skx="${i}">Smazat</button></div>`; }).join("") || '<p class="empty">Zatím žádná fotka. Přetáhni ji sem, vlož přes ⌘V nebo klikni na Vybrat fotky.</p>'; }
 const skAdd = fs => { fs.forEach(f => { if (skImgs.length < 4) skImgs.push(f); }); skDraw(); $("sk-msg").textContent = ""; };
 function skOpen(r) { skEdit = r || null; skImgs = r ? [...(r.imgs || [])] : []; const f = $("skf").elements;
   f.date.value = r ? r.date : (LS.get("bt:lastd", "") || todayS()); f.reason.value = r ? r.reason : LS.get("bt:lastReason", SKR[0]); f.note.value = r ? (r.note || "") : ""; $("sk-msg").textContent = ""; skDraw(); $("skd").showModal(); }

@@ -1,4 +1,4 @@
-Datum a čas aktualizace: 31. 10. 2026 12:00 (pražský čas). Obchoduje se MNQ (Micro Nasdaq futures), 1 bod = 2 $. Seance v New Yorku 9:30–16:00 = u nás obvykle 15:30–22:00.
+Datum a čas aktualizace: 31. 10. 2026 12:13 (pražský čas). Obchoduje se MNQ (Micro Nasdaq futures), 1 bod = 2 $. Seance v New Yorku 9:30–16:00 = u nás obvykle 15:30–22:00.
 
 STRÁNKY WEBU:
 - Dnes: Přehled (Ranní souhrn trhu v kostce)
@@ -18,19 +18,19 @@ DNEŠNÍ BIAS: Mírně bearish, skóre -4.9 z 10 (−10 až +10). Bias se uklád
 - složka Dolar: +0.5 (váha 0.5) – Dolarový index se změnil o −0,16 %. Silný dolar akciím spíš škodí.
 - složka Výnosy dluhopisů: +0.6 (váha 1.0) – Výnos 10letých dluhopisů se změnil o −1,20 %. Růst výnosů tlačí akcie dolů.
 - složka Trend futures: -2.0 (váha 1.0) – Cena je o +1,02 % pod průměrem posledního dne.
-- složka Zprávy: -1.0 (váha 1.0) – Nálada v titulcích zpráv za 24 hodin: skóre −2.4 z 5.
+- složka Zprávy: -1.0 (váha 1.0) – Nálada v titulcích zpráv za 24 hodin: skóre −2.6 z 5.
 - složka Sezónnost: +1.1 (váha 0.5) – V tomto měsíci Nasdaq 100 historicky průměrně +1,61 %.
 - složka Statistika: +1.0 (váha 1.0) – Statistiky trhu pro dnešek: 1 výrazných situací spíš nahoru, 0 spíš dolů.
 Přesnost biasu: 5 z 8 dní (62 %).
 Posledních 5 dní (bias → skutečný pohyb Nasdaqu): 2026-10-23 Mírně bearish → -0.00 %; 2026-10-26 Mírně bullish → +1.09 %; 2026-10-27 Mírně bullish → +1.29 %; 2026-10-28 Neutrální → +0.55 %; 2026-10-29 Mírně bearish → -1.38 %
 
-SENTIMENT ZPRÁV (24 h): skóre -2.4 z 5, bearish.
-- Intel stock has worst day since 1970s, wiping about $12 billion off government's stake (CNBC)
+SENTIMENT ZPRÁV (24 h): skóre -2.6 z 5, bearish.
+- Anthropic's path to the Nasdaq just got a lot bumpier (CNBC)
 - Trump called out Big Oil profits. Here’s how much their refining earnings have surged since (CNBC)
+- Intel stock has worst day since 1970s, wiping about $12 billion off government's stake (CNBC)
 - Treasury Department announces new Series I bond rate of 5.51% for the next six months (CNBC)
 - Alaska Senate election: DOJ wants to 'segregate' all ballots for 2nd Sullivan candidate (CNBC)
 - Meta outlook revised downward by S&P on cash flow and capex concerns (CNBC)
-- Gamble on democracy: Inside suspicious election-contracts trading on prediction markets (CNBC)
 
 KALENDÁŘ ZPRÁV Z USA (nejbližší):
 
