@@ -1,4 +1,4 @@
-Datum a čas aktualizace: 31. 10. 2026 12:37 (pražský čas). Obchoduje se MNQ (Micro Nasdaq futures), 1 bod = 2 $. Seance v New Yorku 9:30–16:00 = u nás obvykle 15:30–22:00.
+Datum a čas aktualizace: 31. 10. 2026 13:05 (pražský čas). Obchoduje se MNQ (Micro Nasdaq futures), 1 bod = 2 $. Seance v New Yorku 9:30–16:00 = u nás obvykle 15:30–22:00.
 
 STRÁNKY WEBU:
 - Dnes: Přehled (Ranní souhrn trhu v kostce)
@@ -11,20 +11,20 @@ STRÁNKY WEBU:
 - Knihy: Knihy o tradingu (Hlavní myšlenky slavných knih o tradingu a psychologii)
 - Učení a nastavení: AI asistent (Zeptej se na cokoliv o webu, dnešních datech i tradingu); Roadmap (Tvoje cesta k disciplinovanému obchodování); Příručka (Slovníček a postup krok za krokem); Nastavení (Účet, riziko a výchozí hodnoty)
 
-DNEŠNÍ BIAS: Mírně bearish, skóre -4.9 z 10 (−10 až +10). Bias se ukládá do 15:00 a pak se už nemění.
-- složka Futures: -2.0 (váha 3.0) – Futures na Nasdaq a S&P 500 jsou v průměru −3,48 %.
+DNEŠNÍ BIAS: Mírně bearish, skóre -4.8 z 10 (−10 až +10). Bias se ukládá do 15:00 a pak se už nemění.
+- složka Futures: -2.0 (váha 3.0) – Futures na Nasdaq a S&P 500 jsou v průměru −2,64 %.
 - složka Šířka akcií: -0.8 (váha 2.0) – 7 z 23 největších akcií je v plusu.
 - složka Strach (VIX): -2.0 (váha 1.5) – VIX se změnil o +12,91 %. Růst strachu bývá pro akcie špatný.
 - složka Dolar: +0.5 (váha 0.5) – Dolarový index se změnil o −0,16 %. Silný dolar akciím spíš škodí.
 - složka Výnosy dluhopisů: +0.6 (váha 1.0) – Výnos 10letých dluhopisů se změnil o −1,20 %. Růst výnosů tlačí akcie dolů.
-- složka Trend futures: -2.0 (váha 1.0) – Cena je o +1,02 % pod průměrem posledního dne.
-- složka Zprávy: -1.0 (váha 1.0) – Nálada v titulcích zpráv za 24 hodin: skóre −2.6 z 5.
+- složka Trend futures: -1.8 (váha 1.0) – Cena je o +0,92 % pod průměrem posledního dne.
+- složka Zprávy: -1.1 (váha 1.0) – Nálada v titulcích zpráv za 24 hodin: skóre −2.7 z 5.
 - složka Sezónnost: +1.1 (váha 0.5) – V tomto měsíci Nasdaq 100 historicky průměrně +1,61 %.
 - složka Statistika: +1.0 (váha 1.0) – Statistiky trhu pro dnešek: 1 výrazných situací spíš nahoru, 0 spíš dolů.
 Přesnost biasu: 5 z 8 dní (62 %).
 Posledních 5 dní (bias → skutečný pohyb Nasdaqu): 2026-10-23 Mírně bearish → -0.00 %; 2026-10-26 Mírně bullish → +1.09 %; 2026-10-27 Mírně bullish → +1.29 %; 2026-10-28 Neutrální → +0.55 %; 2026-10-29 Mírně bearish → -1.38 %
 
-SENTIMENT ZPRÁV (24 h): skóre -2.6 z 5, bearish.
+SENTIMENT ZPRÁV (24 h): skóre -2.7 z 5, bearish.
 - Anthropic's path to the Nasdaq just got a lot bumpier (CNBC)
 - Trump called out Big Oil profits. Here’s how much their refining earnings have surged since (CNBC)
 - Treasury Department announces new Series I bond rate of 5.51% for the next six months (CNBC)
