@@ -1,4 +1,4 @@
-Datum a čas aktualizace: 2. 11. 2026 15:20 (pražský čas). Obchoduje se MNQ (Micro Nasdaq futures), 1 bod = 2 $. Seance v New Yorku 9:30–16:00 = u nás obvykle 15:30–22:00.
+Datum a čas aktualizace: 2. 11. 2026 16:30 (pražský čas). Obchoduje se MNQ (Micro Nasdaq futures), 1 bod = 2 $. Seance v New Yorku 9:30–16:00 = u nás obvykle 15:30–22:00.
 
 STRÁNKY WEBU:
 - Dnes: Přehled (Ranní souhrn trhu v kostce)
@@ -11,26 +11,26 @@ STRÁNKY WEBU:
 - Knihy: Knihy o tradingu (Hlavní myšlenky slavných knih o tradingu a psychologii)
 - Učení a nastavení: AI asistent (Zeptej se na cokoliv o webu, dnešních datech i tradingu); Roadmap (Tvoje cesta k disciplinovanému obchodování); Příručka (Slovníček a postup krok za krokem); Nastavení (Účet, riziko a výchozí hodnoty)
 
-DNEŠNÍ BIAS: Mírně bullish, skóre +3.2 z 10 (−10 až +10). Bias se ukládá do 15:00 a pak se už nemění.
-- složka Futures: +1.7 (váha 3.0) – Futures na Nasdaq a S&P 500 jsou v průměru +0,67 %.
-- složka Šířka akcií: -0.6 (váha 2.0) – 8 z 23 největších akcií je v plusu.
-- složka Strach (VIX): +0.3 (váha 1.5) – VIX se změnil o −1,65 %. Růst strachu bývá pro akcie špatný.
-- složka Dolar: +0.8 (váha 0.5) – Dolarový index se změnil o −0,25 %. Silný dolar akciím spíš škodí.
-- složka Výnosy dluhopisů: +0.3 (váha 1.0) – Výnos 10letých dluhopisů se změnil o −0,51 %. Růst výnosů tlačí akcie dolů.
-- složka Trend futures: +0.6 (váha 1.0) – Cena je o +0,32 % nad průměrem posledního dne.
-- složka Zprávy: -0.4 (váha 1.0) – Nálada v titulcích zpráv za 24 hodin: skóre −1.0 z 5.
-- složka Sezónnost: +2.0 (váha 0.5) – V tomto měsíci Nasdaq 100 historicky průměrně +2,97 %.
+DNEŠNÍ BIAS: Mírně bullish, skóre +4.4 z 10 (−10 až +10). Bias se ukládá do 15:00 a pak se už nemění.
+- složka Futures: +1.4 (váha 3.0) – Futures na Nasdaq a S&P 500 jsou v průměru +0,56 %.
+- složka Šířka akcií: +1.1 (váha 2.0) – 18 z 23 největších akcií je v plusu.
+- složka Strach (VIX): +0.7 (váha 1.5) – VIX se změnil o −3,50 %. Růst strachu bývá pro akcie špatný.
+- složka Dolar: +0.8 (váha 0.5) – Dolarový index se změnil o −0,23 %. Silný dolar akciím spíš škodí.
+- složka Výnosy dluhopisů: +0.5 (váha 1.0) – Výnos 10letých dluhopisů se změnil o −0,91 %. Růst výnosů tlačí akcie dolů.
+- složka Trend futures: +0.2 (váha 1.0) – Cena je o +0,11 % nad průměrem posledního dne.
+- složka Zprávy: -0.5 (váha 1.0) – Nálada v titulcích zpráv za 24 hodin: skóre −1.2 z 5.
+- složka Sezónnost: +2.0 (váha 0.5) – V tomto měsíci Nasdaq 100 historicky průměrně +3,38 %.
 - složka Statistika: +1.0 (váha 1.0) – Statistiky trhu pro dnešek: 1 výrazných situací spíš nahoru, 0 spíš dolů.
 Přesnost biasu: 6 z 9 dní (67 %).
 Posledních 5 dní (bias → skutečný pohyb Nasdaqu): 2026-10-26 Mírně bullish → +1.09 %; 2026-10-27 Mírně bullish → +1.29 %; 2026-10-28 Neutrální → +0.55 %; 2026-10-29 Mírně bearish → -1.38 %; 2026-10-30 Bearish → -3.46 %
 
-SENTIMENT ZPRÁV (24 h): skóre -1.0 z 5, bearish.
-- Crude oil dives to session low on Iran peace talk hopes ahead of midterms (CNBC)
+SENTIMENT ZPRÁV (24 h): skóre -1.2 z 5, bearish.
 - Marvell to buy Lumentum in all-stock deal, a massive bet on AI connectivity (CNBC)
+- Anthropic reports $17 billion in Q3 revenue, purchase commitments of $895.4 billion in revised S-1 (CNBC)
+- Crude oil dives to session low on Iran peace talk hopes ahead of midterms (CNBC)
 - Defense, healthcare, crypto and AI: How the midterm election could affect stocks (CNBC)
-- Oracle files to sell $20 billion in new stock, bonds to finance AI buildout (CNBC)
 - Canada-India $5.5 billion bank takeover attracts opposition from workers, politicians (CNBC)
-- Connecticut Sen. Chris Murphy hospitalized after stroke, office says (CNBC)
+- Oracle files to sell $20 billion in new stock, bonds to finance AI buildout (CNBC)
 
 KALENDÁŘ ZPRÁV Z USA (nejbližší):
 - Mon 2. 11. 16:00: ISM Manufacturing PMI (dopad střední, očekávání 54.5, minule 54.5)
