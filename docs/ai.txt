@@ -1,4 +1,4 @@
-Datum a čas aktualizace: 8. 11. 2026 18:39 (pražský čas). Obchoduje se MNQ (Micro Nasdaq futures), 1 bod = 2 $. Seance v New Yorku 9:30–16:00 = u nás obvykle 15:30–22:00.
+Datum a čas aktualizace: 8. 11. 2026 19:09 (pražský čas). Obchoduje se MNQ (Micro Nasdaq futures), 1 bod = 2 $. Seance v New Yorku 9:30–16:00 = u nás obvykle 15:30–22:00.
 
 STRÁNKY WEBU:
 - Dnes: Přehled (Ranní souhrn trhu v kostce)
@@ -26,11 +26,11 @@ Posledních 5 dní (bias → skutečný pohyb Nasdaqu): 2026-10-30 Bearish → -
 
 SENTIMENT ZPRÁV (24 h): skóre -1.6 z 5, bearish.
 - How Democrats will try to end Trump's tariffs (CNBC)
-- Cathie Wood 'always feels better when the market is worried' — here's why (CNBC)
+- Nvidia CEO Jensen Huang faces bipartisan congressional scrutiny over reported China spy link (CNBC)
 - Using miles to fly for Thanksgiving? These are the most expensive and cheapest routes (CNBC)
+- Cathie Wood 'always feels better when the market is worried' — here's why (CNBC)
 - Amazon's Astro home robot has fans but looks destined for the 'trash heap.' Why it's trying again (CNBC)
 - Poppi founders are going after PepsiCo's Gatorade with new beverage startup Jetty (CNBC)
-- Recent AI agent experiments reveal a risky future of machine 'teamwork' inside corporations (CNBC)
 
 KALENDÁŘ ZPRÁV Z USA (nejbližší):
 - Tue 10. 11. 10:00: FOMC Member Waller Speaks (dopad střední, očekávání –, minule –)
