@@ -1,4 +1,4 @@
-Datum a čas aktualizace: 6. 11. 2026 16:21 (pražský čas). Obchoduje se MNQ (Micro Nasdaq futures), 1 bod = 2 $. Seance v New Yorku 9:30–16:00 = u nás obvykle 15:30–22:00.
+Datum a čas aktualizace: 8. 11. 2026 12:35 (pražský čas). Obchoduje se MNQ (Micro Nasdaq futures), 1 bod = 2 $. Seance v New Yorku 9:30–16:00 = u nás obvykle 15:30–22:00.
 
 STRÁNKY WEBU:
 - Dnes: Přehled (Ranní souhrn trhu v kostce)
@@ -11,39 +11,41 @@ STRÁNKY WEBU:
 - Knihy: Knihy o tradingu (Hlavní myšlenky slavných knih o tradingu a psychologii)
 - Učení a nastavení: AI asistent (Zeptej se na cokoliv o webu, dnešních datech i tradingu); Roadmap (Tvoje cesta k disciplinovanému obchodování); Příručka (Slovníček a postup krok za krokem); Nastavení (Účet, riziko a výchozí hodnoty)
 
-DNEŠNÍ BIAS: Mírně bullish, skóre +4.5 z 10 (−10 až +10). Bias se ukládá do 15:00 a pak se už nemění.
-- složka Futures: +2.0 (váha 3.0) – Futures na Nasdaq a S&P 500 jsou v průměru +1,28 %.
+DNEŠNÍ BIAS: Mírně bullish, skóre +3.8 z 10 (−10 až +10). Bias se ukládá do 15:00 a pak se už nemění.
+- složka Futures: +1.9 (váha 3.0) – Futures na Nasdaq a S&P 500 jsou v průměru +0,75 %.
 - složka Šířka akcií: +0.1 (váha 2.0) – 12 z 23 největších akcií je v plusu.
-- složka Strach (VIX): +2.0 (váha 1.5) – VIX se změnil o −11,53 %. Růst strachu bývá pro akcie špatný.
-- složka Dolar: -2.0 (váha 0.5) – Dolarový index se změnil o +0,59 %. Silný dolar akciím spíš škodí.
-- složka Výnosy dluhopisů: -0.3 (váha 1.0) – Výnos 10letých dluhopisů se změnil o +0,60 %. Růst výnosů tlačí akcie dolů.
-- složka Trend futures: +1.4 (váha 1.0) – Cena je o +0,68 % nad průměrem posledního dne.
-- složka Zprávy: -0.9 (váha 1.0) – Nálada v titulcích zpráv za 24 hodin: skóre −2.2 z 5.
+- složka Strach (VIX): +1.8 (váha 1.5) – VIX se změnil o −9,01 %. Růst strachu bývá pro akcie špatný.
+- složka Dolar: -2.0 (váha 0.5) – Dolarový index se změnil o +0,74 %. Silný dolar akciím spíš škodí.
+- složka Výnosy dluhopisů: -0.2 (váha 1.0) – Výnos 10letých dluhopisů se změnil o +0,45 %. Růst výnosů tlačí akcie dolů.
+- složka Trend futures: +0.2 (váha 1.0) – Cena je o +0,11 % nad průměrem posledního dne.
+- složka Zprávy: -0.8 (váha 1.0) – Nálada v titulcích zpráv za 24 hodin: skóre −2.1 z 5.
 - složka Sezónnost: +2.0 (váha 0.5) – V tomto měsíci Nasdaq 100 historicky průměrně +3,38 %.
+- složka Statistika: +1.0 (váha 1.0) – Statistiky trhu pro dnešek: 1 výrazných situací spíš nahoru, 0 spíš dolů.
 Přesnost biasu: 7 z 13 dní (54 %).
 Posledních 5 dní (bias → skutečný pohyb Nasdaqu): 2026-10-30 Bearish → -3.46 %; 2026-11-02 Mírně bullish → -1.39 %; 2026-11-03 Neutrální → +0.68 %; 2026-11-04 Mírně bullish → +0.91 %; 2026-11-05 Neutrální → -6.36 %
 
-SENTIMENT ZPRÁV (24 h): skóre -2.2 z 5, bearish.
-- U.S. economy added 165,000 jobs in October, way more than expected; unemployment rate slips to 4.1% (CNBC)
-- Wall Street's fear gauge may be flashing a buy sign (CNBC)
-- Watch live: Jim Cramer shares his next investing moves for this tough market (CNBC)
-- Democratic sweep gives markets a reason to rethink path of interest rates (CNBC)
-- Tesla to wind down Cybertruck production in Texas next year to ramp Cybercab, Musk says (CNBC)
-- Nasdaq drops into correction territory — here’s what typically happens next (CNBC)
+SENTIMENT ZPRÁV (24 h): skóre -2.1 z 5, bearish.
+- Cathie Wood 'always feels better when the market is worried' — here's why (CNBC)
+- Trump offers UFC chief Dana White press secretary job (CNBC)
+- In pictures: France protests draw 146,000 as clashes erupt for fourth straight weekend (CNBC)
+- Berkshire Hathaway more than doubles buybacks in third quarter as earnings decline (CNBC)
+- Meta chief strategy officer Dave Wehner leaves to join AI infrastructure startup Fireworks as CFO (CNBC)
+- Mark Cuban says he doesn’t ‘give a f---' about growing his net worth—a healthy mindset for non-billionaires too, a financial therapist says (CNBC)
 
 KALENDÁŘ ZPRÁV Z USA (nejbližší):
-- Fri 6. 11. 14:30: Average Hourly Earnings m/m (dopad vysoký, očekávání 0.3%, minule 0.1%)
-- Fri 6. 11. 14:30: Non-Farm Employment Change (dopad vysoký, očekávání 65K, minule 29K)
-- Fri 6. 11. 14:30: Unemployment Rate (dopad vysoký, očekávání 4.2%, minule 4.2%)
-- Fri 6. 11. 16:00: Prelim UoM Consumer Sentiment (dopad střední, očekávání 48.1, minule 46.3)
-- Fri 6. 11. 16:00: Prelim UoM Inflation Expectations (dopad střední, očekávání –, minule 4.7%)
+- Tue 10. 11. 10:00: FOMC Member Waller Speaks (dopad střední, očekávání –, minule –)
+- Tue 10. 11. 14:30: Core CPI m/m (dopad vysoký, očekávání 0.2%, minule 0.3%)
+- Tue 10. 11. 14:30: CPI m/m (dopad vysoký, očekávání 0.3%, minule 0.6%)
+- Thu 12. 11. 14:30: Unemployment Claims (dopad střední, očekávání 194K, minule 189K)
+- Fri 13. 11. 14:30: Core PPI m/m (dopad vysoký, očekávání 0.3%, minule 0.7%)
+- Fri 13. 11. 14:30: PPI m/m (dopad vysoký, očekávání 0.4%, minule 1.3%)
 
-STATISTIKY TRHU pro dnešek: 0 výrazných situací spíš nahoru, 0 spíš dolů (po zkoušce naživo).
-Archiv Nasdaqu: 1260 dní, Nasdaq rostl v 54 % dní.
-Běžný denní rozsah (medián 250 dní): 346 bodů, klidný den 248, divoký 472. Posledních 20 dní průměr 474 bodů.
+STATISTIKY TRHU pro dnešek: 1 výrazných situací spíš nahoru, 0 spíš dolů (po zkoušce naživo).
+Archiv Nasdaqu: 1261 dní, Nasdaq rostl v 54 % dní.
+Běžný denní rozsah (medián 250 dní): 346 bodů, klidný den 248, divoký 472. Posledních 20 dní průměr 486 bodů.
 Nejživější hodiny (pražský čas): 15:00 (167 b.), 16:00 (163 b.), 17:00 (125 b.)
-Seance prorazí noční maximum v 55 % dní, noční minimum v 47 % (53 dní).
-Souvislosti trhů: za 20 dní Nasdaq -13.62 %, S&P 500 -5.54 %.
+Seance prorazí noční maximum v 56 % dní, noční minimum v 46 % (54 dní).
+Souvislosti trhů: za 20 dní Nasdaq -12.93 %, S&P 500 -5.82 %.
 
 JAK FUNGUJE ROBOT: strategie uživatele (ICT MNQ v40, modely 5m CISD, continuation, zóna+iFVG) běží v TradingView a posílá obchody přes webhook do Cloudflare. Stránka Robot ukazuje obchody, výsledky a co se robot naučil: hledá situace, ve kterých prodělává, a vynechává je. Učí se i z biasu, sentimentu, fundamentu, kalendáře, statistik, mentora a stavu trhu.
 PLÁN OD MENTORA: uživatel nahrává fotku nebo screenshot od mentora a opisuje zóny (cena od–do, odraz nahoru/dolů). Zóny se vyhodnotí jako fungovala / nefungovala / nedotkla se.
