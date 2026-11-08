@@ -3,7 +3,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Backtest deník</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=97"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}window.TDux=function(){try{var u=JSON.parse(localStorage.getItem("ux")||"{}"),c="",F={sys:"-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif",read:"Atkinson Hyperlegible,Verdana,sans-serif",serif:"Newsreader,Georgia,serif",round:"Nunito,Arial Rounded MT Bold,sans-serif",mono:"JetBrains Mono,Menlo,Consolas,monospace"},G={read:"Atkinson+Hyperlegible:wght@400;700",round:"Nunito:wght@400;600;700;800",mono:"JetBrains+Mono:wght@400;600;700"};if(F[u.f]){c+="body,body *{font-family:"+F[u.f]+"!important}";if(G[u.f]&&!document.getElementById("uxf-"+u.f)){var l=document.createElement("link");l.id="uxf-"+u.f;l.rel="stylesheet";l.href="https://fonts.googleapis.com/css2?family="+G[u.f]+"&display=swap";document.head.appendChild(l)}}if(u.z&&u.z!=1)c+="html{zoom:"+u.z+"}";var A={blue:["#38BDF8","#6366F1"],green:["#2EE6A6","#0EA5E9"],orange:["#FFB547","#FF6B8A"],pink:["#F472B6","#8B7CFF"],gold:["#E8C26A","#B9812C"],red:["#FF6B8A","#B91C1C"]};if(A[u.a])c+=":root{--acc:"+A[u.a][0]+"!important}button{background-image:linear-gradient(135deg,"+A[u.a][0]+","+A[u.a][1]+")}h2::before,.side a.on,.side a[aria-current]{border-color:"+A[u.a][0]+"!important}";if(u.bg===0)c+="body::before,body::after{background-image:none!important;opacity:0!important}";if(u.op!=null){var a=Math.max(0,Math.min(1,1-u.op/100)).toFixed(2),K=["section",".tile",".k",".p"];c+=K.map(function(x){return "html:not([data-theme=light]) "+x}).join(",")+"{background:rgba(16,22,40,"+a+")!important}";c+=K.map(function(x){return "html[data-theme=light] "+x}).join(",")+"{background:rgba(255,255,255,"+a+")!important}";if(u.op<=40)c+="section,.tile,.k,.p{backdrop-filter:none!important}"}if(u.bi!=null&&u.bg!==0){var v=(u.bi/100).toFixed(2);c+="html:not([data-theme=light]) body::before{filter:opacity("+v+")}html[data-theme=light] body::before{filter:invert(1) opacity("+v+")}"}if(u.an===0)c+="*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}";if(u.lh)c+="p,li,td,.hint,.facts li{line-height:1.8!important}";if(u.b)c+="body{font-weight:500}b,strong,h1,h2,h3{font-weight:800!important}";var s=document.getElementById("uxs")||document.createElement("style");s.id="uxs";s.textContent=c;document.head.appendChild(s)}catch(e){}};TDux();document.addEventListener("DOMContentLoaded",TDux);</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><style>
+<link rel="stylesheet" href="style.css?v=100"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}window.TDux=function(){try{var u=JSON.parse(localStorage.getItem("ux")||"{}"),c="",F={sys:"-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif",read:"Atkinson Hyperlegible,Verdana,sans-serif",serif:"Newsreader,Georgia,serif",round:"Nunito,Arial Rounded MT Bold,sans-serif",mono:"JetBrains Mono,Menlo,Consolas,monospace"},G={read:"Atkinson+Hyperlegible:wght@400;700",round:"Nunito:wght@400;600;700;800",mono:"JetBrains+Mono:wght@400;600;700"};if(F[u.f]){c+="body,body *{font-family:"+F[u.f]+"!important}";if(G[u.f]&&!document.getElementById("uxf-"+u.f)){var l=document.createElement("link");l.id="uxf-"+u.f;l.rel="stylesheet";l.href="https://fonts.googleapis.com/css2?family="+G[u.f]+"&display=swap";document.head.appendChild(l)}}if(u.z&&u.z!=1)c+="html{zoom:"+u.z+"}";var A={blue:["#38BDF8","#6366F1"],green:["#2EE6A6","#0EA5E9"],orange:["#FFB547","#FF6B8A"],pink:["#F472B6","#8B7CFF"],gold:["#E8C26A","#B9812C"],red:["#FF6B8A","#B91C1C"]};if(A[u.a])c+=":root{--acc:"+A[u.a][0]+"!important}button{background-image:linear-gradient(135deg,"+A[u.a][0]+","+A[u.a][1]+")}h2::before,.side a.on,.side a[aria-current]{border-color:"+A[u.a][0]+"!important}";if(u.bg===0)c+="body::before,body::after{background-image:none!important;opacity:0!important}";if(u.op!=null){var a=Math.max(0,Math.min(1,1-u.op/100)).toFixed(2),K=["section",".tile",".k",".p"];c+=K.map(function(x){return "html:not([data-theme=light]) "+x}).join(",")+"{background:rgba(16,22,40,"+a+")!important}";c+=K.map(function(x){return "html[data-theme=light] "+x}).join(",")+"{background:rgba(255,255,255,"+a+")!important}";if(u.op<=40)c+="section,.tile,.k,.p{backdrop-filter:none!important}"}if(u.bi!=null&&u.bg!==0){var v=(u.bi/100).toFixed(2);c+="html:not([data-theme=light]) body::before{filter:opacity("+v+")}html[data-theme=light] body::before{filter:invert(1) opacity("+v+")}"}if(u.an===0)c+="*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}";if(u.lh)c+="p,li,td,.hint,.facts li{line-height:1.8!important}";if(u.b)c+="body{font-weight:500}b,strong,h1,h2,h3{font-weight:800!important}";var s=document.getElementById("uxs")||document.createElement("style");s.id="uxs";s.textContent=c;document.head.appendChild(s)}catch(e){}};TDux();document.addEventListener("DOMContentLoaded",TDux);</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><style>
 #f .grid{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}#f .grid>label{min-width:0}#f select,#f input{width:100%;min-width:0;text-overflow:ellipsis}#f input[type=checkbox]{width:auto;flex:none;margin:0}#f .chip{white-space:nowrap;display:inline-flex}
 #f .sec{margin:20px 0 8px;padding-top:12px;border-top:1px solid var(--rule);font-size:16px}#f .sec:first-of-type{border-top:0;margin-top:6px;padding-top:0}
 #f label em{font-style:normal;color:var(--acc);font-weight:600}
@@ -341,7 +341,7 @@ window.TDme=function(){
   // ===== SYNCHRONIZACE CELÉ APLIKACE PŘES CLOUDFLARE (v94): obchody, dny bez obchodu, nastavení =====
   var DEF = "https://kompas-robot.user-testingtomino39.workers.dev";
   var DBS = [["journal", "trades"], ["backtest", "trades"], ["journal_skips", "days"], ["backtest_skips", "days"]];
-  var LSRE = /^(jr:(pb|missed|rev|day:)|bt:(missed|rev)|plan:|eve:|rit:|mood:|hol[wb]:|roadmap$|settings$|defStop35$|pauseMin$|discordUrl$|elderCalc$|zone20$|bkchk:|bkform:|nqmode$)/;
+  var LSRE = /^(jr:(pb|missed|rev|day:|accts)|bt:(missed|rev)|plan:|eve:|rit:|mood:|hol[wb]:|roadmap$|settings$|defStop35$|pauseMin$|discordUrl$|elderCalc$|zone20$|bkchk:|bkform:|nqmode$)/;
   var gl = function (k, d) { try { var v = localStorage.getItem(k); return v == null ? d : v; } catch (e) { return d; } };
   var sl = function (k, v) { try { localStorage.setItem(k, v); } catch (e) {} };
   var gj = function (k, d) { try { var v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
@@ -588,8 +588,8 @@ if(cur!=="cs"){cookie(cur);
 <div class="dgrid"><section class="p"><h2>Vývoj zisku</h2><div id="curve"></div></section>
 <section class="p"><h2>Výsledek po dnech</h2><div class="chartbox"><canvas id="c-day"></canvas></div></section></div>
 <style>.mg{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:0 0 18px}.mg>.p{margin:0}@media(max-width:1000px){.mg{grid-template-columns:1fr}}.mrow{display:grid;grid-template-columns:minmax(84px,1fr) minmax(60px,1.15fr) 96px 64px 78px;gap:10px;align-items:center;padding:7px 0;font-size:15px}.mrow.mh{font-size:12px;color:var(--muted);padding:0 0 4px;font-weight:600}.mrow>:nth-child(n+3){text-align:right;font-variant-numeric:tabular-nums}.mbar{position:relative;height:14px;border-radius:5px;background:var(--field)}.mbar:after{content:"";position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--rule)}.mbar i{position:absolute;top:2px;bottom:2px;border-radius:3px}.mbar i.up{left:50%;background:var(--up)}.mbar i.down{right:50%;background:var(--down)}.mtip{margin:14px 0 0;font-size:14px;color:var(--muted);line-height:1.5}.mtip b{color:var(--ink)}.minst{display:flex;gap:22px;align-items:center;flex-wrap:wrap}.mdonut{width:150px;height:150px;flex:none}.mdt{font-size:22px;font-weight:700;fill:var(--ink)}.mds{font-size:11px;fill:var(--muted)}.milist{flex:1;min-width:230px}.mi{display:grid;grid-template-columns:12px 1fr 58px 86px;gap:8px;align-items:center;padding:5px 0;font-size:15px}.mi em{font-style:normal;color:var(--muted);font-size:12.5px;margin-left:4px}.mdot{width:10px;height:10px;border-radius:50%}.mr{text-align:right;font-variant-numeric:tabular-nums}.mbeh{display:flex;justify-content:space-between;gap:14px;align-items:center;padding:12px 0;border-top:1px solid var(--rule);font-size:15px}.mbeh:first-child{border-top:0;padding-top:4px}.mbeh small{display:block;color:var(--muted);font-size:12.5px;margin-top:2px}.mbeh>b{white-space:nowrap;text-align:right}@media(max-width:560px){.mrow{grid-template-columns:minmax(70px,1fr) 88px 48px 62px;font-size:14px}.mrow>:nth-child(2){display:none}.mi{grid-template-columns:12px 1fr 50px 76px;font-size:14px}}</style><div class="mg" id="m-over"></div>
-<section class="p" id="sk-sec"><h2>Dny bez obchodu</h2><p class="hint">Dny, kdy jsi backtestoval, ale obchod nevzal, protože podmínky nebyly dobré. U každého je fotka grafu.</p><div id="sk-stats"></div><div id="sk-list"></div></section>
-<section class="p"><div class="calhead"><button class="ghost sm" onclick="mv(-1)" aria-label="Předchozí měsíc">‹</button><b id="calt"></b><button class="ghost sm" onclick="mv(1)" aria-label="Další měsíc">›</button><span id="calsum"></span></div><div class="cal" id="cal"></div></section></div>
+<section class="p"><div class="calhead"><button class="ghost sm" onclick="mv(-1)" aria-label="Předchozí měsíc">‹</button><b id="calt"></b><button class="ghost sm" onclick="mv(1)" aria-label="Další měsíc">›</button><span id="calsum"></span></div><div class="cal" id="cal"></div></section>
+<section class="p" id="sk-sec"><h2>Dny bez obchodu</h2><p class="hint">Dny, kdy jsi backtestoval, ale obchod nevzal, protože podmínky nebyly dobré. U každého je fotka grafu.</p><div id="sk-stats"></div><div id="sk-list"></div></section></div>
 
 <div id="t-trades" hidden><section class="p"><h2>Otevřené pozice</h2><div id="open"></div></section>
 <section class="p"><h2>Všechny obchody</h2><div class="bulk" id="bulk">Vybráno: <b id="bn">0</b><select id="bstrat"></select><button type="button" id="bapply">Nastavit strategii</button><button type="button" class="ghost" id="bdel">Smazat vybrané</button></div><div id="list"></div>
@@ -609,13 +609,13 @@ if(cur!=="cs"){cookie(cur);
 <section class="p"><h2>Hodnocení tvého obchodování</h2><p class="hint">Hodnotí pravidla v prohlížeči zdarma, bez umělé inteligence. Pro hlubší rozbor zmáčkni tlačítko dole a vlož data do chatu s Claudem.</p><div id="coach"></div></section>
 <div class="mg" id="m-ai"></div>
 <section class="p"><div class="two"><div><h2>Skóre tradera</h2><div class="chartbox" style="height:300px"><canvas id="c-radar"></canvas></div></div>
-<div><h2>S trendem a proti trendu</h2><div id="trendbars"></div><h2 style="margin-top:18px">S fundamentem a proti němu</h2><p class="hint">Porovnává tvůj směr s ranním biasem, který robot uložil ten den.</p><div id="alignbars"></div></div></div></section>
+<div><h2>S trendem, proti trendu a v konsolidaci</h2><div id="trendbars"></div><h2 style="margin-top:18px">S fundamentem a proti němu</h2><p class="hint">Porovnává tvůj směr s ranním biasem, který robot uložil ten den.</p><div id="alignbars"></div></div></div></section>
 <section class="p"><h2>Roční přehled</h2><div class="chartbox" style="height:240px"><canvas id="c-year"></canvas></div><div id="yeartab" style="margin-top:12px"></div></section>
 <section class="p"><h2>Účty</h2><div id="accbars"></div></section>
 <section class="p"><h2>Import a data pro Claude</h2><div class="row"><button class="ghost" id="csvb" type="button">Importovat obchody z CSV</button><input id="csvf" type="file" accept=".csv,text/csv" hidden><button id="cp" type="button">Zkopírovat data pro Claude</button></div>
 <p class="empty">CSV musí mít hlavičku se sloupci: datum, symbol, smer, kontrakty, vstup, vystup, stop (stop je nepovinný). Zkopírovaná data vlož do chatu na claude.ai a napiš: „Rozeber mi můj deník.“</p><p id="cpmsg" class="empty"></p></section></div>
-<div id="t-disc" hidden><section class="p"><h2>Tiltmeter: křivka účtu a dodržování plánu</h2><div id="d-tilt"></div></section><section class="p"><h2>Cena obchodů mimo plán</h2><div id="d-leak"></div></section><section class="p"><h2>Emoce a chyby v penězích</h2><div id="d-emoc"></div></section><section class="p"><h2>Zmeškané obchody (čekání je taky výsledek)</h2><div id="d-miss"></div></section><section class="p"><h2>Rozbor týdne</h2><div id="d-rev"></div></section><section class="p"><h2>Strategie a konfluence</h2><div id="d-pb"></div></section></div>
-<footer><p>Verze stránky (verze 97).</p></footer></main></div></div>
+<div id="t-disc" hidden><section class="p"><h2>Tiltmeter: křivka účtu a dodržování plánu</h2><div id="d-tilt"></div></section><section class="p"><h2>Cena obchodů mimo plán</h2><div id="d-leak"></div></section><section class="p"><h2>Emoce a chyby v penězích</h2><div id="d-emoc"></div></section><section class="p"><h2>Zmeškané obchody (čekání je taky výsledek)</h2><div id="d-miss"></div></section><section class="p"><h2>Rozbor týdne</h2><div id="d-rev"></div></section><section class="p"><h2>Strategie a konfluence</h2><div id="d-pb"></div></section><section class="p"><h2>Moje účty</h2><div id="d-acc"></div></section></div>
+<footer><p>Verze stránky (verze 100).</p></footer></main></div></div>
 
 <dialog id="dlg"><form id="f"><h2 id="dt">Nový obchod</h2><input type="hidden" name="id">
 <h3 class="sec">1. Zápis obchodu: vstup</h3>
@@ -624,10 +624,10 @@ if(cur!=="cs"){cookie(cur);
 <label>Instrument<input name="inst" value="MNQ" required></label><label>Směr<select name="dir"><option value="long">Long</option><option value="short">Short</option></select></label>
 <label>Počet mikro kontraktů<input name="size" type="number" step="1" min="1" value="1"></label><label>Vzdálenost stopu (body)<input id="sd" type="number" step="any" value="35"></label><input name="pv" type="hidden">
 <label id="tfw">Timeframe vstupu<select name="tfm"><option value="">–</option><option value="1m">1 minuta</option><option value="2m">2 minuty</option><option value="3m">3 minuty</option><option value="5m">5 minut</option><option value="15m">15 minut</option></select></label>
-<label>Typ vstupu<select name="otype"><option value="">–</option><option value="market">Market</option><option value="limit">Limit</option><option value="stop">Stop (průraz)</option></select></label><label>Vstup (cena)<input name="entry" type="number" step="any" required></label>
+<label>Typ vstupu<select name="otype"><option value="">–</option><option value="market">Market</option><option value="limit">Limit</option></select></label><label>Vstup (cena)<input name="entry" type="number" step="any" required></label>
 <label>Stop loss<input name="stop" type="number" step="any" required></label>
 <label>Take profit 1 <em id="r1"></em><input name="target" type="number" step="any" required></label><label>Take profit 2 <em id="r2"></em><input name="target2" type="number" step="any"></label>
-<label>Strategie<select name="strat" id="strat"></select></label><label>Trend dne<select name="trend"><option value="">–</option><option value="with">S trendem</option><option value="against">Proti trendu</option></select></label><label>Účet<input name="acc" value="Hlavní" list="accs"></label></div>
+<label>Strategie<select name="strat" id="strat"></select></label><label>Trend dne<select name="trend"><option value="">–</option><option value="with">S trendem</option><option value="against">Proti trendu</option><option value="range">Konsolidace</option></select></label><label>Účet<select name="acc"></select></label></div>
 <p class="empty" id="tfnote" style="margin:6px 0 0;display:none">Nejnižší timeframe je 1 minuta. Timeframey 15 s a 30 s tu nejsou, protože v minulosti je TradingView nezobrazí.</p><p class="empty" id="pbnote" style="margin:6px 0 0"></p><p class="empty" style="margin:4px 0 0">Strategii i s jejími podmínkami a konfluencemi si nastavíš v záložce Disciplína → Strategie. Po jejím výběru se checklist vyplní sám.</p><datalist id="accs"></datalist>
 <p class="empty" id="entrynote" style="margin:8px 0 0"></p><div class="note" id="rr" style="margin-top:12px">Zadej vstupní cenu a stop loss i oba take profity se doplní samy.</div>
 <details class="mdl" open><summary>Vstupní model: checklist (co platilo při vstupu)</summary>
@@ -671,7 +671,7 @@ if (window.Chart) { const LIGHT = document.documentElement.getAttribute("data-th
 if (window.Chart) Chart.register({id: "cross", afterDraw(c) { if (c.config.type === "line" && c.tooltip && c.tooltip._active && c.tooltip._active.length) { const x = c.tooltip._active[0].element.x, a = c.chartArea, g = c.ctx; g.save(); g.beginPath(); g.moveTo(x, a.top); g.lineTo(x, a.bottom); g.lineWidth = 1; g.strokeStyle = "rgba(255,255,255,.28)"; g.setLineDash([4, 4]); g.stroke(); g.restore(); } }});
 const BT = true; let calSet = false;
 const S = "trades", EMO = [["😌","Klid"],["💪","Sebevědomí"],["🏃","FOMO"],["🤑","Chamtivost"],["😨","Strach"],["😡","Revenge"],["⏱️","Netrpělivost"],["😕","Nejistota"],["🤯","Tilt"],["😴","Nuda"]];
-const MIS = ["Brzký vstup","Pozdní vstup","Přesunutý stop","Předčasný výstup","Přeobchodování","Bez setupu","Bez korelace s ES","Uzavřel skrz BE","Vstup mezi 18. a 19. hodinou","FOMO","Revenge obchod","Moc velká pozice"];
+const MIS = ["Brzký vstup","Pozdní vstup","Přesunutý stop","Předčasný výstup","Přeobchodování","Bez korelace s ES","Uzavřel skrz BE","Vstup mezi 18. a 19. hodinou","FOMO","Revenge obchod","Moc velká pozice"];
 const lsGet = k => { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } };
 const PV = {NQ:20, MNQ:2, ES:50, MES:5, YM:5, MYM:0.5};
 let touched = {}, dist = null, dayc = null, eq = null, db, shots = [], calD = new Date(), E = Object.create(null);
@@ -876,6 +876,58 @@ function mstats(all) {
     mcard("Podle doby držení", noHold ? `Jen obchody s vyplněným časem vstupu i výstupu (${d.length - noHold} z ${d.length})` : "Jak dlouho byl obchod otevřený", mtab(hRows), mtip(hRows, "Doba držení")) +
     mcard("Chování", "Vzorce, které často stojí peníze", behHtml, behTip || few);
 }
+/* ===== Účty (prop firmy) – zakládají se jako strategie, vybírají se u obchodu (v100) ===== */
+const ACCST = {run: "🟢 Běží", pass: "🏁 Prošel", funded: "💰 Funded / výplata", burn: "🔥 Spálený", end: "⏹ Ukončený"};
+const accAll = () => LS.get("jr:accts", []);
+const accSave = a => LS.set("jr:accts", a);
+const accName = a => "Účet " + a.n;
+const accFull = a => accName(a) + (a.firm ? " · " + a.firm : "") + (a.size ? " · " + a.size : "");
+function fillAcc(cur) {
+  const A = accAll().slice().sort((a, b) => (a.st === "run" ? 0 : 1) - (b.st === "run" ? 0 : 1) || b.n - a.n), names = A.map(accName);
+  const legacy = [...new Set(ALL.map(t => t.acc).filter(x => x && !names.includes(x)))];
+  if (cur && !names.includes(cur) && !legacy.includes(cur)) legacy.push(cur);
+  const sel = $("f").elements.acc;
+  sel.innerHTML = (A.length ? "" : '<option value="">– vyber účet –</option>') +
+    A.map(a => `<option value="${esc(accName(a))}">${esc(accFull(a))}${a.st && a.st !== "run" ? " (" + esc((ACCST[a.st] || "").replace(/^\S+\s/, "")) + ")" : ""}</option>`).join("") +
+    legacy.map(x => `<option value="${esc(x)}">${esc(x)}</option>`).join("") + '<option value="__new__">➕ Nový účet…</option>';
+  const run = A.find(a => a.st === "run");
+  sel.value = cur && [...sel.options].some(o => o.value === cur) ? cur : run ? accName(run) : (sel.options[0] ? sel.options[0].value : "");
+  sel.dataset.prev = sel.value;
+}
+function accNew(firm) { const A = accAll(), n = A.reduce((m, a) => Math.max(m, a.n), 0) + 1; const a = {n, firm: firm || "", size: "", start: localNow().slice(0, 10), end: "", st: "run", note: ""}; A.push(a); accSave(A); return a; }
+function accHtml(closed) {
+  const A = accAll().slice().sort((a, b) => b.n - a.n), firms = [...new Set(A.map(a => a.firm).filter(Boolean))];
+  const rows = A.map(a => { const l = closed.filter(t => t.acc === accName(a)), s = st(l);
+    const per = (a.start ? a.start.split("-").reverse().join(". ") : "?") + " – " + (a.end ? a.end.split("-").reverse().join(". ") : "dosud");
+    return rowH([`<b>${esc(accName(a))}</b><br><span class="empty">${esc(a.firm || "–")}${a.size ? " · " + esc(a.size) : ""}</span>${a.note ? `<br><span class="empty">${esc(a.note)}</span>` : ""}`, per, esc(ACCST[a.st] || ACCST.run), s.n, cs(s.net),
+      `<button class="ghost sm" data-ace="${a.n}">Upravit</button> <button class="ghost sm" data-acd="${a.n}">Smazat</button>`]); });
+  return `<p class="hint">Založ si každý účet jednou: číslo se dá samo, vyplníš firmu, velikost, kdy začal a jak skončil. U obchodu pak účet jen vybereš.</p>
+<input type="hidden" id="ac-id"><div class="grid"><label>Firma<input id="ac-f" list="ac-fl" placeholder="např. Topstep, Apex, Lucid"></label><datalist id="ac-fl">${firms.map(f => `<option value="${esc(f)}">`).join("")}</datalist>
+<label>Velikost účtu<input id="ac-s" placeholder="např. 50K"></label><label>Začal<input id="ac-b" type="date"></label><label>Skončil<input id="ac-e" type="date"></label>
+<label>Jak to dopadlo<select id="ac-st">${Object.entries(ACCST).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select></label><label>Poznámka<input id="ac-no" placeholder="např. spálen kvůli revenge"></label></div>
+<div class="row"><button type="button" id="ac-add">Založit účet</button> <button type="button" class="ghost" id="ac-clr">Vyčistit formulář</button> <span class="empty" id="ac-msg"></span></div>` +
+    (A.length ? tbl(["Účet", "Období", "Stav", "Obchodů", "Výsledek", ""], rows) : '<p class="empty">Zatím tu žádný účet není. Vyplň firmu a dej „Založit účet“.</p>');
+}
+function accClear() { ["ac-id", "ac-f", "ac-s", "ac-e", "ac-no"].forEach(i => $(i).value = ""); $("ac-b").value = localNow().slice(0, 10); $("ac-st").value = "run"; $("ac-add").textContent = "Založit účet"; }
+document.addEventListener("click", e => {
+  const t = e.target; if (!t.closest || !t.closest("#d-acc")) return;
+  if (t.id === "ac-clr") { accClear(); return; }
+  if (t.id === "ac-add") { const A = accAll(), id = +$("ac-id").value;
+    const v = {firm: $("ac-f").value.trim(), size: $("ac-s").value.trim(), start: $("ac-b").value, end: $("ac-e").value, st: $("ac-st").value, note: $("ac-no").value.trim()};
+    if (v.st !== "run" && !v.end) v.end = localNow().slice(0, 10);
+    if (id) { const a = A.find(x => x.n === id); if (a) Object.assign(a, v); } else { v.n = A.reduce((m, a) => Math.max(m, a.n), 0) + 1; A.push(v); }
+    accSave(A); disc(); $("ac-msg") && ($("ac-msg").textContent = id ? "Uloženo." : "Účet " + (v.n || id) + " založen."); return; }
+  const ed = t.closest("[data-ace]"); if (ed) { const a = accAll().find(x => x.n === +ed.dataset.ace); if (!a) return;
+    $("ac-id").value = a.n; $("ac-f").value = a.firm || ""; $("ac-s").value = a.size || ""; $("ac-b").value = a.start || ""; $("ac-e").value = a.end || ""; $("ac-st").value = a.st || "run"; $("ac-no").value = a.note || "";
+    $("ac-add").textContent = "Uložit změny (" + accName(a) + ")"; $("ac-f").scrollIntoView({block: "center"}); return; }
+  const dl = t.closest("[data-acd]"); if (dl) { const n = +dl.dataset.acd, used = ALL.filter(x => x.acc === "Účet " + n).length;
+    if (!confirm("Smazat Účet " + n + "?" + (used ? " Obchody (" + used + ") zůstanou, jen u nich bude dál napsané „Účet " + n + "“." : ""))) return;
+    accSave(accAll().filter(x => x.n !== n)); disc(); }
+});
+$("f").elements.acc.addEventListener("change", e => { const s = e.target; if (s.value !== "__new__") { s.dataset.prev = s.value; return; }
+  const firm = prompt("Nový účet: u jaké firmy? (např. Topstep, Apex). Číslo účtu se dá samo.");
+  if (firm === null) { s.value = s.dataset.prev || ""; return; } const a = accNew(firm.trim()); fillAcc(accName(a)); });
+const plus10 = t => { const m = /^(\d\d):(\d\d)/.exec(t || ""); if (!m) return ""; const x = Math.min(23 * 60 + 59, +m[1] * 60 + +m[2] + 10); return String(Math.floor(x / 60)).padStart(2, "0") + ":" + String(x % 60).padStart(2, "0"); };
 let ALL = [];
 async function render() {
   ALL = await tx("readonly", s => s.getAll());
@@ -997,7 +1049,7 @@ function dlg(t, toOut) {
   shots = t ? [...(t.shots || (t.shot ? [t.shot] : []))] : []; slotsD = t && t.slots ? {...t.slots} : {}; curSlot = null;
   touched = t ? {target: 1, target2: 1} : {}; dist = t ? (Math.abs(t.entry - t.stop) || null) : null; $("sd").value = lsGet("defStop35") || 35;
   $("dt").textContent = t ? "Upravit obchod" : "Nový backtest obchod";
-  const o = t ? when(t) : (BT ? (LS.get("bt:lastd", "") + "T") : localNow()); fe.od.value = /^\d{4}-/.test(o) ? o.slice(0, 10) : ""; fe.ot.value = o.slice(11, 16); fe.acc.value = lsGet("lastAcc") || "Hlavní";
+  const o = t ? when(t) : (BT ? (LS.get("bt:lastd", "") + "T") : localNow()); fe.od.value = /^\d{4}-/.test(o) ? o.slice(0, 10) : ""; fe.ot.value = o.slice(11, 16); fillAcc(t ? t.acc : (lsGet("lastAcc") || "")); delete fe.cd.dataset.auto;
   fillStrat(t ? t.strat : "");
   if (t) { for (const k of ["id","inst","dir","size","pv","entry","stop","target","target2","plan","rate","notes","trend","acc","otype","tfm"]) fe[k].value = t[k] ?? "";
     if (t.exit != null) { fe.outc.value = t.outc || "other"; fe.n1.value = t.n1 ?? ""; fe.trp.value = t.trp ?? ""; if (fe.outc.value === "other") fe.exit.value = t.exit; }
@@ -1029,7 +1081,7 @@ $("add").onclick = () => dlg(); $("cancel").onclick = () => $("dlg").close();
 $("f").onsubmit = async e => {
   e.preventDefault(); const f = e.target.elements, n = k => f[k].value === "" ? null : parseFloat(f[k].value), oc = f.outc.value, o = outcome();
   if (oc && !o) { alert("Doplň vstup, stop a take profity (u vlastního výstupu i cenu), ať jde spočítat výsledek."); return; }
-  const closed = oc ? (f.cd.value || (BT ? f.od.value : localNow().slice(0, 10))) + "T" + (f.ct.value || (BT ? (f.ot.value || "00:00") : nowT())) : null;
+  const closed = oc ? (f.cd.value || f.od.value) + "T" + (f.ct.value || plus10(f.ot.value)) : null;
   const t = {opened: f.od.value + "T" + (f.ot.value || "00:00"), closed, inst: f.inst.value.toUpperCase(), dir: f.dir.value, size: n("size") || 1, pv: n("pv"), otype: f.otype.value,
     entry: n("entry"), stop: n("stop"), target: n("target"), target2: n("target2"), exit: o ? o.exit : null, outc: oc, n1: o && o.n1 != null ? o.n1 : null, trp: oc === "tp1trail" ? n("trp") : null, tfm: f.tfm.value,
     strat: f.strat.value === "__new__" ? "" : f.strat.value, trend: f.trend.value, acc: f.acc.value.trim() || "Hlavní", notes: f.notes.value,
@@ -1073,7 +1125,7 @@ document.addEventListener("click", async e => {
     $("vbody").innerHTML = `<div class="vh"><div><h2>${esc(t.inst)} ${t.dir === "short" ? "Short" : "Long"} ×${nf(t.size || 1, 0)}</h2><p class="empty" style="margin:0">${esc(when(t).replace("T", " "))}${t.closed ? " → " + esc(t.closed.replace("T", " ")) : ""}${t.otype ? " · " + esc(t.otype) : ""}${t.tfm ? " · " + t.tfm : ""}${t.acc ? " · " + esc(t.acc) : ""}</p></div>` +
       (p == null ? "" : `<div class="vpl ${cl(p)}">${usd(p)}<small>${r == null ? "" : sg(r, 2) + " R"}</small></div>`) + `</div>` +
       `<div class="dash">${K(nfx(t.entry), "Vstup")}${K(nfx(t.stop), "Stop loss")}${K(nfx(t.target), "TP1")}${K(nfx(t.target2), "TP2")}${K(nfx(t.exit), "Výstup")}${K(OUTL[t.outc] || dash, "Výsledek" + (t.n1 != null ? " (TP1: " + t.n1 + " ks)" : ""))}</div>` +
-      `<div class="tags">${t.strat ? chip("📌 " + t.strat, "up") : ""}${t.trend ? chip(t.trend === "with" ? "S trendem" : "Proti trendu") : ""}${t.plan ? chip(t.plan === "ano" ? "Plán dodržen" : "Plán porušen", t.plan === "ano" ? "up" : "down") : ""}${t.rate ? chip("Hodnocení " + t.rate + "/5") : ""}${(t.emo || []).map(x => chip(((EMO.find(y => y[1] === x) || [""])[0]) + " " + x)).join("")}${(t.mis || []).map(x => chip("⚠ " + x, "down")).join("")}</div>` +
+      `<div class="tags">${t.strat ? chip("📌 " + t.strat, "up") : ""}${t.trend ? chip(t.trend === "with" ? "S trendem" : t.trend === "range" ? "Konsolidace" : "Proti trendu") : ""}${t.plan ? chip(t.plan === "ano" ? "Plán dodržen" : "Plán porušen", t.plan === "ano" ? "up" : "down") : ""}${t.rate ? chip("Hodnocení " + t.rate + "/5") : ""}${(t.emo || []).map(x => chip(((EMO.find(y => y[1] === x) || [""])[0]) + " " + x)).join("")}${(t.mis || []).map(x => chip("⚠ " + x, "down")).join("")}</div>` +
       (cf.length || (t.cond || []).length ? `<h3>Vstupní model</h3><div class="tags">${chip("Podmínky " + (t.cond || []).length + " ze 3")}${pro.map(x => chip("＋ " + x[0].split("|")[1], "up")).join("")}${con.map(x => chip("− " + x[0].split("|")[1], "down")).join("")}${chip("Celkově " + sg(pro.length - con.length))}</div>` : "") +
       `<h3>Poznámka</h3><p>${esc(t.notes || "Bez poznámky.")}</p>`;
     const sh = document.createElement("div"); sh.className = "shots";
@@ -1132,7 +1184,12 @@ function auto(src) {
   fe.entry.addEventListener("input", () => auto("entry")); fe.dir.addEventListener("change", () => auto("dir")); fe.stop.addEventListener("input", () => auto("stop"));
   fe.target.addEventListener("input", () => { touched.target = 1; rr(); }); fe.target2.addEventListener("input", () => { touched.target2 = 1; rr(); });
   fe.size.addEventListener("input", rr); fe.inst.addEventListener("input", rr); fe.n1.addEventListener("input", outUI); fe.trp.addEventListener("input", outUI); fe.exit.addEventListener("input", outUI);
-  fe.outc.addEventListener("change", () => { if (fe.outc.value && !fe.cd.value) { fe.cd.value = BT ? fe.od.value : localNow().slice(0, 10); fe.ct.value = BT ? fe.ot.value : nowT(); } outUI(); });
+  fe.outc.addEventListener("change", () => { if (fe.outc.value && !fe.cd.value) { fe.cd.value = fe.od.value; fe.ct.value = plus10(fe.ot.value); fe.cd.dataset.auto = 1; } outUI(); });
+  fe.ot.addEventListener("input", () => { if (fe.cd.dataset.auto) { fe.cd.value = fe.od.value; fe.ct.value = plus10(fe.ot.value); } });
+  fe.od.addEventListener("input", () => { if (fe.cd.dataset.auto) fe.cd.value = fe.od.value; });
+  ["cd", "ct"].forEach(k => fe[k].addEventListener("input", () => { delete fe.cd.dataset.auto; }));
+  fe.ct.addEventListener("focus", () => { if (!fe.ct.value && fe.ot.value) { fe.ct.value = plus10(fe.ot.value); if (!fe.cd.value) fe.cd.value = fe.od.value; } });
+  fe.cd.addEventListener("focus", () => { if (!fe.cd.value && fe.od.value) { fe.cd.value = fe.od.value; if (!fe.ct.value) fe.ct.value = plus10(fe.ot.value); } });
   $("sd").addEventListener("input", () => { try { localStorage.setItem("defStop35", JSON.stringify($("sd").value)); } catch (e) {} auto("sd"); }); }
 let HIST = [], radar = null, yearc = null;
 fetch("history.json", {cache: "no-store"}).then(r => r.ok ? r.json() : []).then(h => { HIST = Array.isArray(h) ? h : []; }).catch(() => {});
@@ -1169,7 +1226,7 @@ function analysis() {
   if (radar) radar.destroy(); if (window.Chart) radar = new Chart($("c-radar"), {type: "radar", data: {labels: sc.map(x => x[0]), datasets: [{data: sc.map(x => x[1]), borderColor: "#8B7CFF", backgroundColor: "rgba(139,124,255,.25)", pointBackgroundColor: "#38BDF8"}]},
     options: {maintainAspectRatio: false, plugins: {legend: {display: false}}, scales: {r: {min: 0, max: 100, ticks: {display: false}, grid: {color: "rgba(255,255,255,.1)"}, angleLines: {color: "rgba(255,255,255,.1)"}}}}});
   const [tw, ta] = grp(list, t => t.trend === "with" ? 1 : t.trend === "against" ? -1 : 0);
-  $("trendbars").innerHTML = bars("Trend", [["S trendem", tw], ["Proti trendu", ta]]);
+  $("trendbars").innerHTML = bars("Trend", [["S trendem", tw], ["Proti trendu", ta], ["Konsolidace", list.filter(t => t.trend === "range")]]);
   const [fw, fa] = grp(list, t => { const b = biasOf(t); if (b === null || b === 0) return 0; return b === dir(t) ? 1 : -1; });
   $("alignbars").innerHTML = bars("Fundament", [["Se směrem biasu", fw], ["Proti biasu", fa]]) + (HIST.length ? "" : '<p class="empty">Historie biasu se začne plnit po prvním běhu robota.</p>');
   const ym = {}; list.forEach(t => { const k = day(t).slice(0, 7); ym[k] = (ym[k] || 0) + pnl(t); }); const yk = Object.keys(ym).sort();
@@ -1328,7 +1385,7 @@ function playbookHtml(closed) {
 <div class="grid"><label>Název strategie<input id="pb-n" placeholder="např. ICT 15m RSI Cross + CISD"></label><label>Popis<input id="pb-d" placeholder="co to je"></label></div>
 ${pickHtml()}
 <div class="grid"><label>Výchozí timeframe<select id="pb-tf"><option value="">–</option><option value="1m">1 minuta</option><option value="2m">2 minuty</option><option value="3m">3 minuty</option><option value="5m">5 minut</option><option value="15m">15 minut</option></select></label>
-<label>Výchozí typ vstupu<select id="pb-ot"><option value="">–</option><option value="market">Market</option><option value="limit">Limit</option><option value="stop">Stop (průraz)</option></select></label>
+<label>Výchozí typ vstupu<select id="pb-ot"><option value="">–</option><option value="market">Market</option><option value="limit">Limit</option></select></label>
 <label>Výchozí stop (body)<input id="pb-st" type="number" step="any"></label><label>Výchozí počet kontraktů<input id="pb-sz" type="number" min="1"></label></div>
 <label class="chk"><input type="checkbox" id="pb-pre" checked>Po výběru strategie předvyplnit všechny podmínky a konfluence jako splněné (Pro)</label>
 <div class="row"><button type="button" id="pb-add">Uložit strategii</button> <button type="button" class="ghost" id="pb-clr">Vyčistit formulář</button></div>` +
@@ -1351,7 +1408,7 @@ function disc() {
   const emo = cost(EMO.map(e => e[1]), "emo").map(x => [(EMO.find(e => e[1] === x[0]) || [""])[0] + " " + x[0], x[1], x[2]]), mis = cost(MIS, "mis");
   const ct = r => r.length ? tbl(["", "Obchodů", "Součet", "Průměr"], r.map(x => rowH([x[0], x[1], cs(x[2]), cs(x[2] / x[1])]))) : "<p class=\"empty\">Zatím nic. Při zápisu obchodu zaškrtni emoce a chyby.</p>";
   $("d-emoc").innerHTML = "<h3>Kolik tě stojí emoce</h3>" + ct(emo) + "<h3 style=\"margin-top:16px\">Nejdražší chyby</h3>" + ct(mis);
-  $("d-miss").innerHTML = missedHtml(); $("d-rev").innerHTML = reviewHtml(closed); $("d-pb").innerHTML = playbookHtml(closed);
+  $("d-miss").innerHTML = missedHtml(); $("d-rev").innerHTML = reviewHtml(closed); $("d-pb").innerHTML = playbookHtml(closed); $("d-acc").innerHTML = accHtml(closed); if ($("ac-b") && !$("ac-b").value) $("ac-b").value = localNow().slice(0, 10);
   const strs = [...new Set([...ALL.map(t => t.strat), ...LS.get("jr:pb", []).map(p => p.name)].filter(Boolean))];
   bkInfo();
 }

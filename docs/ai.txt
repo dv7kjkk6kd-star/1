@@ -1,4 +1,4 @@
-Datum a čas aktualizace: 8. 11. 2026 19:09 (pražský čas). Obchoduje se MNQ (Micro Nasdaq futures), 1 bod = 2 $. Seance v New Yorku 9:30–16:00 = u nás obvykle 15:30–22:00.
+Datum a čas aktualizace: 8. 11. 2026 19:27 (pražský čas). Obchoduje se MNQ (Micro Nasdaq futures), 1 bod = 2 $. Seance v New Yorku 9:30–16:00 = u nás obvykle 15:30–22:00.
 
 STRÁNKY WEBU:
 - Dnes: Přehled (Ranní souhrn trhu v kostce)
@@ -17,7 +17,7 @@ DNEŠNÍ BIAS: Mírně bullish, skóre +3.9 z 10 (−10 až +10). Bias se uklád
 - složka Strach (VIX): +1.8 (váha 1.5) – VIX se změnil o −9,01 %. Růst strachu bývá pro akcie špatný.
 - složka Dolar: -2.0 (váha 0.5) – Dolarový index se změnil o +0,74 %. Silný dolar akciím spíš škodí.
 - složka Výnosy dluhopisů: -0.2 (váha 1.0) – Výnos 10letých dluhopisů se změnil o +0,45 %. Růst výnosů tlačí akcie dolů.
-- složka Trend futures: +0.2 (váha 1.0) – Cena je o +0,12 % nad průměrem posledního dne.
+- složka Trend futures: +0.2 (váha 1.0) – Cena je o +0,11 % nad průměrem posledního dne.
 - složka Zprávy: -0.6 (váha 1.0) – Nálada v titulcích zpráv za 24 hodin: skóre −1.6 z 5.
 - složka Sezónnost: +2.0 (váha 0.5) – V tomto měsíci Nasdaq 100 historicky průměrně +3,38 %.
 - složka Statistika: +1.0 (váha 1.0) – Statistiky trhu pro dnešek: 1 výrazných situací spíš nahoru, 0 spíš dolů.
