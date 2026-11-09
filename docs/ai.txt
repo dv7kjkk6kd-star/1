@@ -1,4 +1,4 @@
-Datum a čas aktualizace: 9. 11. 2026 14:14 (pražský čas). Obchoduje se MNQ (Micro Nasdaq futures), 1 bod = 2 $. Seance v New Yorku 9:30–16:00 = u nás obvykle 15:30–22:00.
+Datum a čas aktualizace: 9. 11. 2026 15:34 (pražský čas). Obchoduje se MNQ (Micro Nasdaq futures), 1 bod = 2 $. Seance v New Yorku 9:30–16:00 = u nás obvykle 15:30–22:00.
 
 STRÁNKY WEBU:
 - Dnes: Přehled (Ranní souhrn trhu v kostce)
@@ -11,26 +11,26 @@ STRÁNKY WEBU:
 - Knihy: Knihy o tradingu (Hlavní myšlenky slavných knih o tradingu a psychologii)
 - Učení a nastavení: AI asistent (Zeptej se na cokoliv o webu, dnešních datech i tradingu); Roadmap (Tvoje cesta k disciplinovanému obchodování); Příručka (Slovníček a postup krok za krokem); Nastavení (Účet, riziko a výchozí hodnoty)
 
-DNEŠNÍ BIAS: Bullish, skóre +5.5 z 10 (−10 až +10). Bias se ukládá do 15:00 a pak se už nemění.
-- složka Futures: +2.0 (váha 3.0) – Futures na Nasdaq a S&P 500 jsou v průměru +0,91 %.
-- složka Šířka akcií: +0.3 (váha 2.0) – 13 z 23 největších akcií je v plusu.
-- složka Strach (VIX): +2.0 (váha 1.5) – VIX se změnil o −10,65 %. Růst strachu bývá pro akcie špatný.
-- složka Dolar: +1.5 (váha 0.5) – Dolarový index se změnil o −0,45 %. Silný dolar akciím spíš škodí.
-- složka Výnosy dluhopisů: -0.2 (váha 1.0) – Výnos 10letých dluhopisů se změnil o +0,45 %. Růst výnosů tlačí akcie dolů.
-- složka Trend futures: +1.4 (váha 1.0) – Cena je o +0,70 % nad průměrem posledního dne.
-- složka Zprávy: -0.8 (váha 1.0) – Nálada v titulcích zpráv za 24 hodin: skóre −2.0 z 5.
+DNEŠNÍ BIAS: Bullish, skóre +5.8 z 10 (−10 až +10). Bias se ukládá do 15:00 a pak se už nemění.
+- složka Futures: +2.0 (váha 3.0) – Futures na Nasdaq a S&P 500 jsou v průměru +0,81 %.
+- složka Šířka akcií: +0.6 (váha 2.0) – 15 z 23 největších akcií je v plusu.
+- složka Strach (VIX): +1.9 (váha 1.5) – VIX se změnil o −9,48 %. Růst strachu bývá pro akcie špatný.
+- složka Dolar: +1.6 (váha 0.5) – Dolarový index se změnil o −0,47 %. Silný dolar akciím spíš škodí.
+- složka Výnosy dluhopisů: +0.2 (váha 1.0) – Výnos 10letých dluhopisů se změnil o −0,49 %. Růst výnosů tlačí akcie dolů.
+- složka Trend futures: +1.1 (váha 1.0) – Cena je o +0,56 % nad průměrem posledního dne.
+- složka Zprávy: -0.8 (váha 1.0) – Nálada v titulcích zpráv za 24 hodin: skóre −1.9 z 5.
 - složka Sezónnost: +2.0 (váha 0.5) – V tomto měsíci Nasdaq 100 historicky průměrně +3,38 %.
 - složka Statistika: +1.0 (váha 1.0) – Statistiky trhu pro dnešek: 1 výrazných situací spíš nahoru, 0 spíš dolů.
 Přesnost biasu: 7 z 14 dní (50 %).
 Posledních 5 dní (bias → skutečný pohyb Nasdaqu): 2026-11-02 Mírně bullish → -1.39 %; 2026-11-03 Neutrální → +0.68 %; 2026-11-04 Mírně bullish → +0.91 %; 2026-11-05 Neutrální → -6.36 %; 2026-11-06 Neutrální → +1.35 %
 
-SENTIMENT ZPRÁV (24 h): skóre -2.0 z 5, bearish.
+SENTIMENT ZPRÁV (24 h): skóre -1.9 z 5, bearish.
 - Nvidia stock falls 5% as scrutiny turns to Jensen Huang’s relationship with alleged Chinese spy (CNBC)
 - Rubio sees little hope of diplomatic breakthrough to Mideast deadlock amid 'outrageous' Iranian demands (CNBC)
 - Congress returns with government funding, Pete Hegseth and the debt limit on the agenda (CNBC)
-- Restaurant chains refocus on food quality to bring back diners (CNBC)
-- CoreWeave confronts 'doom cycle' narrative as neocloud credit risk overshadows growth (CNBC)
-- These states are offering extra ACA premium subsidies in 2027 (CNBC)
+- Home listings pile up in October, but sellers won't slash prices (CNBC)
+- Eli Lilly’s Foundayo obesity pill eases sleep apnea in late-stage trial, paving way for approval (CNBC)
+- Goodyear Tire CEO Mark Stewart steps down as company continues turnaround plan (CNBC)
 
 KALENDÁŘ ZPRÁV Z USA (nejbližší):
 - Tue 10. 11. 10:00: FOMC Member Waller Speaks (dopad střední, očekávání –, minule –)
