@@ -1,4 +1,4 @@
-Datum a čas aktualizace: 11. 11. 2026 16:24 (pražský čas). Obchoduje se MNQ (Micro Nasdaq futures), 1 bod = 2 $. Seance v New Yorku 9:30–16:00 = u nás obvykle 15:30–22:00.
+Datum a čas aktualizace: 12. 11. 2026 14:13 (pražský čas). Obchoduje se MNQ (Micro Nasdaq futures), 1 bod = 2 $. Seance v New Yorku 9:30–16:00 = u nás obvykle 15:30–22:00.
 
 STRÁNKY WEBU:
 - Dnes: Přehled (Ranní souhrn trhu v kostce)
@@ -11,25 +11,25 @@ STRÁNKY WEBU:
 - Knihy: Knihy o tradingu (Hlavní myšlenky slavných knih o tradingu a psychologii)
 - Učení a nastavení: AI asistent (Zeptej se na cokoliv o webu, dnešních datech i tradingu); Roadmap (Tvoje cesta k disciplinovanému obchodování); Příručka (Slovníček a postup krok za krokem); Nastavení (Účet, riziko a výchozí hodnoty)
 
-DNEŠNÍ BIAS: Mírně bullish, skóre +4.5 z 10 (−10 až +10). Bias se ukládá do 15:00 a pak se už nemění.
-- složka Futures: +2.0 (váha 3.0) – Futures na Nasdaq a S&P 500 jsou v průměru +1,17 %.
-- složka Šířka akcií: +0.3 (váha 2.0) – 13 z 23 největších akcií je v plusu.
-- složka Strach (VIX): +1.3 (váha 1.5) – VIX se změnil o −6,58 %. Růst strachu bývá pro akcie špatný.
-- složka Dolar: -2.0 (váha 0.5) – Dolarový index se změnil o +0,63 %. Silný dolar akciím spíš škodí.
+DNEŠNÍ BIAS: Mírně bearish, skóre -3.2 z 10 (−10 až +10). Bias se ukládá do 15:00 a pak se už nemění.
+- složka Futures: -2.0 (váha 3.0) – Futures na Nasdaq a S&P 500 jsou v průměru −1,04 %.
+- složka Šířka akcií: +1.0 (váha 2.0) – 17 z 23 největších akcií je v plusu.
+- složka Strach (VIX): -1.0 (váha 1.5) – VIX se změnil o +5,09 %. Růst strachu bývá pro akcie špatný.
+- složka Dolar: -0.0 (váha 0.5) – Dolarový index se změnil o +0,00 %. Silný dolar akciím spíš škodí.
 - složka Výnosy dluhopisů: -0.2 (váha 1.0) – Výnos 10letých dluhopisů se změnil o +0,30 %. Růst výnosů tlačí akcie dolů.
-- složka Trend futures: +1.4 (váha 1.0) – Cena je o +0,68 % nad průměrem posledního dne.
-- složka Zprávy: -0.4 (váha 1.0) – Nálada v titulcích zpráv za 24 hodin: skóre −1.1 z 5.
+- složka Trend futures: -1.1 (váha 1.0) – Cena je o +0,54 % pod průměrem posledního dne.
+- složka Zprávy: -1.0 (váha 1.0) – Nálada v titulcích zpráv za 24 hodin: skóre −2.5 z 5.
 - složka Sezónnost: +2.0 (váha 0.5) – V tomto měsíci Nasdaq 100 historicky průměrně +3,38 %.
-Přesnost biasu: 8 z 16 dní (50 %).
-Posledních 5 dní (bias → skutečný pohyb Nasdaqu): 2026-11-04 Mírně bullish → +0.91 %; 2026-11-05 Neutrální → -6.36 %; 2026-11-06 Neutrální → +1.35 %; 2026-11-09 Bullish → +3.40 %; 2026-11-10 Neutrální → -0.60 %
+Přesnost biasu: 9 z 17 dní (53 %).
+Posledních 5 dní (bias → skutečný pohyb Nasdaqu): 2026-11-05 Neutrální → -6.36 %; 2026-11-06 Neutrální → +1.35 %; 2026-11-09 Bullish → +3.40 %; 2026-11-10 Neutrální → -0.60 %; 2026-11-11 Bullish → +2.28 %
 
-SENTIMENT ZPRÁV (24 h): skóre -1.1 z 5, bearish.
-- Fed's Goolsbee calls inflation report 'borderline disturbing' as central bank weighs more hikes (CNBC)
-- CoreWeave CEO says 'new political reality' after midterms won't slow buildout (CNBC)
-- Nvidia shares rebound as Jensen Huang faces scrutiny ahead of earnings (CNBC)
-- CoreWeave soars 20% as CEO reaffirms AI compute demand after strong Q3 report (CNBC)
-- JetBlue's CEO has pushed back on creditor fears and is betting on premium to return to profitability (CNBC)
-- CFTC investigates if Kalshi improperly self-certified event contracts (CNBC)
+SENTIMENT ZPRÁV (24 h): skóre -2.5 z 5, bearish.
+- Nvidia stock falls 8% as investors await Jensen Huang’s fate (CNBC)
+- Nebius falls 10% as company expects increased 2026 capex spend, issues weak outlook (CNBC)
+- Scout Motors has 212,000 vehicle reservations as $2 billion South Carolina plant nears completion (CNBC)
+- Feds arrest top official of healthcare company, alleging illegal drug importation (CNBC)
+- Scott Colom wins Mississippi Senate election over incumbent Republican Hyde-Smith (CNBC)
+- Ukraine warns of fresh Starshield disruptions as U.S. envoys arrive in Moscow for talks with Putin (CNBC)
 
 KALENDÁŘ ZPRÁV Z USA (nejbližší):
 - Thu 12. 11. 14:30: Unemployment Claims (dopad střední, očekávání 194K, minule 189K)
@@ -37,11 +37,11 @@ KALENDÁŘ ZPRÁV Z USA (nejbližší):
 - Fri 13. 11. 14:30: PPI m/m (dopad vysoký, očekávání 0.4%, minule 1.3%)
 
 STATISTIKY TRHU pro dnešek: 0 výrazných situací spíš nahoru, 0 spíš dolů (po zkoušce naživo).
-Archiv Nasdaqu: 1263 dní, Nasdaq rostl v 54 % dní.
-Běžný denní rozsah (medián 250 dní): 352 bodů, klidný den 250, divoký 474. Posledních 20 dní průměr 534 bodů.
-Nejživější hodiny (pražský čas): 15:00 (168 b.), 16:00 (164 b.), 17:00 (125 b.)
-Seance prorazí noční maximum v 55 % dní, noční minimum v 46 % (56 dní).
-Souvislosti trhů: za 20 dní Nasdaq -9.60 %, S&P 500 -3.97 %.
+Archiv Nasdaqu: 1264 dní, Nasdaq rostl v 54 % dní.
+Běžný denní rozsah (medián 250 dní): 355 bodů, klidný den 250, divoký 479. Posledních 20 dní průměr 529 bodů.
+Nejživější hodiny (pražský čas): 15:00 (168 b.), 16:00 (164 b.), 17:00 (126 b.)
+Seance prorazí noční maximum v 56 % dní, noční minimum v 46 % (57 dní).
+Souvislosti trhů: za 20 dní Nasdaq -5.66 %, S&P 500 -1.67 %.
 
 JAK FUNGUJE ROBOT: strategie uživatele (ICT MNQ v40, modely 5m CISD, continuation, zóna+iFVG) běží v TradingView a posílá obchody přes webhook do Cloudflare. Stránka Robot ukazuje obchody, výsledky a co se robot naučil: hledá situace, ve kterých prodělává, a vynechává je. Učí se i z biasu, sentimentu, fundamentu, kalendáře, statistik, mentora a stavu trhu.
 PLÁN OD MENTORA: uživatel nahrává fotku nebo screenshot od mentora a opisuje zóny (cena od–do, odraz nahoru/dolů). Zóny se vyhodnotí jako fungovala / nefungovala / nedotkla se.
