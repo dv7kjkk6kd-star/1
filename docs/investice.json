@@ -1,0 +1,293 @@
+{
+ "date": "13. 11. 2026",
+ "week": "9.–15. 11. 2026",
+ "next": "neděle 15. 11. 2026 večer",
+ "tabs": [
+  {
+   "id": "nemovitosti",
+   "name": "Nemovitosti",
+   "trend": "up",
+   "trendText": "Ceny rostou, hypotéky zdražují",
+   "lead": "Ceny nemovitostí jsou dál na maximech, ale financování se prodražuje. ČNB 5. listopadu zvýšila sazby a nabídkové sazby hypoték se blíží 6 %. Banky přesto v říjnu půjčily nadprůměrně.",
+   "stats": [
+    {
+     "k": "Nabídková sazba hypoték, listopad",
+     "v": "5,96 %",
+     "cls": "up",
+     "n": "+0,17 pb, osmý růst v řadě (Swiss Life Hypoindex, 10. 11.)"
+    },
+    {
+     "k": "Skutečná sazba nových hypoték, říjen",
+     "v": "5,24 %",
+     "cls": "up",
+     "n": "v září 5,1 % (ČBA Hypomonitor, 13. 11.)"
+    },
+    {
+     "k": "Nové hypotéky, říjen",
+     "v": "28,6 mld. Kč",
+     "cls": "flat",
+     "n": "6 154 úvěrů, s refinancováním 37,2 mld. Kč"
+    },
+    {
+     "k": "Byty, meziročně (3. čtvrtletí)",
+     "v": "+9,3 %",
+     "cls": "up",
+     "n": "mezičtvrtletně +1,3 % (ČSOB Index bydlení, 9. 11.)"
+    }
+   ],
+   "statsSrc": {
+    "t": "ČBA Hypomonitor 13. 11. 2026; Swiss Life Hypoindex přes FXstreet 10. 11. 2026; ČSOB Index bydlení přes ČTK 9. 11. 2026",
+    "u": "https://www.cbamonitor.cz/aktuality/cba-hypomonitor-pokracujici-podzimni-sila-pri-mirne-vyssi-sazbe-524"
+   },
+   "news": [
+    {
+     "t": "Bankovní rada ČNB 5. listopadu zvýšila dvoutýdenní repo sazbu o 0,25 bodu na 4,00 %, platí od 6. listopadu. Hlasování skončilo poměrem 4:3.",
+     "s": "FXstreet, 10. 11. 2026",
+     "u": "https://www.fxstreet.cz/zpravodajstvi-210336.html"
+    },
+    {
+     "t": "Průměrná nabídková sazba hypoték stoupla v listopadu na 5,96 %, od březnového minima 4,89 % je to osmý růst v řadě. Splátka modelového úvěru 3,5 mil. Kč na 25 let vychází na 22 464 Kč měsíčně.",
+     "s": "FXstreet, 10. 11. 2026",
+     "u": "https://www.fxstreet.cz/zpravodajstvi-210336.html"
+    },
+    {
+     "t": "V říjnu banky poskytly nové hypotéky za 28,6 mld. Kč při průměrné sazbě 5,24 %. Průměrná nová hypotéka měla 4,66 mil. Kč, od ledna se půjčilo 330 mld. Kč.",
+     "s": "ČBA Hypomonitor, 13. 11. 2026",
+     "u": "https://www.cbamonitor.cz/aktuality/cba-hypomonitor-pokracujici-podzimni-sila-pri-mirne-vyssi-sazbe-524"
+    },
+    {
+     "t": "ČSOB Index bydlení za 3. čtvrtletí: rodinné domy meziročně +8,4 %, pozemky +10,5 %, byty v Praze mezičtvrtletně jen +0,7 %.",
+     "s": "ČTK, 9. 11. 2026",
+     "u": "https://www.ceskenoviny.cz/zpravy/2899385"
+    },
+    {
+     "t": "Pražské nové byty ve 3. čtvrtletí zdražily na průměrných 186 700 Kč za m² (+2,2 %), nabídka klesla o 11 % na 6 062 bytů.",
+     "s": "Deloitte Develop Index, 2. 11. 2026",
+     "u": "https://www.deloitte.com/cz-sk/cs/about/press-room/z-nabidky-prazskych-developeru-ubyla-vice-nez-desetina-bytu.html"
+    },
+    {
+     "t": "O případné změně limitů pro hypotéky (LTV, DTI) rozhodne ČNB 26. listopadu. Od dubna platí přísnější pravidla pro investiční byty (LTV 70 %, DTI 7).",
+     "s": "ČBA Hypomonitor, 13. 11. 2026",
+     "u": "https://www.cbamonitor.cz/aktuality/cba-hypomonitor-pokracujici-podzimni-sila-pri-mirne-vyssi-sazbe-524"
+    }
+   ],
+   "watch": [
+    "U investičního bytu počítej hrubý výnos z nájmu (roční nájem ÷ kupní cena) a porovnej ho s úrokem hypotéky.",
+    "Dražby a insolvenční prodeje bývají pod tržní cenou, ale často bez prohlídky a s právními vadami.",
+    "Regiony, kde ceny stagnují, mohou nabídnout lepší vyjednávací pozici než Praha a Brno."
+   ],
+   "links": [
+    [
+     "Sreality",
+     "https://www.sreality.cz"
+    ],
+    [
+     "Bezrealitky",
+     "https://www.bezrealitky.cz"
+    ],
+    [
+     "Reality iDNES",
+     "https://reality.idnes.cz"
+    ],
+    [
+     "Bazoš reality",
+     "https://reality.bazos.cz"
+    ],
+    [
+     "Portál dražeb",
+     "https://www.portaldrazeb.cz"
+    ],
+    [
+     "ČSÚ, ceny bytů",
+     "https://csu.gov.cz/produkty/ceny_bytu"
+    ]
+   ],
+   "icon": "🏠"
+  },
+  {
+   "id": "auta",
+   "name": "Auta",
+   "trend": "flat",
+   "trendText": "Malý trh, ceny se srovnávají",
+   "lead": "Nová cenová data za týden nevyšla. Trh je malý a málo likvidní, zájem drží hlavně Škody a vozy z východního bloku. V sobotu 14. 11. se v Lysé nad Labem draží 50 veteránů.",
+   "stats": [
+    {
+     "k": "Prodaných veteránů ročně",
+     "v": "500+",
+     "cls": "flat",
+     "n": "v celém Česku"
+    },
+    {
+     "k": "Registrovaná historická vozidla",
+     "v": "asi 25 tisíc",
+     "cls": "flat",
+     "n": "další tisíce čekají na renovaci"
+    },
+    {
+     "k": "Vozy z východního bloku",
+     "v": "asi 65 %",
+     "cls": "flat",
+     "n": "podíl na obchodech Mototechny Classic"
+    },
+    {
+     "k": "Škoda Classic Tour 2026",
+     "v": "227 posádek",
+     "cls": "up",
+     "n": "rekordní účast, září 2026"
+    }
+   ],
+   "statsSrc": {
+    "t": "Newstream, Ekonomický deník, Škoda Storyboard 7. 9. 2026",
+    "u": "https://www.newstream.cz/enjoy/kdyz-auto-po-dedovi-stoji-statisice-veteranske-zavody-spojuji-nostalgii-rodiny-i-investory"
+   },
+   "news": [
+    {
+     "t": "22. aukce Retro Garáž v sobotu 14. 11. 2026 na výstavišti v Lysé nad Labem (12:30–16:00, i online přes Aukro): 41 motocyklů a 9 aut, mimo jiné Praga 350 BCS a Tatra 603.",
+     "s": "Motorkáři.cz, 2. 11. 2026",
+     "u": "https://www.motorkari.cz/clanky/veterani/podzimni-retro-garaz-50-veteranu-v-aukci-56014.html"
+    },
+    {
+     "t": "V katalogu má Praga 350 BCS vyvolávací cenu 670 000 Kč a odhad 0,9–1,1 mil. Kč, Jawa 500 OHC vyvolávací 490 000 Kč. Jde o předaukční údaje, ne výsledky.",
+     "s": "Retro Garáž",
+     "u": "https://www.retro-garaz.cz/nadchazejici-aukce/"
+    },
+    {
+     "t": "Výsledky aukce Prague Car Festival z 31. 10. (12 vozů, mimo jiné Porsche 928) zatím zveřejněné nejsou.",
+     "s": "Aukce veteránů",
+     "u": "https://aukce-veteranu.cz/"
+    },
+    {
+     "t": "Burzy a srazy do konce roku: Svitavy 15. 11., Nupaky 21. 11. a 5. 12., Chotusice 12. 12.",
+     "s": "i-Veterán",
+     "u": "https://www.iveteran.cz/kalendar"
+    },
+    {
+     "t": "Sběratelé hlásí, že ceny některých typů klesají z úrovní, na které vystoupaly během covidu.",
+     "s": "Newstream",
+     "u": "https://www.newstream.cz/enjoy/blazni-nebo-predvidavi-investori-embecko-muze-stat-klidne-i-milion-a-zajem-je-i-o-trabanty"
+    }
+   ],
+   "watch": [
+    "Do výnosu započítej garážování, pojištění, servis a renovaci. Často převýší růst ceny.",
+    "Prodej trvá měsíce. Čím vzácnější vůz, tím užší okruh kupců.",
+    "Inzertní cena není prodejní cena. U stejného modelu se liší i násobně podle stavu a původnosti."
+   ],
+   "links": [
+    [
+     "Ráj veteránů",
+     "https://www.rajveteranu.cz"
+    ],
+    [
+     "TipCars",
+     "https://www.tipcars.com"
+    ],
+    [
+     "Sauto",
+     "https://www.sauto.cz"
+    ],
+    [
+     "Bazoš auto",
+     "https://auto.bazos.cz"
+    ],
+    [
+     "Retro Garáž",
+     "https://www.retro-garaz.cz"
+    ],
+    [
+     "Aukce veteránů",
+     "https://aukce-veteranu.cz"
+    ],
+    [
+     "Aukro",
+     "https://aukro.cz"
+    ]
+   ],
+   "icon": "🚗"
+  },
+  {
+   "id": "mince",
+   "name": "Mince a zlato",
+   "trend": "down",
+   "trendText": "Zlato tento týden ztrácí",
+   "lead": "Mince jsou nejrychleji rostoucí část českého sběratelského trhu. Zlato ale v týdnu kleslo pod 4 000 USD za unci, což se nejdřív projeví u novodobých zlatých mincí. Historické kusy kolísají méně.",
+   "stats": [
+    {
+     "k": "Zlato, 13. 11. 18:00",
+     "v": "85 844 Kč",
+     "cls": "down",
+     "n": "za trojskou unci, 3 881 USD"
+    },
+    {
+     "k": "Mince v českých aukcích 2025",
+     "v": "564 mil. Kč",
+     "cls": "up",
+     "n": "růst téměř o čtvrtinu"
+    },
+    {
+     "k": "Nejbližší sálová aukce Aurea",
+     "v": "5. 12. 2026",
+     "cls": "flat",
+     "n": "120. aukce, poté eAukce 6.–9. 12."
+    }
+   ],
+   "statsSrc": {
+    "t": "Zlatemince.cz 13. 11. 2026 18:00; Forbes Česko 17. 3. 2026; Aurea",
+    "u": "https://zlatemince.cz/kurzzlata.htm"
+   },
+   "news": [
+    {
+     "t": "Zlato ve čtvrtek 12. 11. ztratilo asi 2,8 % na zhruba 3 867 USD, šlo o třetí pokles v řadě. Trh reagoval na americkou inflaci a očekávání ohledně Fedu.",
+     "s": "FXstreet, 10.–13. 11. 2026",
+     "u": "https://www.fxstreet.cz/klicova-slova+zlato.html"
+    },
+    {
+     "t": "Aurea Numismatika: eAukce odznaků 22.–24. 11., 120. sálová aukce 5. 12. 2026, eAukce mincí, medailí a vyznamenání 6.–9. 12.",
+     "s": "Aurea",
+     "u": "https://www.aurea.cz"
+    },
+    {
+     "t": "Podle obchodníků z Macho & Chlapovič táhne cena zlata hlavně novodobé mince, historické mince rostou pomaleji a stabilněji.",
+     "s": "E15, 24. 4. 2026",
+     "u": "https://www.e15.cz/finexpert/servis/drazi-se-unikaty-za-85-milionu-tahne-rekordni-zlato-i-sberatelske-mince-1432363"
+    },
+    {
+     "t": "Kromě mincí roste zájem i o filatelii, sklo a starožitnosti. Historické bankovky a šperky naopak loni v aukcích klesaly.",
+     "s": "Forbes Česko",
+     "u": "https://forbes.cz/mene-za-umeni-vic-za-mince-cesky-aukcni-trh-loni-presahl-28-miliardy-korun/"
+    }
+   ],
+   "watch": [
+    "U investičního zlata sleduj rozdíl mezi nákupní a výkupní cenou u prodejce, ten určuje skutečný výnos.",
+    "U sběratelských mincí rozhoduje stav (zachovalost) a pravost. Kupuj s certifikátem nebo od ověřených aukčních domů.",
+    "K vydražené ceně se připočítává aukční přirážka."
+   ],
+   "links": [
+    [
+     "Macho & Chlapovič",
+     "https://www.macho-chlapovic.cz"
+    ],
+    [
+     "Aurea Numismatika",
+     "https://www.aurea.cz"
+    ],
+    [
+     "Aukro",
+     "https://aukro.cz"
+    ],
+    [
+     "Kurz zlata",
+     "https://zlatemince.cz/kurzzlata.htm"
+    ],
+    [
+     "ČNB, pamětní mince",
+     "https://www.cnb.cz"
+    ],
+    [
+     "Sbazar",
+     "https://www.sbazar.cz"
+    ]
+   ],
+   "icon": "🪙"
+  }
+ ]
+}
