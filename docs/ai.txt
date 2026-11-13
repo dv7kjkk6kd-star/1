@@ -1,4 +1,4 @@
-Datum a čas aktualizace: 13. 11. 2026 23:07 (pražský čas). Obchoduje se MNQ (Micro Nasdaq futures), 1 bod = 2 $. Seance v New Yorku 9:30–16:00 = u nás obvykle 15:30–22:00.
+Datum a čas aktualizace: 13. 11. 2026 23:16 (pražský čas). Obchoduje se MNQ (Micro Nasdaq futures), 1 bod = 2 $. Seance v New Yorku 9:30–16:00 = u nás obvykle 15:30–22:00.
 
 STRÁNKY WEBU:
 - Dnes: Přehled (Ranní souhrn trhu v kostce)
@@ -8,16 +8,17 @@ STRÁNKY WEBU:
 - Příprava: Pre-session rituál (Příprava před 15. hodinou: klid, zprávy a plán); Plán od mentora (Fotka nebo video od mentora, jeho zóny a jak mu vycházejí); Trpělivost (Trénink čekání: den bez obchodu je výhra); Mindset (Klid, meditace a trpělivost před obchodováním); Plán dne (Pravidla trpělivosti, limity a kalkulačka)
 - Obchodování: Deník obchodů (Tvoje obchody, statistiky a rozbor); Backtest deník (Obchody z minulosti, na kterých se učíš); Robot (TradingView) (Tvoje strategie z TradingView: obchody, výsledky a co se robot naučil)
 - Uzavření dne: Uzavření dne (Tři otázky a já dnes versus já včera)
+- Investice: Investice (Nemovitosti, auta, mince a zlato: týden v kostce a příležitosti na nový týden)
 - Knihy: Knihy o tradingu (Hlavní myšlenky slavných knih o tradingu a psychologii)
 - Učení a nastavení: AI asistent (Zeptej se na cokoliv o webu, dnešních datech i tradingu); Roadmap (Tvoje cesta k disciplinovanému obchodování); Příručka (Slovníček a postup krok za krokem); Nastavení (Účet, riziko a výchozí hodnoty)
 
 DNEŠNÍ BIAS: Bearish, skóre -5.6 z 10 (−10 až +10). Bias se ukládá do 15:00 a pak se už nemění.
-- složka Futures: -2.0 (váha 4.59) – Futures na Nasdaq a S&P 500 jsou v průměru −1,64 %.
+- složka Futures: -2.0 (váha 4.59) – Futures na Nasdaq a S&P 500 jsou v průměru −1,16 %.
 - složka Šířka akcií: -0.4 (váha 2.26) – 9 z 23 největších akcií je v plusu.
 - složka Strach (VIX): -0.6 (váha 1.5) – VIX se změnil o +3,21 %. Růst strachu bývá pro akcie špatný.
 - složka Dolar: -0.8 (váha 0.5) – Dolarový index se změnil o +0,23 %. Silný dolar akciím spíš škodí.
 - složka Výnosy dluhopisů: -0.5 (váha 1.0) – Výnos 10letých dluhopisů se změnil o +1,00 %. Růst výnosů tlačí akcie dolů.
-- složka Trend futures: -2.0 (váha 1.0) – Cena je o +1,17 % pod průměrem posledního dne.
+- složka Trend futures: -2.0 (váha 1.0) – Cena je o +1,16 % pod průměrem posledního dne.
 - složka Zprávy: -1.0 (váha 1.0) – Nálada v titulcích zpráv za 24 hodin: skóre −2.4 z 5.
 - složka Sezónnost: +2.0 (váha 0.5) – V tomto měsíci Nasdaq 100 historicky průměrně +3,38 %.
 Přesnost biasu: 10 z 18 dní (56 %).
@@ -38,7 +39,7 @@ Archiv Nasdaqu: 1266 dní, Nasdaq rostl v 54 % dní.
 Běžný denní rozsah (medián 250 dní): 355 bodů, klidný den 250, divoký 479. Posledních 20 dní průměr 528 bodů.
 Nejživější hodiny (pražský čas): 15:00 (168 b.), 16:00 (164 b.), 17:00 (126 b.)
 Seance prorazí noční maximum v 56 % dní, noční minimum v 46 % (59 dní).
-Souvislosti trhů: za 20 dní Nasdaq -5.84 %, S&P 500 -2.26 %.
+Souvislosti trhů: za 20 dní Nasdaq -4.98 %, S&P 500 -1.86 %.
 
 JAK FUNGUJE ROBOT: strategie uživatele (ICT MNQ v40, modely 5m CISD, continuation, zóna+iFVG) běží v TradingView a posílá obchody přes webhook do Cloudflare. Stránka Robot ukazuje obchody, výsledky a co se robot naučil: hledá situace, ve kterých prodělává, a vynechává je. Učí se i z biasu, sentimentu, fundamentu, kalendáře, statistik, mentora a stavu trhu.
 PLÁN OD MENTORA: uživatel nahrává fotku nebo screenshot od mentora a opisuje zóny (cena od–do, odraz nahoru/dolů). Zóny se vyhodnotí jako fungovala / nefungovala / nedotkla se.
