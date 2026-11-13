@@ -3,7 +3,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Backtest deník</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=108"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}window.TDux=function(){try{var u=JSON.parse(localStorage.getItem("ux")||"{}"),c="",F={sys:"-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif",read:"Atkinson Hyperlegible,Verdana,sans-serif",serif:"Newsreader,Georgia,serif",round:"Nunito,Arial Rounded MT Bold,sans-serif",mono:"JetBrains Mono,Menlo,Consolas,monospace"},G={read:"Atkinson+Hyperlegible:wght@400;700",round:"Nunito:wght@400;600;700;800",mono:"JetBrains+Mono:wght@400;600;700"};if(F[u.f]){c+="body,body *{font-family:"+F[u.f]+"!important}";if(G[u.f]&&!document.getElementById("uxf-"+u.f)){var l=document.createElement("link");l.id="uxf-"+u.f;l.rel="stylesheet";l.href="https://fonts.googleapis.com/css2?family="+G[u.f]+"&display=swap";document.head.appendChild(l)}}if(u.z&&u.z!=1)c+="html{zoom:"+u.z+"}";var A={blue:["#38BDF8","#6366F1"],green:["#2EE6A6","#0EA5E9"],orange:["#FFB547","#FF6B8A"],pink:["#F472B6","#8B7CFF"],gold:["#E8C26A","#B9812C"],red:["#FF6B8A","#B91C1C"]};if(A[u.a])c+=":root{--acc:"+A[u.a][0]+"!important}button{background-image:linear-gradient(135deg,"+A[u.a][0]+","+A[u.a][1]+")}h2::before,.side a.on,.side a[aria-current]{border-color:"+A[u.a][0]+"!important}";if(u.bg===0)c+="body::before,body::after{background-image:none!important;opacity:0!important}";if(u.op!=null){var a=Math.max(0,Math.min(1,1-u.op/100)).toFixed(2),K=["section",".tile",".k",".p"];c+=K.map(function(x){return "html:not([data-theme=light]) "+x}).join(",")+"{background:rgba(16,22,40,"+a+")!important}";c+=K.map(function(x){return "html[data-theme=light] "+x}).join(",")+"{background:rgba(255,255,255,"+a+")!important}";if(u.op<=40)c+="section,.tile,.k,.p{backdrop-filter:none!important}"}if(u.bi!=null&&u.bg!==0){var v=(u.bi/100).toFixed(2);c+="html:not([data-theme=light]) body::before{filter:opacity("+v+")}html[data-theme=light] body::before{filter:invert(1) opacity("+v+")}"}if(u.an===0)c+="*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}";if(u.lh)c+="p,li,td,.hint,.facts li{line-height:1.8!important}";if(u.b)c+="body{font-weight:500}b,strong,h1,h2,h3{font-weight:800!important}";var s=document.getElementById("uxs")||document.createElement("style");s.id="uxs";s.textContent=c;document.head.appendChild(s)}catch(e){}};TDux();document.addEventListener("DOMContentLoaded",TDux);</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><style>
+<link rel="stylesheet" href="style.css?v=112"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}window.TDux=function(){try{var u=JSON.parse(localStorage.getItem("ux")||"{}"),c="",F={sys:"-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif",read:"Atkinson Hyperlegible,Verdana,sans-serif",serif:"Newsreader,Georgia,serif",round:"Nunito,Arial Rounded MT Bold,sans-serif",mono:"JetBrains Mono,Menlo,Consolas,monospace"},G={read:"Atkinson+Hyperlegible:wght@400;700",round:"Nunito:wght@400;600;700;800",mono:"JetBrains+Mono:wght@400;600;700"};if(F[u.f]){c+="body,body *{font-family:"+F[u.f]+"!important}";if(G[u.f]&&!document.getElementById("uxf-"+u.f)){var l=document.createElement("link");l.id="uxf-"+u.f;l.rel="stylesheet";l.href="https://fonts.googleapis.com/css2?family="+G[u.f]+"&display=swap";document.head.appendChild(l)}}if(u.z&&u.z!=1)c+="html{zoom:"+u.z+"}";var A={blue:["#38BDF8","#6366F1"],green:["#2EE6A6","#0EA5E9"],orange:["#FFB547","#FF6B8A"],pink:["#F472B6","#8B7CFF"],gold:["#E8C26A","#B9812C"],red:["#FF6B8A","#B91C1C"]};if(A[u.a])c+=":root{--acc:"+A[u.a][0]+"!important}button{background-image:linear-gradient(135deg,"+A[u.a][0]+","+A[u.a][1]+")}h2::before,.side a.on,.side a[aria-current]{border-color:"+A[u.a][0]+"!important}";if(u.bg===0)c+="body::before,body::after{background-image:none!important;opacity:0!important}";if(u.op!=null){var a=Math.max(0,Math.min(1,1-u.op/100)).toFixed(2),K=["section",".tile",".k",".p"];c+=K.map(function(x){return "html:not([data-theme=light]) "+x}).join(",")+"{background:rgba(16,22,40,"+a+")!important}";c+=K.map(function(x){return "html[data-theme=light] "+x}).join(",")+"{background:rgba(255,255,255,"+a+")!important}";if(u.op<=40)c+="section,.tile,.k,.p{backdrop-filter:none!important}"}if(u.bi!=null&&u.bg!==0){var v=(u.bi/100).toFixed(2);c+="html:not([data-theme=light]) body::before{filter:opacity("+v+")}html[data-theme=light] body::before{filter:invert(1) opacity("+v+")}"}if(u.an===0)c+="*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}";if(u.lh)c+="p,li,td,.hint,.facts li{line-height:1.8!important}";if(u.b)c+="body{font-weight:500}b,strong,h1,h2,h3{font-weight:800!important}";var s=document.getElementById("uxs")||document.createElement("style");s.id="uxs";s.textContent=c;document.head.appendChild(s)}catch(e){}};TDux();document.addEventListener("DOMContentLoaded",TDux);</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><style>
 #f .grid{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}#f .grid>label{min-width:0}#f select,#f input{width:100%;min-width:0;text-overflow:ellipsis}#f input[type=checkbox]{width:auto;flex:none;margin:0}#f .chip{white-space:nowrap;display:inline-flex}
 #f .sec{margin:20px 0 8px;padding-top:12px;border-top:1px solid var(--rule);font-size:16px}#f .sec:first-of-type{border-top:0;margin-top:6px;padding-top:0}
 #f label em{font-style:normal;color:var(--acc);font-weight:600}
@@ -361,7 +361,7 @@ window.TDme=function(){
   // ===== SYNCHRONIZACE CELÉ APLIKACE PŘES CLOUDFLARE (v94): obchody, dny bez obchodu, nastavení =====
   var DEF = "https://kompas-robot.user-testingtomino39.workers.dev";
   var DBS = [["journal", "trades"], ["backtest", "trades"], ["journal_skips", "days"], ["backtest_skips", "days"]];
-  var LSRE = /^(jr:(pb|missed|rev|day:|accts)|bt:(missed|rev)|plan:|eve:|rit:|mood:|hol[wb]:|roadmap$|settings$|defStop35$|pauseMin$|discordUrl$|elderCalc$|zone20$|bkchk:|bkform:|nqmode$)/;
+  var LSRE = /^(jr:(pb|missed|rev|day:|accts)|bt:(missed|rev)|plan:|eve:|rit:|mood:|hol[wb]:|roadmap$|settings$|defStop35$|pauseMin$|discordUrl$|elderCalc$|zone20$|bkchk:|bkform:|nqmode$|focus$)/;
   var gl = function (k, d) { try { var v = localStorage.getItem(k); return v == null ? d : v; } catch (e) { return d; } };
   var sl = function (k, v) { try { localStorage.setItem(k, v); } catch (e) {} };
   var gj = function (k, d) { try { var v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
@@ -609,7 +609,9 @@ window.TDme=function(){
     var first = tr.map(function (t) { return String(t.opened || "").slice(0, 10); }).filter(Boolean).sort()[0]; if (!first) return;
     var have = {}; tr.forEach(function (t) { have[String(t.opened || "").slice(0, 10)] = 1; }); sk.forEach(function (r) { have[r.date] = 1; });
     var st = new Date(now); st.setDate(st.getDate() - 14); var start = iso(st) > first ? iso(st) : first, miss = [];
-    for (var d = new Date(start + "T12:00"); iso(d) < today; d.setDate(d.getDate() + 1)) { var wd = d.getDay(); if (wd >= 1 && wd <= 5 && !have[iso(d)]) miss.push(iso(d)); }
+    // připomínat až od pátku 16:20 daného týdne
+    var friOf = function (ds) { var x = new Date(ds + "T16:20:00"); x.setDate(x.getDate() + (5 - x.getDay())); return x; };
+    for (var d = new Date(start + "T12:00"); iso(d) <= today; d.setDate(d.getDate() + 1)) { var wd = d.getDay(); if (wd >= 1 && wd <= 5 && !have[iso(d)] && now >= friOf(iso(d))) miss.push(iso(d)); }
     // poslední celý týden: má všechny dny, ale není vyhodnocený
     var lf = new Date(now); lf.setDate(lf.getDate() - ((now.getDay() + 2) % 7 || 7)); var fri = iso(lf), w = wk(fri), R = gj("jr:rev", {}), rv = R[w] || {};
     var full = true; for (var i = 0; i < 5; i++) { var x = new Date(w + "T12:00"); x.setDate(x.getDate() + i); if (!have[iso(x)]) full = false; }
@@ -629,8 +631,91 @@ window.TDme=function(){
     b.querySelectorAll("[data-go]").forEach(function (x) { x.onclick = function () { var u = x.getAttribute("data-go"); if (u.charAt(0) === "#" && window.TDzapsat) window.TDzapsat(u.slice(1)); else location.href = u; }; });
     document.getElementById("rm-later").onclick = function () { try { localStorage.setItem("rm:snooze", JSON.stringify(today)); } catch (e) {} b.remove(); };
   }
-  window.TDremind = function () { var o = document.getElementById("rm-fri"); if (o) o.remove(); check(); };
+  // stav dnů pro upozornění na Macu (posílá se do Cloudflare jen při změně)
+  async function pushState() {
+    var tok = ""; try { tok = localStorage.getItem("mentorTok") || ""; } catch (e) {} if (!tok) return;
+    var tr = await all("journal", "trades"), sk = await all("journal_skips", "days"); if (!tr.length) return;
+    var first = tr.map(function (t) { return String(t.opened || "").slice(0, 10); }).filter(Boolean).sort()[0];
+    var lim = new Date(); lim.setDate(lim.getDate() - 28); var L = iso(lim), have = {};
+    tr.forEach(function (t) { var d = String(t.opened || "").slice(0, 10); if (d >= L) have[d] = 1; }); sk.forEach(function (r) { if (r.date >= L) have[r.date] = 1; });
+    var R = gj("jr:rev", {}), revs = Object.keys(R).filter(function (k) { return k >= L && (R[k].a || R[k].b || R[k].c); });
+    var st = JSON.stringify({first: first, have: Object.keys(have).sort(), revs: revs.sort()});
+    if (gj("push:sh", "") === st) return;
+    var url = ""; try { url = localStorage.getItem("robotUrl") || ""; } catch (e) {} url = (url || "https://kompas-robot.user-testingtomino39.workers.dev").replace(/\/+$/, "");
+    try { var r = await fetch(url + "/push/state?t=" + encodeURIComponent(tok), {method: "PUT", body: st}); if (r.ok) localStorage.setItem("push:sh", JSON.stringify(st)); } catch (e) {}
+  }
+  setTimeout(pushState, 3000);
+  window.TDremind = function () { setTimeout(pushState, 500); var o = document.getElementById("rm-fri"); if (o) o.remove(); check(); };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function () { setTimeout(check, 900); }); else setTimeout(check, 900);
+})();
+;(function(){
+  // ===== Na čem teď pracuju – natrvalo nahoře na každé stránce (v110) =====
+  var DEF = "Milovat hru a plně se umět kontrolovat. Dokud tohle nezvládnu, nic se nezmění.";
+  var gj = function (k, d) { try { var v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
+  var es = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]; }); };
+  function wk() { var d = new Date(); d.setDate(d.getDate() - (d.getDay() + 6) % 7 - 7); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+  function draw() {
+    var c = document.querySelector(".content"); if (!c) return;
+    var el = document.getElementById("focusbar");
+    if (!el) { el = document.createElement("div"); el.id = "focusbar"; c.insertBefore(el, c.firstChild);
+      var st = document.createElement("style");
+      st.textContent = "#focusbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:0 0 14px;padding:12px 16px;border-radius:14px;border:1px solid rgba(139,124,255,.45);background:linear-gradient(90deg,rgba(139,124,255,.18),rgba(56,189,248,.08));font-size:16px}" +
+        "#focusbar b{font-size:17px}#focusbar .fwk{flex-basis:100%;font-size:14px;opacity:.85}#focusbar button{padding:4px 10px;font-size:13px}#focusbar input{flex:1;min-width:240px}" +
+        "html[data-theme=light] #focusbar{background:linear-gradient(90deg,rgba(139,124,255,.14),rgba(56,189,248,.06))}";
+      document.head.appendChild(st); }
+    var f = gj("focus", DEF), R = gj("jr:rev", {}), w = (R[wk()] || {}).c;
+    el.innerHTML = '<span>🎯</span><span style="flex:1;min-width:220px"><span class="empty" style="font-size:13px;display:block">Na čem teď pracuju</span><b>' + es(f) + '</b></span>' +
+      '<button type="button" class="ghost" id="focus-ed" title="Upravit">✏️ Upravit</button>' + (w ? '<span class="fwk">📌 Tento týden: ' + es(w) + "</span>" : "");
+    document.getElementById("focus-ed").onclick = function () {
+      el.innerHTML = '<span>🎯</span><input id="focus-in" maxlength="200" value="' + es(f) + '"><button type="button" id="focus-ok">Uložit</button><button type="button" class="ghost" id="focus-no">Zrušit</button>';
+      var i = document.getElementById("focus-in"); i.focus(); i.select();
+      var save = function () { var v = i.value.trim(); try { localStorage.setItem("focus", JSON.stringify(v || DEF)); } catch (e) {} draw(); };
+      document.getElementById("focus-ok").onclick = save; document.getElementById("focus-no").onclick = draw;
+      i.onkeydown = function (e) { if (e.key === "Enter") save(); if (e.key === "Escape") draw(); };
+    };
+  }
+  window.TDfocus = draw;
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", draw); else draw();
+})();
+;(function(){
+  // ===== Upozornění na Macu (Web Push přes Cloudflare) – Nastavení (v110) =====
+  var DEF = "https://kompas-robot.user-testingtomino39.workers.dev";
+  var gl = function (k) { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } };
+  var U = function () { return (gl("robotUrl") || DEF).replace(/\/+$/, ""); }, T = function () { return gl("mentorTok"); };
+  var u8 = function (b) { b = b.replace(/-/g, "+").replace(/_/g, "/"); while (b.length % 4) b += "="; var s = atob(b), a = new Uint8Array(s.length); for (var i = 0; i < s.length; i++) a[i] = s.charCodeAt(i); return a; };
+  function init() {
+    var on = document.getElementById("pu-on"); if (!on) return;
+    var msg = function (t, bad) { var m = document.getElementById("pu-msg"); m.innerHTML = t; m.style.color = bad ? "var(--down)" : ""; };
+    var can = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+    if (!can) { msg("Tenhle prohlížeč upozornění neumí. Na Macu použij Safari nebo Chrome.", true); on.disabled = true; return; }
+    navigator.serviceWorker.ready.then(function (r) { return r.pushManager.getSubscription(); }).then(function (s) { if (s) msg("🔔 Upozornění jsou zapnutá na tomto zařízení."); }).catch(function () {});
+    on.onclick = async function () {
+      if (!T()) { msg("Nejdřív nahoře v části ☁️ Všechna zařízení propojená napiš heslo.", true); return; }
+      try {
+        var p = await Notification.requestPermission(); if (p !== "granted") { msg("Upozornění jsi nepovolil. V Safari: Nastavení → Webové stránky → Oznámení → povol tuhle stránku.", true); return; }
+        var reg = await navigator.serviceWorker.ready, k = await (await fetch(U() + "/push/key", {cache: "no-store"})).json();
+        if (!k || !k.pub) { msg("⚠️ V Cloudflare je starý kód Workeru. Nahraj nový (worker-kod.txt).", true); return; }
+        var old = await reg.pushManager.getSubscription(); if (old) { try { await old.unsubscribe(); } catch (e) {} }
+        var sub = await reg.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: u8(k.pub)});
+        var r = await fetch(U() + "/push/sub?t=" + encodeURIComponent(T()), {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(sub)});
+        if (r.status === 403) { msg("❌ Špatné heslo.", true); return; }
+        msg(r.ok ? "🔔 Hotovo. Upozornění jsou zapnutá. Zkus „Poslat zkušební“." : "Něco se nepovedlo (" + r.status + ").", !r.ok);
+      } catch (e) { msg("Něco se nepovedlo: " + String(e && e.message || e).slice(0, 120), true); }
+    };
+    document.getElementById("pu-test").onclick = async function () {
+      if (!T()) { msg("Nejdřív napiš heslo nahoře.", true); return; }
+      try { var r = await fetch(U() + "/push/test?t=" + encodeURIComponent(T()), {method: "POST"}), x = await r.json();
+        msg(x.ok && x.n ? "Odesláno. Za pár vteřin by mělo přijít upozornění." : x.n === 0 ? "Zatím tu není žádné zařízení. Nejdřív dej Zapnout upozornění." : "Nepovedlo se.", !(x.ok && x.n));
+      } catch (e) { msg("Worker neodpovídá.", true); }
+    };
+    document.getElementById("pu-off").onclick = async function () {
+      try { var reg = await navigator.serviceWorker.ready, s = await reg.pushManager.getSubscription();
+        if (s) { try { await fetch(U() + "/push/sub?t=" + encodeURIComponent(T()), {method: "DELETE", headers: {"Content-Type": "application/json"}, body: JSON.stringify({endpoint: s.endpoint})}); } catch (e) {} await s.unsubscribe(); }
+        msg("Upozornění jsou na tomto zařízení vypnutá.");
+      } catch (e) { msg("Nepovedlo se vypnout.", true); }
+    };
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
 })();
 </script><script>(function(){
 var L=[["cs","🇨🇿","Čeština","Czech"],["sk","🇸🇰","Slovenčina","Slovak"],["en","🇬🇧","English","English"],["de","🇩🇪","Deutsch","German"],["es","🇪🇸","Español","Spanish"],["it","🇮🇹","Italiano","Italian"],["fr","🇫🇷","Français","French"],["pt","🇵🇹","Português","Portuguese"],["zh-CN","🇨🇳","中文","Chinese (Mandarin)"]];
@@ -677,7 +762,7 @@ if(cur!=="cs"){cookie(cur);
 <p class="empty">Funguje soubor z Replay Trading i ze Strategy Testeru (List of trades → ikona stažení → CSV). Pozice rozdělená na víc výstupů (TP1 a TP2) se spojí do jednoho obchodu. Soubor můžeš také přetáhnout kamkoliv na stránku. Čas v souboru musí být pražský. Znovu nahraný stejný soubor nevytvoří duplicity.</p>
 <p class="empty">Obchody se ukládají jen v tomto prohlížeči na tomto zařízení. Zálohuj je pravidelně.</p></section></div>
 
-<div id="t-rep" hidden><section class="p"><h2>Rozbor týdne</h2><p class="hint">V pátek se po zápisu obchodu nebo dne bez obchodu vyplní sám. Klidně ho pak přepiš svými slovy.</p><div id="d-rev"></div></section><section class="p"><h2>Filtry</h2><div class="grid" id="flt">
+<div id="t-rep" hidden><section class="p"><h2>Rozbor týdne</h2><p class="hint">Když v pátek zapíšeš poslední den týdne, vyplní se sám. Když ti něco chybí a doplníš to později, připomínka nahoře ti nabídne <b>Vyhodnotit týden</b> (jedno kliknutí). Klidně ho pak přepiš svými slovy.</p><div id="d-rev"></div></section><section class="p"><h2>Filtry</h2><div class="grid" id="flt">
 <label>Od<input type="date" id="f-from"></label><label>Do<input type="date" id="f-to"></label>
 <label>Symbol<select id="f-sym"></select></label><label>Směr<select id="f-dir"><option value="">Oba</option><option value="long">Long</option><option value="short">Short</option></select></label>
 <label>Výsledek<select id="f-res"><option value="">Všechny</option><option value="w">Výhry</option><option value="l">Prohry</option></select></label><label>Strategie<select id="f-str"></select></label></div>
@@ -695,7 +780,7 @@ if(cur!=="cs"){cookie(cur);
 <p class="empty">CSV musí mít hlavičku se sloupci: datum, symbol, smer, kontrakty, vstup, vystup, stop (stop je nepovinný). Zkopírovaná data vlož do chatu na claude.ai a napiš: „Rozeber mi můj deník.“</p><p id="cpmsg" class="empty"></p></section></div>
 <div id="t-disc" hidden><section class="p"><h2>Tiltmeter: křivka účtu a dodržování plánu</h2><div id="d-tilt"></div></section><section class="p"><h2>Cena obchodů mimo plán</h2><div id="d-leak"></div></section><section class="p"><h2>Emoce a chyby v penězích</h2><div id="d-emoc"></div></section><div id="d-miss" hidden></div></div>
 <div id="t-setup" hidden><section class="p"><h2>Strategie a konfluence</h2><div id="d-pb"></div></section><section class="p"><h2>Moje účty</h2><div id="d-acc"></div></section></div>
-<footer><p>Verze stránky (verze 108).</p></footer></main></div></div>
+<footer><p>Verze stránky (verze 112).</p></footer></main></div></div>
 
 <dialog id="dlg"><form id="f"><h2 id="dt">Nový obchod</h2><input type="hidden" name="id">
 <h3 class="sec">1. Zápis obchodu: vstup</h3>
@@ -866,10 +951,9 @@ function reports() {
   const hr = t => new Date(when(t)).getHours(), wd = t => (new Date(when(t)).getDay() + 6) % 7;
   $("rbars").innerHTML = bars("Podle hodiny otevření", [...Array(24).keys()].map(h => [String(h).padStart(2, "0") + ":00", list.filter(t => hr(t) === h)])) +
     bars("Podle dne v týdnu", ["Po","Út","St","Čt","Pá","So","Ne"].map((n, i) => [n, list.filter(t => wd(t) === i)])) +
-    bars("Podle emoce", EMO.map(([i, n]) => [i + " " + n, list.filter(t => (t.emo || []).includes(n))])) +
     bars("Podle strategie", [...new Set(list.map(t => t.strat).filter(Boolean))].map(n => [n, list.filter(t => t.strat === n)])) +
     bars("Podle dodržení plánu", [["Dodržel plán", list.filter(t => t.plan === "ano")], ["Nedodržel plán", list.filter(t => t.plan === "ne")]]) +
-    bars("Podle chyby", MIS.map(n => [n, list.filter(t => (t.mis || []).includes(n))]));
+    '<p class="hint" style="grid-column:1/-1;margin-top:6px">😶 Emoce a ⚠ chyby najdeš na jednom místě v záložce <b>Disciplína → Emoce a chyby v penězích</b>.</p>';
 }
 
 /* ===== Rozbor jako u mentora: instrumenty, seance, dny, long/short, doba držení, chování (v92) ===== */
@@ -1046,11 +1130,11 @@ function weekMissing(wk, upTo) {
 const dnyTxt = a => a.map(d => DNY[new Date(d + "T12:00").getDay()] + " " + czD(d)).join(", ");
 function autoRev(d0, force) {
   if (!d0) return; const wk = weekKey(d0), fri = addD(wk, 4);
-  if (!force && (BT ? (new Date(d0 + "T12:00").getDay() !== 5 && new Date().getDay() !== 5) : (todayS() < fri || weekMissing(wk, fri).length))) return;
+  if (!force && (BT ? (new Date(d0 + "T12:00").getDay() !== 5 && new Date().getDay() !== 5) : (todayS() !== fri || weekMissing(wk, fri).length))) return;
   const miss = BT ? [] : weekMissing(wk, fri < todayS() ? fri : todayS()), RK = (BT ? "bt" : "jr") + ":rev", R = LS.get(RK, {}), cur = R[wk] = R[wk] || {}, au = cur.auto = cur.auto || {};
   const tr = ALL.filter(t => pnl(t) !== null && weekKey(day(t)) === wk), sk = (typeof SK !== "undefined" ? SK : []).filter(r => weekKey(r.date) === wk);
   const net = sum(tr.map(pnl)), wins = tr.filter(t => pnl(t) > 0).length, pl = tr.filter(t => t.plan === "ano").length, pn = tr.filter(t => t.plan === "ne").length;
-  const okW = sk.filter(r => !/^(Nenabralo|Neměl jsem čas|Svátek)/.test(r.reason) && r.ok !== false).length, badW = sk.filter(r => r.ok === false).length;
+  const okW = sk.filter(r => r.reason !== "Nenabralo" && r.ok !== false).length, badW = sk.filter(r => r.ok === false).length;
   const mis = {}; tr.forEach(t => (t.mis || []).forEach(m => { mis[m] = mis[m] || {n: 0, p: 0}; mis[m].n++; mis[m].p += pnl(t); }));
   const emo = {}; tr.forEach(t => (t.emo || []).forEach(m => { emo[m] = (emo[m] || 0) + 1; }));
   const misL = Object.entries(mis).sort((a, b) => a[1].p - b[1].p), best = tr.slice().sort((a, b) => pnl(b) - pnl(a))[0];
@@ -1514,8 +1598,8 @@ function reviewHtml(closed) {
   const q = [["a", "Co se mi tento týden dařilo?"], ["b", "Kde jsem porušil pravidla a proč?"], ["c", "Co zlepším příští týden? (jedna věc)"]];
   const old = Object.keys(R).filter(k => k !== wk).sort().reverse().slice(0, 8);
   const nowWk = weekKey(todayS()), first = revFirst() < nowWk ? revFirst() : nowWk;
-  const nav = `<div class="calhead" style="margin-bottom:12px"><button class="ghost sm" data-rvnav="-1" aria-label="Předchozí týden"${wk <= first ? " disabled" : ""}>‹</button><b>Týden ${czD(wk)} – ${czD(addD(wk, 6), 1)}</b><button class="ghost sm" data-rvnav="1" aria-label="Další týden">›</button>${wk !== nowWk ? '<button class="ghost sm" data-rvnav="0">Tento týden</button>' : '<span class="empty">tento týden</span>'}<button class="ghost sm" data-rvauto="${addD(wk, 4)}" title="Doplní prázdná pole podle obchodů v tomto týdnu">✨ Vyplnit automaticky</button></div>`;
-  const mis_ = BT ? [] : weekMissing(wk);
+  const nav = `<div class="calhead" style="margin-bottom:12px"><button class="ghost sm" data-rvnav="-1" aria-label="Předchozí týden"${wk <= first ? " disabled" : ""}>‹</button><b>Týden ${czD(wk)} – ${czD(addD(wk, 6), 1)}</b><button class="ghost sm" data-rvnav="1" aria-label="Další týden">›</button>${wk !== nowWk ? '<button class="ghost sm" data-rvnav="0">Tento týden</button>' : '<span class="empty">tento týden</span>'}</div>`;
+  const mis_ = BT ? [] : weekMissing(wk, addD(todayS(), -1));
   const missH = mis_.length ? `<div class="guard pause" style="display:block;margin:0 0 12px">⚠️ <b>Chybí zápis: ${dnyTxt(mis_)}</b> – každý obchodní den zapiš obchod, nebo den bez obchodu s důvodem. Týden se pak vyhodnotí sám.<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">${mis_.map(d => `<button type="button" class="ghost sm" data-zap="skip:${d}">🚫 ${DNY[new Date(d + "T12:00").getDay()]} ${czD(d)}: den bez obchodu</button><button type="button" class="ghost sm" data-zap="add:${d}">+ obchod</button>`).join("")}</div></div>` : "";
   return nav + missH + stats + q.map(([k, l]) => `<label style="margin-top:10px">${l}<textarea rows="2" data-rv="${k}">${esc(cur[k] || "")}</textarea></label>`).join("") +
     `<label style="margin-top:10px">Známka týdne <span class="empty" style="white-space:nowrap">(1 nejlepší, 5 nejhorší)</span><select data-rv="g" style="max-width:260px"><option value="">–</option>${[1, 2, 3, 4, 5].map(i => `<option value="${i}"${String(cur.g) === String(i) ? " selected" : ""}>${i}${i === 1 ? " (nejlepší)" : i === 5 ? " (nejhorší)" : ""}</option>`).join("")}</select></label><p class="empty">Týden od ${czD(wk, 1)}. Ukládá se samo. Šipkami listuješ mezi týdny.</p>` +

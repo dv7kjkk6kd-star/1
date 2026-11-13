@@ -1,4 +1,4 @@
-Datum a čas aktualizace: 13. 11. 2026 10:43 (pražský čas). Obchoduje se MNQ (Micro Nasdaq futures), 1 bod = 2 $. Seance v New Yorku 9:30–16:00 = u nás obvykle 15:30–22:00.
+Datum a čas aktualizace: 13. 11. 2026 11:50 (pražský čas). Obchoduje se MNQ (Micro Nasdaq futures), 1 bod = 2 $. Seance v New Yorku 9:30–16:00 = u nás obvykle 15:30–22:00.
 
 STRÁNKY WEBU:
 - Dnes: Přehled (Ranní souhrn trhu v kostce)
@@ -11,25 +11,25 @@ STRÁNKY WEBU:
 - Knihy: Knihy o tradingu (Hlavní myšlenky slavných knih o tradingu a psychologii)
 - Učení a nastavení: AI asistent (Zeptej se na cokoliv o webu, dnešních datech i tradingu); Roadmap (Tvoje cesta k disciplinovanému obchodování); Příručka (Slovníček a postup krok za krokem); Nastavení (Účet, riziko a výchozí hodnoty)
 
-DNEŠNÍ BIAS: Neutrální, skóre -1.2 z 10 (−10 až +10). Bias se ukládá do 15:00 a pak se už nemění.
-- složka Futures: -0.2 (váha 3.0) – Futures na Nasdaq a S&P 500 jsou v průměru −0,09 %.
-- složka Šířka akcií: -0.3 (váha 2.0) – 10 z 23 největších akcií je v plusu.
-- složka Strach (VIX): +0.0 (váha 1.5) – VIX se změnil o −0,16 %. Růst strachu bývá pro akcie špatný.
-- složka Dolar: -0.1 (váha 0.5) – Dolarový index se změnil o +0,02 %. Silný dolar akciím spíš škodí.
+DNEŠNÍ BIAS: Neutrální, skóre -0.4 z 10 (−10 až +10). Bias se ukládá do 15:00 a pak se už nemění.
+- složka Futures: +0.1 (váha 4.59) – Futures na Nasdaq a S&P 500 jsou v průměru +0,04 %.
+- složka Šířka akcií: -0.4 (váha 2.26) – 9 z 23 největších akcií je v plusu.
+- složka Strach (VIX): +0.3 (váha 1.5) – VIX se změnil o −1,39 %. Růst strachu bývá pro akcie špatný.
+- složka Dolar: -0.2 (váha 0.5) – Dolarový index se změnil o +0,05 %. Silný dolar akciím spíš škodí.
 - složka Výnosy dluhopisů: -1.1 (váha 1.0) – Výnos 10letých dluhopisů se změnil o +2,10 %. Růst výnosů tlačí akcie dolů.
-- složka Trend futures: -0.3 (váha 1.0) – Cena je o +0,15 % pod průměrem posledního dne.
-- složka Zprávy: -0.8 (váha 1.0) – Nálada v titulcích zpráv za 24 hodin: skóre −2.0 z 5.
+- složka Trend futures: -0.1 (váha 1.0) – Cena je o +0,06 % pod průměrem posledního dne.
+- složka Zprávy: -0.8 (váha 1.0) – Nálada v titulcích zpráv za 24 hodin: skóre −1.9 z 5.
 - složka Sezónnost: +2.0 (váha 0.5) – V tomto měsíci Nasdaq 100 historicky průměrně +3,38 %.
 Přesnost biasu: 10 z 18 dní (56 %).
 Posledních 5 dní (bias → skutečný pohyb Nasdaqu): 2026-11-06 Neutrální → +1.35 %; 2026-11-09 Bullish → +3.40 %; 2026-11-10 Neutrální → -0.60 %; 2026-11-11 Bullish → +2.28 %; 2026-11-12 Mírně bearish → -0.30 %
 
-SENTIMENT ZPRÁV (24 h): skóre -2.0 z 5, bearish.
-- Nvidia stock inches higher as investors continue to weigh Jensen Huang’s departure (CNBC)
-- Nvidia on track for longest weekly losing streak since 2012 as market value sinks by $1.6 trillion (CNBC)
+SENTIMENT ZPRÁV (24 h): skóre -1.9 z 5, bearish.
 - Widespread Microsoft outage takes down Outlook and other 365 services (CNBC)
 - Alice Huang tied to Nvidia’s biggest Chinese competitor (CNBC)
+- The Fed expected rate cuts this year. Now it’s bracing for another inflation fight (CNBC)
+- ‘We will sue them’: Canada threatens Stellantis as Trump trade war reshapes Jeep production plans (CNBC)
 - Nvidia’s turmoil is prompting a rotation across chip stocks. Here's what we know (CNBC)
-- Treasury yields rise as traders strengthen Fed rate hike bets (CNBC)
+- Nvidia stock inches higher as investors continue to weigh Jensen Huang’s departure (CNBC)
 
 KALENDÁŘ ZPRÁV Z USA (nejbližší):
 - Fri 13. 11. 14:30: Core PPI m/m (dopad vysoký, očekávání 0.3%, minule 0.7%)
