@@ -3,7 +3,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Backtest deník</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=106"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}window.TDux=function(){try{var u=JSON.parse(localStorage.getItem("ux")||"{}"),c="",F={sys:"-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif",read:"Atkinson Hyperlegible,Verdana,sans-serif",serif:"Newsreader,Georgia,serif",round:"Nunito,Arial Rounded MT Bold,sans-serif",mono:"JetBrains Mono,Menlo,Consolas,monospace"},G={read:"Atkinson+Hyperlegible:wght@400;700",round:"Nunito:wght@400;600;700;800",mono:"JetBrains+Mono:wght@400;600;700"};if(F[u.f]){c+="body,body *{font-family:"+F[u.f]+"!important}";if(G[u.f]&&!document.getElementById("uxf-"+u.f)){var l=document.createElement("link");l.id="uxf-"+u.f;l.rel="stylesheet";l.href="https://fonts.googleapis.com/css2?family="+G[u.f]+"&display=swap";document.head.appendChild(l)}}if(u.z&&u.z!=1)c+="html{zoom:"+u.z+"}";var A={blue:["#38BDF8","#6366F1"],green:["#2EE6A6","#0EA5E9"],orange:["#FFB547","#FF6B8A"],pink:["#F472B6","#8B7CFF"],gold:["#E8C26A","#B9812C"],red:["#FF6B8A","#B91C1C"]};if(A[u.a])c+=":root{--acc:"+A[u.a][0]+"!important}button{background-image:linear-gradient(135deg,"+A[u.a][0]+","+A[u.a][1]+")}h2::before,.side a.on,.side a[aria-current]{border-color:"+A[u.a][0]+"!important}";if(u.bg===0)c+="body::before,body::after{background-image:none!important;opacity:0!important}";if(u.op!=null){var a=Math.max(0,Math.min(1,1-u.op/100)).toFixed(2),K=["section",".tile",".k",".p"];c+=K.map(function(x){return "html:not([data-theme=light]) "+x}).join(",")+"{background:rgba(16,22,40,"+a+")!important}";c+=K.map(function(x){return "html[data-theme=light] "+x}).join(",")+"{background:rgba(255,255,255,"+a+")!important}";if(u.op<=40)c+="section,.tile,.k,.p{backdrop-filter:none!important}"}if(u.bi!=null&&u.bg!==0){var v=(u.bi/100).toFixed(2);c+="html:not([data-theme=light]) body::before{filter:opacity("+v+")}html[data-theme=light] body::before{filter:invert(1) opacity("+v+")}"}if(u.an===0)c+="*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}";if(u.lh)c+="p,li,td,.hint,.facts li{line-height:1.8!important}";if(u.b)c+="body{font-weight:500}b,strong,h1,h2,h3{font-weight:800!important}";var s=document.getElementById("uxs")||document.createElement("style");s.id="uxs";s.textContent=c;document.head.appendChild(s)}catch(e){}};TDux();document.addEventListener("DOMContentLoaded",TDux);</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><style>
+<link rel="stylesheet" href="style.css?v=108"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}window.TDux=function(){try{var u=JSON.parse(localStorage.getItem("ux")||"{}"),c="",F={sys:"-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif",read:"Atkinson Hyperlegible,Verdana,sans-serif",serif:"Newsreader,Georgia,serif",round:"Nunito,Arial Rounded MT Bold,sans-serif",mono:"JetBrains Mono,Menlo,Consolas,monospace"},G={read:"Atkinson+Hyperlegible:wght@400;700",round:"Nunito:wght@400;600;700;800",mono:"JetBrains+Mono:wght@400;600;700"};if(F[u.f]){c+="body,body *{font-family:"+F[u.f]+"!important}";if(G[u.f]&&!document.getElementById("uxf-"+u.f)){var l=document.createElement("link");l.id="uxf-"+u.f;l.rel="stylesheet";l.href="https://fonts.googleapis.com/css2?family="+G[u.f]+"&display=swap";document.head.appendChild(l)}}if(u.z&&u.z!=1)c+="html{zoom:"+u.z+"}";var A={blue:["#38BDF8","#6366F1"],green:["#2EE6A6","#0EA5E9"],orange:["#FFB547","#FF6B8A"],pink:["#F472B6","#8B7CFF"],gold:["#E8C26A","#B9812C"],red:["#FF6B8A","#B91C1C"]};if(A[u.a])c+=":root{--acc:"+A[u.a][0]+"!important}button{background-image:linear-gradient(135deg,"+A[u.a][0]+","+A[u.a][1]+")}h2::before,.side a.on,.side a[aria-current]{border-color:"+A[u.a][0]+"!important}";if(u.bg===0)c+="body::before,body::after{background-image:none!important;opacity:0!important}";if(u.op!=null){var a=Math.max(0,Math.min(1,1-u.op/100)).toFixed(2),K=["section",".tile",".k",".p"];c+=K.map(function(x){return "html:not([data-theme=light]) "+x}).join(",")+"{background:rgba(16,22,40,"+a+")!important}";c+=K.map(function(x){return "html[data-theme=light] "+x}).join(",")+"{background:rgba(255,255,255,"+a+")!important}";if(u.op<=40)c+="section,.tile,.k,.p{backdrop-filter:none!important}"}if(u.bi!=null&&u.bg!==0){var v=(u.bi/100).toFixed(2);c+="html:not([data-theme=light]) body::before{filter:opacity("+v+")}html[data-theme=light] body::before{filter:invert(1) opacity("+v+")}"}if(u.an===0)c+="*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}";if(u.lh)c+="p,li,td,.hint,.facts li{line-height:1.8!important}";if(u.b)c+="body{font-weight:500}b,strong,h1,h2,h3{font-weight:800!important}";var s=document.getElementById("uxs")||document.createElement("style");s.id="uxs";s.textContent=c;document.head.appendChild(s)}catch(e){}};TDux();document.addEventListener("DOMContentLoaded",TDux);</script><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><style>
 #f .grid{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}#f .grid>label{min-width:0}#f select,#f input{width:100%;min-width:0;text-overflow:ellipsis}#f input[type=checkbox]{width:auto;flex:none;margin:0}#f .chip{white-space:nowrap;display:inline-flex}
 #f .sec{margin:20px 0 8px;padding-top:12px;border-top:1px solid var(--rule);font-size:16px}#f .sec:first-of-type{border-top:0;margin-top:6px;padding-top:0}
 #f label em{font-style:normal;color:var(--acc);font-weight:600}
@@ -137,6 +137,21 @@ if("serviceWorker" in navigator){try{navigator.serviceWorker.register("sw.js").c
 var PV={NQ:20,MNQ:2,ES:50,MES:5,YM:5,MYM:0.5};
 function pnl(t){if(t.exit==null)return null;var d=t.dir==="short"?-1:1;return (t.exit-t.entry)*d*(t.size||1)*(t.pv||PV[t.inst]||1)-(t.fee||0)}
 function dayOf(t){return (t.opened||(t.date+"T00:00")).slice(0,10)}
+function accStat(trades,a){
+  var nm="Účet "+a.n,td=today(),ts=trades.filter(function(t){return t.acc===nm&&pnl(t)!==null}).sort(function(x,y){return String(x.closed||x.opened).localeCompare(String(y.closed||y.opened))});
+  var cum=0,peak=0,dn=0;ts.forEach(function(t){var p=pnl(t);cum+=p;if(cum>peak)peak=cum;if(dayOf(t)===td)dn+=p});
+  var floor=a.dd>0?(a.ddt==="trail"?Math.min(peak-a.dd,0):-a.dd):null;
+  return {net:cum,peak:peak,today:dn,left:floor==null?null:cum-floor,dayLeft:a.dl>0?a.dl+dn:null}}
+window.TDaccStat=accStat;
+function stopModal(msg,td){
+  if(ls("jr:stopseen:"+td,"")===msg||D.getElementById("stopmod"))return;
+  var o=D.createElement("div");o.id="stopmod";
+  o.style.cssText="position:fixed;inset:0;z-index:999999;background:rgba(10,12,24,.82);display:flex;align-items:center;justify-content:center;padding:20px";
+  o.innerHTML='<div style="max-width:520px;width:100%;background:#2A1220;border:2px solid #FF5C7A;border-radius:20px;padding:28px;color:#fff;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.6)">'+
+    '<div style="font-size:54px;line-height:1">🛑</div><h2 style="margin:10px 0 8px;font-size:30px">Dnes konec</h2><p style="font-size:18px;margin:0 0 10px">'+esc(msg)+'</p>'+
+    '<p style="font-size:15px;opacity:.85;margin:0 0 20px">Vstaň od grafu a nic dalšího neotvírej. Dodržet limit je dnešní výhra, zítra je nový den.</p>'+
+    '<button type="button" id="stopok" style="font-size:17px;padding:12px 22px">Rozumím, na dnes končím</button></div>';
+  D.body.appendChild(o);D.getElementById("stopok").onclick=function(){lset("jr:stopseen:"+td,msg);o.remove()}}
 var gEl=null,gTimer=null;
 function banner(html,kind){
   var c=D.querySelector(".content");if(!c)return;
@@ -152,9 +167,14 @@ function evalGuard(trades){
   lset("jr:day:"+td,{n:n,net:Math.round(net),ano:ano,ne:ne});
   try{D.dispatchEvent(new Event("tdday"))}catch(e){}
   var P=ls("plan:"+td,{})||{},mt=+P.maxTrades||0,ml=+P.maxLoss||0;
-  var limit=(mt>0&&n>=mt)?"Dnes jsi otevřel "+n+" z "+mt+" povolených obchodů.":(ml>0&&net<=-ml)?"Dnešní ztráta "+Math.round(net)+" $ dosáhla limitu "+ml+" $.":"";
+  var tdc=trades.filter(function(t){return dayOf(t)===td&&pnl(t)!==null}).sort(function(x,y){return String(x.closed||x.opened).localeCompare(String(y.closed||y.opened))});
+  var two=tdc.length>=2&&pnl(tdc[tdc.length-1])<0&&pnl(tdc[tdc.length-2])<0,accMsg="";
+  (ls("jr:accts",[])||[]).forEach(function(a){if(accMsg||(a.st&&a.st!=="run"))return;var x=accStat(trades,a);
+    if(!trades.some(function(t){return t.acc==="Účet "+a.n&&dayOf(t)===td}))return;
+    if(x.left!=null&&x.left<=0)accMsg="Účet "+a.n+" je pod hranicí drawdownu.";else if(x.dayLeft!=null&&x.dayLeft<=0)accMsg="Účet "+a.n+": denní limit ztráty "+a.dl+" $ je vyčerpaný."});
+  var limit=(mt>0&&n>=mt)?"Dnes jsi otevřel "+n+" z "+mt+" povolených obchodů.":(ml>0&&net<=-ml)?"Dnešní ztráta "+Math.round(net)+" $ dosáhla limitu "+ml+" $.":accMsg?accMsg:two?"Dnes máš 2 ztráty za sebou.":"";
   clearInterval(gTimer);
-  if(limit){banner("<b>Dnes končíš.</b> "+esc(limit)+" Vstaň od grafu. Dodržet limit je dnešní výhra.","stop");return}
+  if(limit){banner("<b>Dnes končíš.</b> "+esc(limit)+" Vstaň od grafu. Dodržet limit je dnešní výhra.","stop");stopModal(limit,td);return}
   var pm=+ls("pauseMin",15)||15;
   if(last){
     var tick=function(){var left=last.ct+pm*60000-Date.now();
@@ -570,6 +590,48 @@ window.TDme=function(){
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start); else start();
 })();
+;(function(){
+  // ===== Připomínka: každý obchodní den musí mít zápis + nevyhodnocený týden (v108) =====
+  if (/backtest\.html/.test(location.pathname)) return;
+  var pad = function (n) { return String(n).padStart(2, "0"); };
+  var iso = function (d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); };
+  var gj = function (k, d) { try { var v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
+  var cz = function (s) { var p = s.split("-"); return (+p[2]) + ". " + (+p[1]) + "."; };
+  function wk(s) { var d = new Date(s + "T12:00"); d.setDate(d.getDate() - (d.getDay() + 6) % 7); return iso(d); }
+  function all(db, st) { return new Promise(function (r) { try { var q = indexedDB.open(db); q.onupgradeneeded = function () { try { q.transaction.abort(); } catch (e) {} };
+    q.onsuccess = function () { var d = q.result; if (!d.objectStoreNames.contains(st)) { d.close(); r([]); return; } var g = d.transaction(st).objectStore(st).getAll(); g.onsuccess = function () { d.close(); r(g.result || []); }; g.onerror = function () { d.close(); r([]); }; };
+    q.onerror = function () { r([]); }; } catch (e) { r([]); } }); }
+  async function check() {
+    var now = new Date(), today = iso(now), DN = ["Ne", "Po", "Út", "St", "Čt", "Pá", "So"];
+    if (gj("rm:snooze", "") === today) return;
+    var tr = await all("journal", "trades"), sk = await all("journal_skips", "days");
+    if (!tr.length) return;
+    var first = tr.map(function (t) { return String(t.opened || "").slice(0, 10); }).filter(Boolean).sort()[0]; if (!first) return;
+    var have = {}; tr.forEach(function (t) { have[String(t.opened || "").slice(0, 10)] = 1; }); sk.forEach(function (r) { have[r.date] = 1; });
+    var st = new Date(now); st.setDate(st.getDate() - 14); var start = iso(st) > first ? iso(st) : first, miss = [];
+    for (var d = new Date(start + "T12:00"); iso(d) < today; d.setDate(d.getDate() + 1)) { var wd = d.getDay(); if (wd >= 1 && wd <= 5 && !have[iso(d)]) miss.push(iso(d)); }
+    // poslední celý týden: má všechny dny, ale není vyhodnocený
+    var lf = new Date(now); lf.setDate(lf.getDate() - ((now.getDay() + 2) % 7 || 7)); var fri = iso(lf), w = wk(fri), R = gj("jr:rev", {}), rv = R[w] || {};
+    var full = true; for (var i = 0; i < 5; i++) { var x = new Date(w + "T12:00"); x.setDate(x.getDate() + i); if (!have[iso(x)]) full = false; }
+    var showRev = full && first <= fri && !(rv.a || rv.b || rv.c);
+    if (!miss.length && !showRev) return;
+    var c = document.querySelector(".content"); if (!c || document.getElementById("rm-fri")) return;
+    var J = /journal\.html/.test(location.pathname) ? "" : "journal.html";
+    var b = document.createElement("div"); b.id = "rm-fri"; b.className = "guard pause";
+    var h = "";
+    if (miss.length) h += '<div style="margin-bottom:8px">📅 <b>Chybí zápis' + (miss.length > 1 ? " za " + miss.length + " dny" : "") + '.</b> Každý obchodní den zapiš obchod, nebo den bez obchodu s důvodem.</div>' +
+      miss.map(function (d) { var x = new Date(d + "T12:00"); return '<div style="display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;margin:6px 0"><b style="min-width:110px">' + DN[x.getDay()] + " " + cz(d) + '</b>' +
+        '<button type="button" class="sm" data-go="' + J + '#zapsat=add:' + d + '">+ Obchod</button><button type="button" class="ghost sm" data-go="' + J + '#zapsat=skip:' + d + '">🚫 Den bez obchodu</button></div>'; }).join("");
+    if (showRev) h += '<div style="display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin-top:' + (miss.length ? "10px" : "0") + '"><span>📊 Týden ' + cz(w) + " – " + cz(fri) + ' máš celý zapsaný, ale ještě <b>není vyhodnocený</b>.</span><button type="button" class="sm" data-go="' + J + '#zapsat=rev:' + fri + '">Vyhodnotit týden</button></div>';
+    h += '<div style="margin-top:8px"><button type="button" class="ghost sm" id="rm-later">Připomenout zítra</button></div>';
+    b.innerHTML = h;
+    var g = document.getElementById("guard"); c.insertBefore(b, g ? g.nextSibling : c.firstChild);
+    b.querySelectorAll("[data-go]").forEach(function (x) { x.onclick = function () { var u = x.getAttribute("data-go"); if (u.charAt(0) === "#" && window.TDzapsat) window.TDzapsat(u.slice(1)); else location.href = u; }; });
+    document.getElementById("rm-later").onclick = function () { try { localStorage.setItem("rm:snooze", JSON.stringify(today)); } catch (e) {} b.remove(); };
+  }
+  window.TDremind = function () { var o = document.getElementById("rm-fri"); if (o) o.remove(); check(); };
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function () { setTimeout(check, 900); }); else setTimeout(check, 900);
+})();
 </script><script>(function(){
 var L=[["cs","🇨🇿","Čeština","Czech"],["sk","🇸🇰","Slovenčina","Slovak"],["en","🇬🇧","English","English"],["de","🇩🇪","Deutsch","German"],["es","🇪🇸","Español","Spanish"],["it","🇮🇹","Italiano","Italian"],["fr","🇫🇷","Français","French"],["pt","🇵🇹","Português","Portuguese"],["zh-CN","🇨🇳","中文","Chinese (Mandarin)"]];
 var D=document,btn=D.getElementById("langbtn"),menu=D.getElementById("langmenu");if(!btn||!menu)return;
@@ -633,7 +695,7 @@ if(cur!=="cs"){cookie(cur);
 <p class="empty">CSV musí mít hlavičku se sloupci: datum, symbol, smer, kontrakty, vstup, vystup, stop (stop je nepovinný). Zkopírovaná data vlož do chatu na claude.ai a napiš: „Rozeber mi můj deník.“</p><p id="cpmsg" class="empty"></p></section></div>
 <div id="t-disc" hidden><section class="p"><h2>Tiltmeter: křivka účtu a dodržování plánu</h2><div id="d-tilt"></div></section><section class="p"><h2>Cena obchodů mimo plán</h2><div id="d-leak"></div></section><section class="p"><h2>Emoce a chyby v penězích</h2><div id="d-emoc"></div></section><div id="d-miss" hidden></div></div>
 <div id="t-setup" hidden><section class="p"><h2>Strategie a konfluence</h2><div id="d-pb"></div></section><section class="p"><h2>Moje účty</h2><div id="d-acc"></div></section></div>
-<footer><p>Verze stránky (verze 106).</p></footer></main></div></div>
+<footer><p>Verze stránky (verze 108).</p></footer></main></div></div>
 
 <dialog id="dlg"><form id="f"><h2 id="dt">Nový obchod</h2><input type="hidden" name="id">
 <h3 class="sec">1. Zápis obchodu: vstup</h3>
@@ -645,8 +707,8 @@ if(cur!=="cs"){cookie(cur);
 <label>Typ vstupu<select name="otype"><option value="">–</option><option value="market">Market</option><option value="limit">Limit</option></select></label><label>Vstup (cena)<input name="entry" type="number" step="any" required></label>
 <label>Stop loss<input name="stop" type="number" step="any" required></label>
 <label>Take profit 1 <em id="r1"></em><input name="target" type="number" step="any" required></label><label>Take profit 2 <em id="r2"></em><input name="target2" type="number" step="any"></label>
-<label>Strategie<select name="strat" id="strat"></select></label><label>Trend dne<select name="trend"><option value="">–</option><option value="with">S trendem</option><option value="against">Proti trendu</option><option value="range">Konsolidace</option></select></label><label>Účet<select name="acc"></select></label></div>
-<p class="empty" id="tfnote" style="margin:6px 0 0;display:none">Nejnižší timeframe je 1 minuta. Timeframey 15 s a 30 s tu nejsou, protože v minulosti je TradingView nezobrazí.</p><p class="empty" id="pbnote" style="margin:6px 0 0"></p><p class="empty" style="margin:4px 0 0">Strategii i s jejími podmínkami a konfluencemi si nastavíš v záložce Disciplína → Strategie. Po jejím výběru se checklist vyplní sám.</p><datalist id="accs"></datalist>
+<label>Strategie<select name="strat" id="strat"></select></label><label>Trend dne<select name="trend"><option value="">–</option><option value="with">S trendem</option><option value="against">Proti trendu</option><option value="range">Konsolidace</option></select></label><label>Účet<select name="acc"></select><span id="acc-info"></span></label></div>
+<p class="empty" id="tfnote" style="margin:6px 0 0;display:none">Nejnižší timeframe je 1 minuta. Timeframey 15 s a 30 s tu nejsou, protože v minulosti je TradingView nezobrazí.</p><p class="empty" id="pbnote" style="margin:6px 0 0"></p><p class="empty" style="margin:4px 0 0">Strategii i s jejími podmínkami a konfluencemi si nastavíš v záložce Strategie a účty. Po jejím výběru se checklist vyplní sám.</p><datalist id="accs"></datalist>
 <p class="empty" id="entrynote" style="margin:8px 0 0"></p><div class="note" id="rr" style="margin-top:12px">Zadej vstupní cenu a stop loss i oba take profity se doplní samy.</div>
 <details class="mdl" open><summary>Vstupní model: checklist (co platilo při vstupu)</summary>
 <blockquote class="qt">Každý vstup musí být v souladu s tvojí celkovou obchodní strategií a pravidly řízení rizika. Bez výjimek!</blockquote>
@@ -911,33 +973,52 @@ function fillAcc(cur) {
     legacy.map(x => `<option value="${esc(x)}">${esc(x)}</option>`).join("") + '<option value="__new__">➕ Nový účet…</option>';
   const run = A.find(a => a.st === "run");
   sel.value = cur && [...sel.options].some(o => o.value === cur) ? cur : run ? accName(run) : (sel.options[0] ? sel.options[0].value : "");
-  sel.dataset.prev = sel.value;
+  sel.dataset.prev = sel.value; accInfo();
 }
 function accNew(firm) { const A = accAll(), n = A.reduce((m, a) => Math.max(m, a.n), 0) + 1; const a = {n, firm: firm || "", size: "", start: localNow().slice(0, 10), end: "", st: "run", note: ""}; A.push(a); accSave(A); return a; }
 function accHtml(closed) {
   const A = accAll().slice().sort((a, b) => b.n - a.n), firms = [...new Set(A.map(a => a.firm).filter(Boolean))];
   const rows = A.map(a => { const l = closed.filter(t => t.acc === accName(a)), s = st(l);
     const per = (a.start ? a.start.split("-").reverse().join(". ") : "?") + " – " + (a.end ? a.end.split("-").reverse().join(". ") : "dosud");
-    return rowH([`<b>${esc(accName(a))}</b><br><span class="empty">${esc(a.firm || "–")}${a.size ? " · " + esc(a.size) : ""}</span>${a.note ? `<br><span class="empty">${esc(a.note)}</span>` : ""}`, per, esc(ACCST[a.st] || ACCST.run), s.n, cs(s.net),
+    return rowH([`<b>${esc(accName(a))}</b><br><span class="empty">${esc(a.firm || "–")}${a.size ? " · " + esc(a.size) : ""}</span>${a.note ? `<br><span class="empty">${esc(a.note)}</span>` : ""}`, per, esc(ACCST[a.st] || ACCST.run) + accRulesHtml(a), s.n, cs(s.net),
       `<button class="ghost sm" data-ace="${a.n}">Upravit</button> <button class="ghost sm" data-acd="${a.n}">Smazat</button>`]); });
   const used = new Set(A.map(accName)), LG = {};
   ALL.forEach(t => { if (t.acc && !used.has(t.acc)) (LG[t.acc] = LG[t.acc] || []).push(t); });
   Object.entries(LG).forEach(([nm, ts]) => { const l = ts.filter(t => pnl(t) !== null), s = st(l), dd = ts.map(day).sort();
     rows.push(rowH([`<b>${esc(nm)}</b><br><span class="empty">starý účet z obchodů, ještě nezaložený</span>`, dd[0].split("-").reverse().join(". ") + " – " + dd[dd.length - 1].split("-").reverse().join(". "), '<span class="empty">–</span>', s.n, cs(s.net),
       `<button class="ghost sm" data-acl="${esc(nm)}">Upravit</button>`])); });
-  return `<p class="hint">Založ si každý účet jednou: číslo se dá samo, vyplníš firmu, velikost, kdy začal a jak skončil. U obchodu pak účet jen vybereš.</p>
+  return `<p class="hint">Založ si každý účet jednou: číslo se dá samo, vyplníš firmu, velikost, kdy začal a jak skončil. U obchodu pak účet jen vybereš.
+Když vyplníš i <b>pravidla firmy</b> (drawdown, denní limit, cíl), aplikace ti u účtu ukáže, kolik zbývá do cíle a do spálení, a při překročení denního limitu tě zastaví.</p>
+<style>.accr{display:flex;flex-direction:column;gap:3px;margin-top:6px;font-size:13px}.accbar{display:block;height:6px;border-radius:4px;background:var(--field);overflow:hidden;max-width:180px}.accbar i{display:block;height:100%;background:var(--up)}.accr-f{flex-direction:row;flex-wrap:wrap;gap:4px 16px;font-size:14px;margin:6px 0 0}.accr-f .accbar{display:none}</style>
 <input type="hidden" id="ac-id"><input type="hidden" id="ac-lg"><div class="grid"><label>Firma<input id="ac-f" list="ac-fl" placeholder="např. Topstep, Apex, Lucid"></label><datalist id="ac-fl">${firms.map(f => `<option value="${esc(f)}">`).join("")}</datalist>
 <label>Velikost účtu<input id="ac-s" placeholder="např. 50K"></label><label>Začal<input id="ac-b" type="date"></label><label>Skončil<input id="ac-e" type="date"></label>
+<label>Max. drawdown ($)<input id="ac-dd" type="number" min="0" step="any" placeholder="např. 2000"></label>
+<label>Typ drawdownu<select id="ac-ddt"><option value="static">Statický (od začátku)</option><option value="trail">Trailing (od nejvyššího zisku)</option></select></label>
+<label>Denní limit ztráty ($)<input id="ac-dl" type="number" min="0" step="any" placeholder="např. 1000"></label><label>Cíl zisku ($)<input id="ac-tg" type="number" min="0" step="any" placeholder="např. 3000"></label>
 <label>Jak to dopadlo<select id="ac-st">${Object.entries(ACCST).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select></label><label>Poznámka<input id="ac-no" placeholder="např. spálen kvůli revenge"></label></div>
 <div class="row"><button type="button" id="ac-add">Založit účet</button> <button type="button" class="ghost" id="ac-clr">Vyčistit formulář</button> <span class="empty" id="ac-msg"></span></div>` +
     (rows.length ? tbl(["Účet", "Období", "Stav", "Obchodů", "Výsledek", ""], rows) : '<p class="empty">Zatím tu žádný účet není. Vyplň firmu a dej „Založit účet“.</p>');
 }
-function accClear() { ["ac-id", "ac-lg", "ac-f", "ac-s", "ac-e", "ac-no"].forEach(i => $(i).value = ""); $("ac-b").value = localNow().slice(0, 10); $("ac-st").value = "run"; $("ac-add").textContent = "Založit účet"; }
+function accRulesHtml(a) {
+  if (!(a.dd > 0 || a.dl > 0 || a.tg > 0) || !window.TDaccStat) return "";
+  const x = window.TDaccStat(ALL, a), o = [];
+  if (a.tg > 0) { const p = Math.max(0, Math.min(100, x.net / a.tg * 100)); o.push(`<span class="${x.net >= a.tg ? "up" : ""}">🎯 Cíl: ${usd(x.net)} z ${usd(a.tg)} (${nf(p, 0)} %)</span><span class="accbar"><i style="width:${p}%"></i></span>`); }
+  if (x.left != null) o.push(`<span class="${x.left <= 0 ? "down" : x.left < a.dd * .25 ? "down" : ""}">🔥 Do spálení: ${x.left <= 0 ? "účet je pod hranicí" : usd(x.left)}${a.ddt === "trail" ? " (trailing)" : ""}</span>`);
+  if (x.dayLeft != null && (a.st || "run") === "run") o.push(`<span class="${x.dayLeft <= 0 ? "down" : x.dayLeft < a.dl * .3 ? "down" : ""}">📅 Dnes zbývá: ${x.dayLeft <= 0 ? "denní limit vyčerpán" : usd(x.dayLeft)}</span>`);
+  return o.length ? '<div class="accr">' + o.join("") + "</div>" : "";
+}
+function accInfo() {
+  const el = $("acc-info"), sel = $("f").elements.acc; if (!el || !sel) return;
+  const a = accAll().find(x => accName(x) === sel.value);
+  el.innerHTML = a ? accRulesHtml(a).replace('class="accr"', 'class="accr accr-f"') : "";
+}
+function accClear() { ["ac-id", "ac-lg", "ac-f", "ac-s", "ac-e", "ac-no", "ac-dd", "ac-dl", "ac-tg"].forEach(i => $(i).value = ""); $("ac-ddt").value = "static"; $("ac-b").value = localNow().slice(0, 10); $("ac-st").value = "run"; $("ac-add").textContent = "Založit účet"; }
 document.addEventListener("click", async e => {
   const t = e.target; if (!t.closest || !t.closest("#d-acc")) return;
   if (t.id === "ac-clr") { accClear(); return; }
   if (t.id === "ac-add") { const A = accAll(), id = +$("ac-id").value;
-    const v = {firm: $("ac-f").value.trim(), size: $("ac-s").value.trim(), start: $("ac-b").value, end: $("ac-e").value, st: $("ac-st").value, note: $("ac-no").value.trim()};
+    const v = {firm: $("ac-f").value.trim(), size: $("ac-s").value.trim(), start: $("ac-b").value, end: $("ac-e").value, st: $("ac-st").value, note: $("ac-no").value.trim(),
+      dd: +$("ac-dd").value || 0, ddt: $("ac-ddt").value, dl: +$("ac-dl").value || 0, tg: +$("ac-tg").value || 0};
     if (v.st !== "run" && !v.end) v.end = localNow().slice(0, 10);
     if (id) { const a = A.find(x => x.n === id); if (a) Object.assign(a, v); } else { v.n = A.reduce((m, a) => Math.max(m, a.n), 0) + 1; A.push(v); }
     accSave(A); const lg = $("ac-lg").value;
@@ -946,36 +1027,44 @@ document.addEventListener("click", async e => {
   const lgb = t.closest("[data-acl]"); if (lgb) { const nm = lgb.dataset.acl, ts = ALL.filter(x => x.acc === nm), dd = ts.map(day).sort(); accClear();
     $("ac-lg").value = nm; $("ac-f").value = nm; $("ac-b").value = dd[0] || ""; $("ac-add").textContent = "Založit jako účet (obchody se převedou)"; $("ac-f").scrollIntoView({block: "center"}); return; }
   const ed = t.closest("[data-ace]"); if (ed) { const a = accAll().find(x => x.n === +ed.dataset.ace); if (!a) return;
-    $("ac-id").value = a.n; $("ac-f").value = a.firm || ""; $("ac-s").value = a.size || ""; $("ac-b").value = a.start || ""; $("ac-e").value = a.end || ""; $("ac-st").value = a.st || "run"; $("ac-no").value = a.note || "";
+    $("ac-id").value = a.n; $("ac-f").value = a.firm || ""; $("ac-s").value = a.size || ""; $("ac-b").value = a.start || ""; $("ac-e").value = a.end || ""; $("ac-st").value = a.st || "run"; $("ac-no").value = a.note || ""; $("ac-dd").value = a.dd || ""; $("ac-ddt").value = a.ddt || "static"; $("ac-dl").value = a.dl || ""; $("ac-tg").value = a.tg || "";
     $("ac-add").textContent = "Uložit změny (" + accName(a) + ")"; $("ac-f").scrollIntoView({block: "center"}); return; }
   const dl = t.closest("[data-acd]"); if (dl) { const n = +dl.dataset.acd, used = ALL.filter(x => x.acc === "Účet " + n).length;
     if (!confirm("Smazat Účet " + n + "?" + (used ? " Obchody (" + used + ") zůstanou, jen u nich bude dál napsané „Účet " + n + "“." : ""))) return;
     accSave(accAll().filter(x => x.n !== n)); disc(); }
 });
-$("f").elements.acc.addEventListener("change", e => { const s = e.target; if (s.value !== "__new__") { s.dataset.prev = s.value; return; }
+$("f").elements.acc.addEventListener("change", e => { const s = e.target; if (s.value !== "__new__") { s.dataset.prev = s.value; accInfo(); return; }
   const firm = prompt("Nový účet: u jaké firmy? (např. Topstep, Apex). Číslo účtu se dá samo.");
   if (firm === null) { s.value = s.dataset.prev || ""; return; } const a = accNew(firm.trim()); fillAcc(accName(a)); });
 const plus10 = t => { const m = /^(\d\d):(\d\d)/.exec(t || ""); if (!m) return ""; const x = Math.min(23 * 60 + 59, +m[1] * 60 + +m[2] + 10); return String(Math.floor(x / 60)).padStart(2, "0") + ":" + String(x % 60).padStart(2, "0"); };
-/* ===== Rozbor týdne se v pátek vyplní sám (v102) ===== */
-function autoRev(d0) {
-  if (!d0) return; const dd = new Date(d0 + "T12:00"); if (dd.getDay() !== 5 && new Date().getDay() !== 5) return;
-  const wk = weekKey(d0), RK = (BT ? "bt" : "jr") + ":rev", R = LS.get(RK, {}), cur = R[wk] = R[wk] || {}, au = cur.auto = cur.auto || {};
+/* ===== Rozbor týdne: vyplní se sám, až má každý den Po–Pá zápis (v108) ===== */
+const DNY = ["Ne", "Po", "Út", "St", "Čt", "Pá", "So"];
+function weekMissing(wk, upTo) {
+  const lim = upTo || todayS(), have = new Set(ALL.map(day).concat((typeof SK !== "undefined" ? SK : []).map(r => r.date)));
+  const out = []; for (let i = 0; i < 5; i++) { const d = addD(wk, i); if (d <= lim && !have.has(d)) out.push(d); } return out;
+}
+const dnyTxt = a => a.map(d => DNY[new Date(d + "T12:00").getDay()] + " " + czD(d)).join(", ");
+function autoRev(d0, force) {
+  if (!d0) return; const wk = weekKey(d0), fri = addD(wk, 4);
+  if (!force && (BT ? (new Date(d0 + "T12:00").getDay() !== 5 && new Date().getDay() !== 5) : (todayS() < fri || weekMissing(wk, fri).length))) return;
+  const miss = BT ? [] : weekMissing(wk, fri < todayS() ? fri : todayS()), RK = (BT ? "bt" : "jr") + ":rev", R = LS.get(RK, {}), cur = R[wk] = R[wk] || {}, au = cur.auto = cur.auto || {};
   const tr = ALL.filter(t => pnl(t) !== null && weekKey(day(t)) === wk), sk = (typeof SK !== "undefined" ? SK : []).filter(r => weekKey(r.date) === wk);
   const net = sum(tr.map(pnl)), wins = tr.filter(t => pnl(t) > 0).length, pl = tr.filter(t => t.plan === "ano").length, pn = tr.filter(t => t.plan === "ne").length;
-  const okW = sk.filter(r => r.reason !== "Nenabralo" && r.ok !== false).length, badW = sk.filter(r => r.ok === false).length;
+  const okW = sk.filter(r => !/^(Nenabralo|Neměl jsem čas|Svátek)/.test(r.reason) && r.ok !== false).length, badW = sk.filter(r => r.ok === false).length;
   const mis = {}; tr.forEach(t => (t.mis || []).forEach(m => { mis[m] = mis[m] || {n: 0, p: 0}; mis[m].n++; mis[m].p += pnl(t); }));
   const emo = {}; tr.forEach(t => (t.emo || []).forEach(m => { emo[m] = (emo[m] || 0) + 1; }));
   const misL = Object.entries(mis).sort((a, b) => a[1].p - b[1].p), best = tr.slice().sort((a, b) => pnl(b) - pnl(a))[0];
   const A = [], B = [], C = [];
   if (tr.length) A.push(`Výsledek týdne ${usd(net)} z ${tr.length} ${tr.length === 1 ? "obchodu" : "obchodů"}, úspěšnost ${nf(wins / tr.length * 100)} %.`);
-  if (best && pnl(best) > 0) A.push(`Nejlepší obchod ${usd(pnl(best))} (${day(best)}${best.strat ? ", " + best.strat : ""}).`);
-  if (pl + pn && pn === 0) A.push(`Plán jsem dodržel ve všech ${pl} obchodech.`); else if (pl) A.push(`Plán dodržen v ${pl} z ${pl + pn} obchodů.`);
+  if (best && pnl(best) > 0) A.push(`Nejlepší obchod ${usd(pnl(best))} (${czD(day(best), 1)}${best.strat ? ", " + best.strat : ""}).`);
+  if (pl + pn && pn === 0) A.push(pl === 1 ? "Plán jsem dodržel." : `Plán jsem dodržel ve všech ${pl} obchodech.`); else if (pl) A.push(`Plán dodržen v ${pl} z ${pl + pn} obchodů.`);
   if (okW) A.push(`Správně jsem počkal ${okW}× (dny bez obchodu).`);
   if (!A.length) A.push("Tento týden bez obchodů. I čekání je výsledek.");
   if (pn) B.push(`Mimo plán ${pn}× a stálo mě to ${usd(sum(tr.filter(t => t.plan === "ne").map(pnl)))}.`);
   misL.slice(0, 3).forEach(([m, x]) => B.push(`${m}: ${x.n}× (${usd(x.p)}).`));
   const em = Object.entries(emo).sort((a, b) => b[1] - a[1])[0]; if (em) B.push(`Nejčastější emoce: ${em[0]} (${em[1]}×).`);
   if (badW) B.push(`${badW}× jsem nevzal platný setup (strach).`);
+  if (miss.length) B.push(`Chybí zápis za: ${dnyTxt(miss)}.`);
   if (!B.length) B.push("Pravidla jsem tento týden neporušil.");
   if (misL.length && misL[0][1].p < 0) C.push(`Hlídat hlavně: ${misL[0][0]} (stálo ${usd(misL[0][1].p)}).`);
   else if (pn) C.push("Brát jen obchody podle plánu, nic mimo.");
@@ -1147,7 +1236,7 @@ $("f").onsubmit = async e => {
     emo: [...e.target.querySelectorAll("[name=emo]:checked")].map(c => c.value), plan: f.plan.value, rate: n("rate"),
     mis: [...e.target.querySelectorAll("[name=mis]:checked")].map(c => c.value), cond: [...e.target.querySelectorAll("[name=cond]:checked")].map(c => c.value), conf: confGet(), slots: slotsD, shots};
   if (f.id.value) t.id = parseInt(f.id.value);
-  LS.set("lastStrat" + (BT ? "bt" : "jr"), t.strat || ""); if (BT) LS.set("bt:lastd", f.od.value); try { localStorage.setItem("lastAcc", JSON.stringify(t.acc)); } catch (x) {} await tx("readwrite", s => s.put(t)); $("dlg").close(); await render(); try { autoRev(day(t)); disc(); } catch (x) {}
+  LS.set("lastStrat" + (BT ? "bt" : "jr"), t.strat || ""); if (BT) LS.set("bt:lastd", f.od.value); try { localStorage.setItem("lastAcc", JSON.stringify(t.acc)); } catch (x) {} await tx("readwrite", s => s.put(t)); $("dlg").close(); await render(); try { autoRev(day(t)); disc(); } catch (x) {} try { window.TDguard && TDguard(); window.TDremind && TDremind(); } catch (x) {}
 };
 function pickLevels(text, dir) {
   const raw = (String(text).match(/\d{4,6}(?:[.,]\d{1,2})?/g) || []).map(x => parseFloat(x.replace(",", "."))).filter(x => x > 1000);
@@ -1384,7 +1473,7 @@ $("f").elements.inst.addEventListener("change", () => { if (!$("f").elements.ent
 const LS = {get: (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } }, set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }};
 const todayS = () => localNow().slice(0, 10);
 const weekKey = (d0) => { const d = new Date(d0 + "T12:00"); const wd = (d.getDay() + 6) % 7; d.setDate(d.getDate() - wd); return d.toISOString().slice(0, 10); };
-const REASONS = ["Nesplnil jsem podmínky setupu", "Čekal jsem na větší timeframe", "Byl jsem na denním limitu", "Neměl jsem čas", "Bál jsem se (chyba, setup byl platný)", "Jiný důvod"];
+const REASONS = ["Nesplnil jsem podmínky setupu", "Čekal jsem na větší timeframe", "Byl jsem na denním limitu", "Neměl jsem čas", "Svátek / burza zavřená", "Bál jsem se (chyba, setup byl platný)", "Jiný důvod"];
 const tbl = (head, rows) => `<div class="wrap"><table><thead><tr>${head.map((h, i) => `<th${i ? " class=\"n\"" : ""}>${h}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table></div>`;
 const rowH = a => "<tr>" + a.map((c, i) => `<td${i ? " class=\"n\"" : ""}>${c}</td>`).join("") + "</tr>";
 const cs = x => `<span class="${cl(x)}">${usd(x)}</span>`;
@@ -1414,17 +1503,21 @@ let revWk = null;
 const addD = (iso, n) => { const d = new Date(iso + "T12:00"); d.setDate(d.getDate() + n); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
 const czD = (iso, y) => { const p = iso.split("-"); return (+p[2]) + ". " + (+p[1]) + "." + (y ? " " + p[0] : ""); };
 function revFirst() { const ds = ALL.map(day).concat((typeof SK !== "undefined" ? SK : []).map(r => r.date)).filter(Boolean).sort(); return weekKey(ds[0] || todayS()); }
+document.addEventListener("click", e => { const z = e.target.closest && e.target.closest("[data-zap]"); if (z && window.TDzapsat) window.TDzapsat("zapsat=" + z.dataset.zap); });
+document.addEventListener("click", e => { const au = e.target.closest && e.target.closest("[data-rvauto]"); if (au) { autoRev(au.dataset.rvauto, true); disc(); window.TDremind && TDremind(); return; } });
 document.addEventListener("click", e => { const b = e.target.closest && e.target.closest("[data-rvnav]"); if (!b) return; const v = +b.dataset.rvnav, cur = revWk || weekKey(todayS());
   revWk = v === 0 ? null : addD(cur, 7 * v); if (revWk && revWk < revFirst()) revWk = revFirst(); disc(); });
 function reviewHtml(closed) {
   const wk = revWk || weekKey(todayS()), R = LS.get("bt:rev", {}), cur = R[wk] || {}, tr = closed.filter(t => weekKey(day(t)) === wk), net = sum(tr.map(pnl));
-  const pl = tr.filter(t => t.plan === "ano").length, pn = tr.filter(t => t.plan === "ne").length, ms = LS.get("bt:missed", []).filter(x => weekKey(x.d) === wk && x.ok).length + (typeof SK !== "undefined" ? SK : []).filter(r => weekKey(r.date) === wk && r.reason !== "Nenabralo" && r.ok !== false).length;
+  const pl = tr.filter(t => t.plan === "ano").length, pn = tr.filter(t => t.plan === "ne").length, ms = LS.get("bt:missed", []).filter(x => weekKey(x.d) === wk && x.ok).length + (typeof SK !== "undefined" ? SK : []).filter(r => weekKey(r.date) === wk && !/^(Nenabralo|Neměl jsem čas|Svátek)/.test(r.reason) && r.ok !== false).length;
   const stats = `<div class="kpis">${K(tr.length, "obchodů tento týden")}${K(cs(net), "výsledek týdne")}${K(pl + pn ? nf(pl / (pl + pn) * 100) + "&nbsp;%" : dash, "dodržení plánu")}${K(ms, "správně počkáno")}</div>`;
   const q = [["a", "Co se mi tento týden dařilo?"], ["b", "Kde jsem porušil pravidla a proč?"], ["c", "Co zlepším příští týden? (jedna věc)"]];
   const old = Object.keys(R).filter(k => k !== wk).sort().reverse().slice(0, 8);
   const nowWk = weekKey(todayS()), first = revFirst() < nowWk ? revFirst() : nowWk;
-  const nav = `<div class="calhead" style="margin-bottom:12px"><button class="ghost sm" data-rvnav="-1" aria-label="Předchozí týden"${wk <= first ? " disabled" : ""}>‹</button><b>Týden ${czD(wk)} – ${czD(addD(wk, 6), 1)}</b><button class="ghost sm" data-rvnav="1" aria-label="Další týden">›</button>${wk !== nowWk ? '<button class="ghost sm" data-rvnav="0">Tento týden</button>' : '<span class="empty">tento týden</span>'}</div>`;
-  return nav + stats + q.map(([k, l]) => `<label style="margin-top:10px">${l}<textarea rows="2" data-rv="${k}">${esc(cur[k] || "")}</textarea></label>`).join("") +
+  const nav = `<div class="calhead" style="margin-bottom:12px"><button class="ghost sm" data-rvnav="-1" aria-label="Předchozí týden"${wk <= first ? " disabled" : ""}>‹</button><b>Týden ${czD(wk)} – ${czD(addD(wk, 6), 1)}</b><button class="ghost sm" data-rvnav="1" aria-label="Další týden">›</button>${wk !== nowWk ? '<button class="ghost sm" data-rvnav="0">Tento týden</button>' : '<span class="empty">tento týden</span>'}<button class="ghost sm" data-rvauto="${addD(wk, 4)}" title="Doplní prázdná pole podle obchodů v tomto týdnu">✨ Vyplnit automaticky</button></div>`;
+  const mis_ = BT ? [] : weekMissing(wk);
+  const missH = mis_.length ? `<div class="guard pause" style="display:block;margin:0 0 12px">⚠️ <b>Chybí zápis: ${dnyTxt(mis_)}</b> – každý obchodní den zapiš obchod, nebo den bez obchodu s důvodem. Týden se pak vyhodnotí sám.<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">${mis_.map(d => `<button type="button" class="ghost sm" data-zap="skip:${d}">🚫 ${DNY[new Date(d + "T12:00").getDay()]} ${czD(d)}: den bez obchodu</button><button type="button" class="ghost sm" data-zap="add:${d}">+ obchod</button>`).join("")}</div></div>` : "";
+  return nav + missH + stats + q.map(([k, l]) => `<label style="margin-top:10px">${l}<textarea rows="2" data-rv="${k}">${esc(cur[k] || "")}</textarea></label>`).join("") +
     `<label style="margin-top:10px">Známka týdne <span class="empty" style="white-space:nowrap">(1 nejlepší, 5 nejhorší)</span><select data-rv="g" style="max-width:260px"><option value="">–</option>${[1, 2, 3, 4, 5].map(i => `<option value="${i}"${String(cur.g) === String(i) ? " selected" : ""}>${i}${i === 1 ? " (nejlepší)" : i === 5 ? " (nejhorší)" : ""}</option>`).join("")}</select></label><p class="empty">Týden od ${czD(wk, 1)}. Ukládá se samo. Šipkami listuješ mezi týdny.</p>` +
     (old.length ? `<details style="margin-top:10px"><summary>Dřívější rozbory (${old.length})</summary>${old.map(k => `<p class="hint"><b>Týden od ${k}</b>${R[k].g ? " (známka " + R[k].g + (R[k].g == 1 ? ", nejlepší" : R[k].g == 5 ? ", nejhorší" : "") + ")" : ""}<br>${esc(R[k].a || "")}<br>${esc(R[k].b || "")}<br><i>${esc(R[k].c || "")}</i></p>`).join("")}</details>` : "");
 }
@@ -1520,7 +1613,7 @@ $("impf").onchange = async e => {
 };
 
 /* ===== Dny bez obchodu ===== */
-const SKR = ["Špatná price action", "Žádný setup podle strategie", "Mimo killzone / špatný čas", "Důležitá zpráva / vysoká volatilita", "Úzký rozsah / nízká likvidita", "Čekal jsem na větší timeframe", "Byl jsem na denním limitu", "Neměl jsem čas", "Bál jsem se (chyba, setup byl platný)", "Nenabralo", "Jiný důvod"];
+const SKR = ["Špatná price action", "Žádný setup podle strategie", "Mimo killzone / špatný čas", "Důležitá zpráva / vysoká volatilita", "Úzký rozsah / nízká likvidita", "Čekal jsem na větší timeframe", "Byl jsem na denním limitu", "Neměl jsem čas", "Svátek / burza zavřená", "Bál jsem se (chyba, setup byl platný)", "Nenabralo", "Jiný důvod"];
 var SKD = new Set(); let sdb = null, SK = [], skImgs = [], skUrls = [], skEdit = null;
 const sopen = () => new Promise(res => { try { const r = indexedDB.open("backtest_skips", 1); r.onupgradeneeded = () => r.result.createObjectStore("days", {keyPath: "id", autoIncrement: true}); r.onsuccess = () => res(r.result); r.onerror = () => res(null); } catch (x) { res(null); } });
 const stx = (m, f) => new Promise((res, rej) => { if (!sdb) return res([]); const t = sdb.transaction("days", m), o = f(t.objectStore("days")); t.oncomplete = () => res(o && o.result); t.onerror = () => rej(t.error); });
@@ -1547,10 +1640,10 @@ $("sk-imgs").addEventListener("drop", e => { e.preventDefault(); const src = win
 document.addEventListener("paste", e => { const f = [...(e.clipboardData?.files || [])].filter(f => f.type.startsWith("image/")); if ($("skd").open && f.length) { e.preventDefault(); skAdd(f); } });
 $("skf").onsubmit = async e => { e.preventDefault(); const f = e.target.elements;
   if (f.reason.value === "Neměl jsem čas" && !f.note.value.trim()) { $("sk-msg").textContent = "Napiš do poznámky, proč jsi neměl čas."; f.note.focus(); return; }
-  if (!skImgs.length && f.reason.value !== "Neměl jsem čas") { $("sk-msg").textContent = f.reason.value === "Nenabralo" ? "Nahraj aspoň jednu fotku grafu, ať vidíš, kde byl vstup a kam cena došla." : "Nahraj aspoň jednu fotku grafu. Je to důkaz, že price action opravdu byla špatná."; return; }
+  if (!skImgs.length && !/^(Neměl jsem čas|Svátek)/.test(f.reason.value)) { $("sk-msg").textContent = f.reason.value === "Nenabralo" ? "Nahraj aspoň jednu fotku grafu, ať vidíš, kde byl vstup a kam cena došla." : "Nahraj aspoň jednu fotku grafu. Je to důkaz, že price action opravdu byla špatná."; return; }
     const r = {date: f.date.value, reason: f.reason.value, note: f.note.value.trim(), imgs: skImgs, created: skEdit ? skEdit.created : Date.now(), setup: f.setup.value.trim(), ok: f.okw.checked};
   if (r.reason === "Nenabralo") { const m = parseFloat(f.miss.value); if (!isNaN(m)) r.miss = m; if (f.would.value) r.would = f.would.value; r.dir = f.nbdir.value; if (f.nbt.value) r.time = f.nbt.value; } if (skEdit) r.id = skEdit.id;
-  await stx("readwrite", s => s.put(r)); LS.set("bt:lastReason", r.reason); LS.set("bt:lastd", r.date); $("skd").close(); await render(); try { autoRev(r.date); disc(); } catch (x) {} };
+  await stx("readwrite", s => s.put(r)); LS.set("bt:lastReason", r.reason); LS.set("bt:lastd", r.date); $("skd").close(); await render(); try { autoRev(r.date); disc(); } catch (x) {} try { window.TDremind && TDremind(); } catch (x) {} };
 const WDN = ["Neděle", "Pondělí", "Úterý", "Středa", "Čtvrtek", "Pátek", "Sobota"];
 function renderSkips() {
   const tdays = new Set(ALL.map(day)), sdays = new Set(SK.map(r => r.date)), all = new Set([...tdays, ...sdays]), nT = [...tdays].filter(d => !sdays.has(d)).length + [...tdays].filter(d => sdays.has(d)).length;
@@ -1561,7 +1654,7 @@ function renderSkips() {
     const rc = {}; SK.forEach(r => rc[r.reason] = (rc[r.reason] || 0) + 1);
     h += "<h3>Proč jsi obchod nevzal</h3>" + tbl(["Důvod", "Dnů", "Podíl"], Object.entries(rc).sort((a, b) => b[1] - a[1]).map(([k, n]) => rowH([esc(k), n, Math.round(n / SK.length * 100) + "&nbsp;%"])));
     const wd = [1, 2, 3, 4, 5].map(d => { const t = [...tdays].filter(x => new Date(x + "T12:00").getDay() === d).length, k = [...sdays].filter(x => new Date(x + "T12:00").getDay() === d && !tdays.has(x)).length; return [WDN[d], t, k, t + k ? Math.round(k / (t + k) * 100) + "&nbsp;%" : "–"]; });
-    const OKW = SK.filter(r => r.reason !== "Nenabralo" && r.ok !== false).length, BADW = SK.filter(r => r.ok === false).length;
+    const OKW = SK.filter(r => !/^(Nenabralo|Neměl jsem čas|Svátek)/.test(r.reason) && r.ok !== false).length, BADW = SK.filter(r => r.ok === false).length;
     if (BADW || SK.some(r => r.setup)) h += `<p class="hint">✓ Správně jsi počkal <b>${OKW}×</b>` + (BADW ? `, chyba (měl jsi vzít) <b>${BADW}×</b>. Zkus si u těch chyb projít fotky a najít, co tě zastavilo.` : ". Skvělá trpělivost.") + "</p>";
     const NB_ = SK.filter(r => r.reason === "Nenabralo");
     if (NB_.length) { const ms = NB_.filter(r => r.miss != null).map(r => r.miss), tp = NB_.filter(r => r.would === "tp").length, sl = NB_.filter(r => r.would === "sl").length, wt = NB_.filter(r => tdays.has(r.date)).length;
