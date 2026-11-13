@@ -3,7 +3,7 @@ const TIPS = {"Bullish": "Čekáš, že cena poroste. Hledáš long (nákup).", 
   const keys = Object.keys(TIPS).sort((a, b) => b.length - a.length), lower = {};
   keys.forEach(k => lower[k.toLowerCase()] = TIPS[k]);
   const src = "(?<![\\p{L}\\d])(" + keys.map(s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")(?![\\p{L}\\d])";
-  const reT = new RegExp(src, "iu"), reG = new RegExp(src, "giu"), SKIP = new Set(["SCRIPT", "STYLE", "TEXTAREA", "INPUT", "SELECT", "OPTION", "CANVAS", "BUTTON", "TITLE", "IFRAME", "H1"]);
+  const reT = new RegExp(src, "iu"), reG = new RegExp(src, "giu"), SKIP = new Set(["SCRIPT", "STYLE", "TEXTAREA", "INPUT", "SELECT", "OPTION", "CANVAS", "BUTTON", "TITLE", "IFRAME", "H1", "PRE"]);
   let busy = false, tm = null;
   function run(root) {
     busy = true;
