@@ -8,7 +8,7 @@ const TIPS = {"Bullish": "Čekáš, že cena poroste. Hledáš long (nákup).", 
   function run(root) {
     busy = true;
     const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {acceptNode: n => { const p = n.parentElement;
-      return (!p || SKIP.has(p.tagName) || p.closest(".tip,.side,dialog textarea")) ? NodeFilter.FILTER_REJECT : reT.test(n.nodeValue) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT; }});
+      return (!p || SKIP.has(p.tagName) || p.closest(".tip,.side,dialog textarea,.wl-r,.nsrc,.stgrid")) ? NodeFilter.FILTER_REJECT : reT.test(n.nodeValue) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT; }});
     const nodes = []; while (w.nextNode()) nodes.push(w.currentNode);
     const secs = new Map(), seenIn = s => { if (!secs.has(s)) { const set = new Set(); s.querySelectorAll(".tip").forEach(t => set.add(t.firstChild.textContent.toLowerCase())); secs.set(s, set); } return secs.get(s); };
     nodes.forEach(n => { const t = n.nodeValue, frag = document.createDocumentFragment(), seen = seenIn(n.parentElement.closest("section") || document.body); let last = 0, m; reG.lastIndex = 0;

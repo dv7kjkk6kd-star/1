@@ -1,4 +1,4 @@
-Datum a čas aktualizace: 14. 11. 2026 09:40 (pražský čas). Obchoduje se MNQ (Micro Nasdaq futures), 1 bod = 2 $. Seance v New Yorku 9:30–16:00 = u nás obvykle 15:30–22:00.
+Datum a čas aktualizace: 14. 11. 2026 13:55 (pražský čas). Obchoduje se MNQ (Micro Nasdaq futures), 1 bod = 2 $. Seance v New Yorku 9:30–16:00 = u nás obvykle 15:30–22:00.
 
 STRÁNKY WEBU:
 - Ráno: přehled: Přehled (Ranní souhrn trhu v kostce)
@@ -11,26 +11,26 @@ STRÁNKY WEBU:
 - Knihy: Knihy o tradingu (Hlavní myšlenky slavných knih o tradingu a psychologii)
 - Pomoc a nastavení: Příručka (Mapa aplikace: co kdy otevřít a kde co najdeš); AI asistent (Zeptej se na cokoliv o webu, dnešních datech i tradingu); Roadmap (Tvoje cesta k disciplinovanému obchodování); Nastavení (Účet, riziko a výchozí hodnoty)
 
-DNEŠNÍ BIAS: Mírně bearish, skóre -4.8 z 10 (−10 až +10). Bias se ukládá do 15:00 a pak se už nemění.
+DNEŠNÍ BIAS: Mírně bearish, skóre -4.7 z 10 (−10 až +10). Bias se ukládá do 15:00 a pak se už nemění.
 - složka Futures: -2.0 (váha 4.59) – Futures na Nasdaq a S&P 500 jsou v průměru −0,83 %.
 - složka Šířka akcií: -0.4 (váha 2.26) – 9 z 23 největších akcií je v plusu.
 - složka Strach (VIX): -0.6 (váha 1.5) – VIX se změnil o +3,21 %. Růst strachu bývá pro akcie špatný.
 - složka Dolar: -0.8 (váha 0.5) – Dolarový index se změnil o +0,23 %. Silný dolar akciím spíš škodí.
 - složka Výnosy dluhopisů: -0.5 (váha 1.0) – Výnos 10letých dluhopisů se změnil o +1,00 %. Růst výnosů tlačí akcie dolů.
 - složka Trend futures: -2.0 (váha 1.0) – Cena je o +1,16 % pod průměrem posledního dne.
-- složka Zprávy: -0.9 (váha 1.0) – Nálada v titulcích zpráv za 24 hodin: skóre −2.3 z 5.
+- složka Zprávy: -0.7 (váha 1.0) – Nálada v titulcích zpráv za 24 hodin: skóre −1.8 z 5.
 - složka Sezónnost: +2.0 (váha 0.5) – V tomto měsíci Nasdaq 100 historicky průměrně +3,38 %.
 - složka Statistika: +1.0 (váha 1.0) – Statistiky trhu pro dnešek: 1 výrazných situací spíš nahoru, 0 spíš dolů.
 Přesnost biasu: 10 z 18 dní (56 %).
 Posledních 5 dní (bias → skutečný pohyb Nasdaqu): 2026-11-06 Neutrální → +1.35 %; 2026-11-09 Bullish → +3.40 %; 2026-11-10 Neutrální → -0.60 %; 2026-11-11 Bullish → +2.28 %; 2026-11-12 Mírně bearish → -0.30 %
 
-SENTIMENT ZPRÁV (24 h): skóre -2.3 z 5, bearish.
-- Trump doesn’t plan to raise Nvidia, spy issue during China trip: U.S. officials (CNBC)
-- FAA lifts ground stop after more than four hours, but flight cancellations will stretch into the weekend (CNBC)
-- Analysis: Companies love a ‘rockstar’ CEO. Until they depend on one (CNBC)
-- Ecuador wants to monetize its biodiversity — while still drilling for oil (CNBC)
-- Microsoft apologizes for massive outage that took down Outlook and other 365 services (CNBC)
-- SpaceX launches Starship in key test flight of massive rocket (CNBC)
+SENTIMENT ZPRÁV (24 h): skóre -1.8 z 5, bearish.
+- Nvidia Shareholders Won’t Miss Jensen Huang for Long (Téma: AI akcie)
+- The price of dying: Inflation hits funeral and memorial costs (Téma: inflace)
+- Thousands of flights canceled as airlines work to dig out from nationwide ground stop (Associated Press)
+- Trump official seeks $50 billion for air traffic control after outage (Investing.com)
+- Flight disruptions continue after FAA lifts ground stop, some college football games delayed (CNBC)
+- The Leadership Message in the Nvidia Saga (Téma: AI akcie)
 
 KALENDÁŘ ZPRÁV Z USA (nejbližší):
 
