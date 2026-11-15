@@ -1,4 +1,4 @@
-Datum a čas aktualizace: 15. 11. 2026 19:14 (pražský čas). Obchoduje se MNQ (Micro Nasdaq futures), 1 bod = 2 $. Seance v New Yorku 9:30–16:00 = u nás obvykle 15:30–22:00.
+Datum a čas aktualizace: 15. 11. 2026 20:25 (pražský čas). Obchoduje se MNQ (Micro Nasdaq futures), 1 bod = 2 $. Seance v New Yorku 9:30–16:00 = u nás obvykle 15:30–22:00.
 
 STRÁNKY WEBU:
 - Ráno: přehled: Přehled (Ranní souhrn trhu v kostce)
@@ -15,7 +15,6 @@ DNEŠNÍ BIAS: Mírně bearish, skóre -4.4 z 10 (−10 až +10). Bias se uklád
 - složka Futures: -2.0 (váha 4.59) – Futures na Nasdaq a S&P 500 jsou v průměru −0,83 %.
 - složka Šířka akcií: -0.4 (váha 2.26) – 9 z 23 největších akcií je v plusu.
 - složka Strach (VIX): -0.6 (váha 1.5) – VIX se změnil o +3,21 %. Růst strachu bývá pro akcie špatný.
-- složka Dolar: -0.8 (váha 0.5) – Dolarový index se změnil o +0,23 %. Silný dolar akciím spíš škodí.
 - složka Výnosy dluhopisů: -0.5 (váha 1.0) – Výnos 10letých dluhopisů se změnil o +1,00 %. Růst výnosů tlačí akcie dolů.
 - složka Trend futures: -1.6 (váha 1.0) – Cena je o +0,79 % pod průměrem posledního dne.
 - složka Zprávy: -0.2 (váha 1.0) – Nálada v titulcích zpráv za 24 hodin: skóre −0.6 z 5.
@@ -25,12 +24,12 @@ Přesnost biasu: 10 z 18 dní (56 %).
 Posledních 5 dní (bias → skutečný pohyb Nasdaqu): 2026-11-06 Neutrální → +1.35 %; 2026-11-09 Bullish → +3.40 %; 2026-11-10 Neutrální → -0.60 %; 2026-11-11 Bullish → +2.28 %; 2026-11-12 Mírně bearish → -0.30 %
 
 SENTIMENT ZPRÁV (24 h): skóre -0.6 z 5, neutral.
-- Bessent calls for ‘dramatic shakeup’ at Nvidia, urges outside CEO (CNBC)
-- Opinion | Don’t assume Nvidia will rebound (Téma: AI akcie)
-- Elon Musk's $74 billion AI plan has a power solution in Texas but faces hurdles in Arizona (Elon Musk (zprávy o něm))
-- Aidan Hutchinson grabs knee after sack celebration, heads to Lions locker room for evaluation (Associated Press)
-- SpaceX caught Starship from orbit with ‘robot chopsticks’ (Elon Musk (zprávy o něm))
-- Zelensky urges US and Musk to lift Starlink restrictions and be on 'right side of history' (Elon Musk (zprávy o něm))
+- U.S. flight disruptions persist as Duffy predicts Monday recovery (Seeking Alpha)
+- 'Ebenezer' With Johnny Depp Scores Big As Holidays Near (Barron's)
+- FDA declines approval of Summit’s lung cancer treatment (Seeking Alpha)
+- Investors: If a Market Correction Is Coming, This 1 Move Will Make or Break Your Portfolio (Nasdaq.com)
+- Jensen Huang discusses comeback as Nvidia CEO with allies (Téma: AI akcie)
+- Why Fervo Energy Stock Surged This Week (Nasdaq.com)
 
 KALENDÁŘ ZPRÁV Z USA (nejbližší):
 - Mon 16. 11. 18:00: Fed Chairman Warsh Speaks (dopad vysoký, očekávání –, minule –)
