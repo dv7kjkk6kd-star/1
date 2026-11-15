@@ -1,8 +1,8 @@
-Datum a čas aktualizace: 15. 11. 2026 10:41 (pražský čas). Obchoduje se MNQ (Micro Nasdaq futures), 1 bod = 2 $. Seance v New Yorku 9:30–16:00 = u nás obvykle 15:30–22:00.
+Datum a čas aktualizace: 15. 11. 2026 11:39 (pražský čas). Obchoduje se MNQ (Micro Nasdaq futures), 1 bod = 2 $. Seance v New Yorku 9:30–16:00 = u nás obvykle 15:30–22:00.
 
 STRÁNKY WEBU:
 - Ráno: přehled: Přehled (Ranní souhrn trhu v kostce)
-- Zprávy a fundament (detaily): Zprávy (Všechny titulky a puls trhu); Sentiment (Nálada ve zprávách za posledních 24 hodin); Kalendář (Důležité zprávy z USA na celý týden); Predikce zpráv (Co se stane, když zpráva vyjde lépe nebo hůř); Fundament (Čísla z trhu, hodnocení oblastí a zprávy)
+- Zprávy a fundament (detaily): Zprávy a sentiment (Co dnešní zprávy znamenají pro Nasdaq a všechny titulky); Kalendář (Důležité zprávy z USA na celý týden); Predikce zpráv (Co se stane, když zpráva vyjde lépe nebo hůř); Fundament (Čísla z trhu, hodnocení oblastí a zprávy)
 - Směr trhu (detaily): Pre-market akcí (Největší akcie před otevřením burzy); Bias (Směr dne podle dat a RSI); Týdenní výhled (Co čekat od celého týdne)
 - Příprava 14:30–15:00: Pre-session rituál (Tvůj jediný ranní postup: 8 kroků před 15:00); Plán od mentora (Fotka nebo video od mentora, jeho zóny a jak mu vycházejí); Mindset (Jak se dnes cítím, dýchání a meditace); Plán dne (Limity na dnešek, pravidla rizika a kalkulačka)
 - Obchodování 15:00–18:00: Trpělivost (Během čekání: 6 otázek před vstupem, nutkání a pravidla); Deník obchodů (Tvoje obchody, statistiky a rozbor); Robot (TradingView) (Tvoje strategie z TradingView: obchody, výsledky a co se robot naučil); Backtest deník (Obchody z minulosti, na kterých se učíš)
@@ -11,26 +11,25 @@ STRÁNKY WEBU:
 - Knihy: Knihy o tradingu (Hlavní myšlenky slavných knih o tradingu a psychologii)
 - Pomoc a nastavení: Příručka (Mapa aplikace: co kdy otevřít a kde co najdeš); AI asistent (Zeptej se na cokoliv o webu, dnešních datech i tradingu); Roadmap (Tvoje cesta k disciplinovanému obchodování); Nastavení (Účet, riziko a výchozí hodnoty)
 
-DNEŠNÍ BIAS: Mírně bearish, skóre -4.5 z 10 (−10 až +10). Bias se ukládá do 15:00 a pak se už nemění.
+DNEŠNÍ BIAS: Mírně bearish, skóre -4.4 z 10 (−10 až +10). Bias se ukládá do 15:00 a pak se už nemění.
 - složka Futures: -2.0 (váha 4.59) – Futures na Nasdaq a S&P 500 jsou v průměru −0,83 %.
 - složka Šířka akcií: -0.4 (váha 2.26) – 9 z 23 největších akcií je v plusu.
 - složka Strach (VIX): -0.6 (váha 1.5) – VIX se změnil o +3,21 %. Růst strachu bývá pro akcie špatný.
-- složka Dolar: -0.8 (váha 0.5) – Dolarový index se změnil o +0,23 %. Silný dolar akciím spíš škodí.
 - složka Výnosy dluhopisů: -0.5 (váha 1.0) – Výnos 10letých dluhopisů se změnil o +1,00 %. Růst výnosů tlačí akcie dolů.
 - složka Trend futures: -1.6 (váha 1.0) – Cena je o +0,79 % pod průměrem posledního dne.
-- složka Zprávy: -0.6 (váha 1.0) – Nálada v titulcích zpráv za 24 hodin: skóre −1.4 z 5.
+- složka Zprávy: -0.2 (váha 1.0) – Nálada v titulcích zpráv za 24 hodin: skóre −0.6 z 5.
 - složka Sezónnost: +2.0 (váha 0.5) – V tomto měsíci Nasdaq 100 historicky průměrně +3,38 %.
 - složka Statistika: +1.0 (váha 1.0) – Statistiky trhu pro dnešek: 1 výrazných situací spíš nahoru, 0 spíš dolů.
 Přesnost biasu: 10 z 18 dní (56 %).
 Posledních 5 dní (bias → skutečný pohyb Nasdaqu): 2026-11-06 Neutrální → +1.35 %; 2026-11-09 Bullish → +3.40 %; 2026-11-10 Neutrální → -0.60 %; 2026-11-11 Bullish → +2.28 %; 2026-11-12 Mírně bearish → -0.30 %
 
-SENTIMENT ZPRÁV (24 h): skóre -1.4 z 5, bearish.
-- Trump Had Urged Nvidia’s Jensen Huang to Fight for His Job (Téma: AI akcie)
-- Anthropic, Nvidia, CoreWeave, Take-Two, D-Wave, Securitize, and More That Explain Today’s Market (Barron's)
-- Peter Schiff Warns 'Final Stages' Of Economic Collapse Are Here — 'We May Not Make It Through This Republican Administration' (Téma: Fed)
-- 2026 U.S. House Election Results (Associated Press)
-- Megaspeed says Alice Huang left company in August 2025 (Investing.com)
-- What’s Next for Nvidia After Jensen Huang’s Resignation? (Téma: AI akcie)
+SENTIMENT ZPRÁV (24 h): skóre -0.6 z 5, neutral.
+- Megaspeed says Alice Huang left the company in August 2025 (Investing.com)
+- Inflation in US exceeds projections (Téma: inflace)
+- European stocks face 10% underperformance risk as rally loses momentum (Investing.com)
+- India Says U.S. Deal Will Bring Lower Tariffs Than Rivals (Donald Trump (zprávy o něm))
+- Nvidia CEO’s affair exposes loophole Chinese firms use to access high-end chips (Téma: AI akcie)
+- Saudi Arabia’s annual inflation eases to 1.7% in October (Téma: inflace)
 
 KALENDÁŘ ZPRÁV Z USA (nejbližší):
 - Mon 16. 11. 18:00: Fed Chairman Warsh Speaks (dopad vysoký, očekávání –, minule –)
