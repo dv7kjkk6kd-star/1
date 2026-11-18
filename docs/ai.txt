@@ -1,4 +1,4 @@
-Datum a čas aktualizace: 18. 11. 2026 20:29 (pražský čas). Obchoduje se MNQ (Micro Nasdaq futures), 1 bod = 2 $. Seance v New Yorku 9:30–16:00 = u nás obvykle 15:30–22:00.
+Datum a čas aktualizace: 18. 11. 2026 20:40 (pražský čas). Obchoduje se MNQ (Micro Nasdaq futures), 1 bod = 2 $. Seance v New Yorku 9:30–16:00 = u nás obvykle 15:30–22:00.
 
 STRÁNKY WEBU:
 - Ráno: přehled: Přehled (Ranní souhrn trhu v kostce)
@@ -12,23 +12,24 @@ STRÁNKY WEBU:
 - Pomoc a nastavení: Příručka (Mapa aplikace: co kdy otevřít a kde co najdeš); AI asistent (Zeptej se na cokoliv o webu, dnešních datech i tradingu); Roadmap (Tvoje cesta k disciplinovanému obchodování); Nastavení (Účet, riziko a výchozí hodnoty)
 
 DNEŠNÍ BIAS: Neutrální, skóre +0.8 z 10 (−10 až +10). Bias se ukládá do 15:00 a pak se už nemění.
-- složka Futures: +0.2 (váha 4.35) – Futures na Nasdaq a S&P 500 jsou v průměru +0,08 %.
-- složka Šířka akcií: -0.3 (váha 2.38) – 10 z 23 největších akcií je v plusu.
-- složka Strach (VIX): +0.9 (váha 1.5) – VIX se změnil o −4,71 %. Růst strachu bývá pro akcie špatný.
-- složka Výnosy dluhopisů: +0.4 (váha 1.0) – Výnos 10letých dluhopisů se změnil o −0,80 %. Růst výnosů tlačí akcie dolů.
-- složka Trend futures: -0.5 (váha 1.4) – Cena je o +0,26 % pod průměrem posledního dne.
-- složka Zprávy: -0.2 (váha 1.06) – Nálada v titulcích zpráv za 24 hodin: skóre −0.6 z 5.
+- složka Futures: +0.4 (váha 4.35) – Futures na Nasdaq a S&P 500 jsou v průměru +0,16 %.
+- složka Šířka akcií: -0.4 (váha 2.38) – 9 z 23 největších akcií je v plusu.
+- složka Strach (VIX): +0.9 (váha 1.5) – VIX se změnil o −4,44 %. Růst strachu bývá pro akcie špatný.
+- složka Dolar: -1.2 (váha 0.5) – Dolarový index se změnil o +0,35 %. Silný dolar akciím spíš škodí.
+- složka Výnosy dluhopisů: +0.4 (váha 1.0) – Výnos 10letých dluhopisů se změnil o −0,76 %. Růst výnosů tlačí akcie dolů.
+- složka Trend futures: -0.4 (váha 1.4) – Cena je o +0,18 % pod průměrem posledního dne.
+- složka Zprávy: -0.2 (váha 1.06) – Nálada v titulcích zpráv za 24 hodin: skóre −0.5 z 5.
 - složka Sezónnost: +2.0 (váha 0.47) – V tomto měsíci Nasdaq 100 historicky průměrně +3,38 %.
 Přesnost biasu: 10 z 19 dní (53 %).
 Posledních 5 dní (bias → skutečný pohyb Nasdaqu): 2026-11-09 Bullish → +3.40 %; 2026-11-10 Neutrální → -0.60 %; 2026-11-11 Bullish → +2.28 %; 2026-11-12 Mírně bearish → -0.30 %; 2026-11-13 Neutrální → -1.22 %
 
-SENTIMENT ZPRÁV (24 h): skóre -0.6 z 5, neutral.
-- Fed officials expect more rate hikes, worry about AI impact on inflation, minutes show (CNBC)
-- AI Risks Lift Cyber Stocks as Software Looks to Shrug Off Slump (Barron's)
-- Leopold Aschenbrenner plots 'Situational Awareness 2.0' comeback - report (Seeking Alpha)
-- Trump cites progress on Thailand trade deal as Nvidia posts $116B revenue after CEO exit (Donald Trump (zprávy o něm))
-- Need Accountability, Transparency in FAA Funding, Says Sen. Capito (Bloomberg Markets)
-- Nvidia interim CEO Kress tells employees ‘let’s move forward’ at first all-hands meeting since Jensen Huang exit (CNBC)
+SENTIMENT ZPRÁV (24 h): skóre -0.5 z 5, neutral.
+- Washington is scrambling to get to the bottom of the growing number of tech outages across America (MarketWatch)
+- Fed minutes show growing unease about the outlook for inflation (MarketWatch)
+- How high is UK inflation and how will you be affected? (BBC Business)
+- Colombia Touts $43 Billion Investment Haul Amid Fiscal Strain (Bloomberg Markets)
+- I’m in my 40s. Should I accept a lower pension in exchange for naming my husband or child as a beneficiary? (MarketWatch)
+- Hourly workers are living with 7.86% inflation. No wonder they voted against the AI boom. (Téma: inflace)
 
 KALENDÁŘ ZPRÁV Z USA (nejbližší):
 - Wed 18. 11. 20:00: FOMC Meeting Minutes (dopad vysoký, očekávání –, minule –)
