@@ -3,7 +3,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Backtest deník</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=132"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}window.TDux=function(){try{var u=JSON.parse(localStorage.getItem("ux")||"{}"),c="",F={sys:"-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif",read:"Atkinson Hyperlegible,Verdana,sans-serif",serif:"Newsreader,Georgia,serif",round:"Nunito,Arial Rounded MT Bold,sans-serif",mono:"JetBrains Mono,Menlo,Consolas,monospace"},G={read:"Atkinson+Hyperlegible:wght@400;700",round:"Nunito:wght@400;600;700;800",mono:"JetBrains+Mono:wght@400;600;700"};if(F[u.f]){c+="body,body *{font-family:"+F[u.f]+"!important}";if(G[u.f]&&!document.getElementById("uxf-"+u.f)){var l=document.createElement("link");l.id="uxf-"+u.f;l.rel="stylesheet";l.href="https://fonts.googleapis.com/css2?family="+G[u.f]+"&display=swap";document.head.appendChild(l)}}if(u.z&&u.z!=1)c+="html{zoom:"+u.z+"}";var A={blue:["#38BDF8","#6366F1"],green:["#2EE6A6","#0EA5E9"],orange:["#FFB547","#FF6B8A"],pink:["#F472B6","#8B7CFF"],gold:["#E8C26A","#B9812C"],red:["#FF6B8A","#B91C1C"]};if(A[u.a])c+=":root{--acc:"+A[u.a][0]+"!important}button{background-image:linear-gradient(135deg,"+A[u.a][0]+","+A[u.a][1]+")}h2::before,.side a.on,.side a[aria-current]{border-color:"+A[u.a][0]+"!important}";if(u.bg===0)c+="body::before,body::after{background-image:none!important;opacity:0!important}";if(u.op!=null){var a=Math.max(0,Math.min(1,1-u.op/100)).toFixed(2),K=["section",".tile",".k",".p"];c+=K.map(function(x){return "html:not([data-theme=light]) "+x}).join(",")+"{background:rgba(16,22,40,"+a+")!important}";c+=K.map(function(x){return "html[data-theme=light] "+x}).join(",")+"{background:rgba(255,255,255,"+a+")!important}";if(u.op<=40)c+="section,.tile,.k,.p{backdrop-filter:none!important}"}if(u.bi!=null&&u.bg!==0){var v=(u.bi/100).toFixed(2);c+="html:not([data-theme=light]) body::before{filter:opacity("+v+")}html[data-theme=light] body::before{filter:invert(1) opacity("+v+")}"}if(u.an===0)c+="*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}";if(u.lh)c+="p,li,td,.hint,.facts li{line-height:1.8!important}";if(u.b)c+="body{font-weight:500}b,strong,h1,h2,h3{font-weight:800!important}";var s=document.getElementById("uxs")||document.createElement("style");s.id="uxs";s.textContent=c;document.head.appendChild(s)}catch(e){}};TDux();document.addEventListener("DOMContentLoaded",TDux);</script><link rel="manifest" href="manifest.webmanifest"><link rel="icon" type="image/svg+xml" href="favicon.svg?v=121"><link rel="icon" type="image/png" sizes="64x64" href="favicon-64.png?v=121"><link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=121"><link rel="apple-touch-icon" href="apple-touch-icon.png?v=121"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><style>
+<link rel="stylesheet" href="style.css?v=133"><script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}window.TDux=function(){try{var u=JSON.parse(localStorage.getItem("ux")||"{}"),c="",F={sys:"-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif",read:"Atkinson Hyperlegible,Verdana,sans-serif",serif:"Newsreader,Georgia,serif",round:"Nunito,Arial Rounded MT Bold,sans-serif",mono:"JetBrains Mono,Menlo,Consolas,monospace"},G={read:"Atkinson+Hyperlegible:wght@400;700",round:"Nunito:wght@400;600;700;800",mono:"JetBrains+Mono:wght@400;600;700"};if(F[u.f]){c+="body,body *{font-family:"+F[u.f]+"!important}";if(G[u.f]&&!document.getElementById("uxf-"+u.f)){var l=document.createElement("link");l.id="uxf-"+u.f;l.rel="stylesheet";l.href="https://fonts.googleapis.com/css2?family="+G[u.f]+"&display=swap";document.head.appendChild(l)}}if(u.z&&u.z!=1)c+="html{zoom:"+u.z+"}";var A={blue:["#38BDF8","#6366F1"],green:["#2EE6A6","#0EA5E9"],orange:["#FFB547","#FF6B8A"],pink:["#F472B6","#8B7CFF"],gold:["#E8C26A","#B9812C"],red:["#FF6B8A","#B91C1C"]};if(A[u.a])c+=":root{--acc:"+A[u.a][0]+"!important}button{background-image:linear-gradient(135deg,"+A[u.a][0]+","+A[u.a][1]+")}h2::before,.side a.on,.side a[aria-current]{border-color:"+A[u.a][0]+"!important}";if(u.bg===0)c+="body::before,body::after{background-image:none!important;opacity:0!important}";if(u.op!=null){var a=Math.max(0,Math.min(1,1-u.op/100)).toFixed(2),K=["section",".tile",".k",".p"];c+=K.map(function(x){return "html:not([data-theme=light]) "+x}).join(",")+"{background:rgba(16,22,40,"+a+")!important}";c+=K.map(function(x){return "html[data-theme=light] "+x}).join(",")+"{background:rgba(255,255,255,"+a+")!important}";if(u.op<=40)c+="section,.tile,.k,.p{backdrop-filter:none!important}"}if(u.bi!=null&&u.bg!==0){var v=(u.bi/100).toFixed(2);c+="html:not([data-theme=light]) body::before{filter:opacity("+v+")}html[data-theme=light] body::before{filter:invert(1) opacity("+v+")}"}if(u.an===0)c+="*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}";if(u.lh)c+="p,li,td,.hint,.facts li{line-height:1.8!important}";if(u.b)c+="body{font-weight:500}b,strong,h1,h2,h3{font-weight:800!important}";var s=document.getElementById("uxs")||document.createElement("style");s.id="uxs";s.textContent=c;document.head.appendChild(s)}catch(e){}};TDux();document.addEventListener("DOMContentLoaded",TDux);</script><link rel="manifest" href="manifest.webmanifest"><link rel="icon" type="image/svg+xml" href="favicon.svg?v=121"><link rel="icon" type="image/png" sizes="64x64" href="favicon-64.png?v=121"><link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=121"><link rel="apple-touch-icon" href="apple-touch-icon.png?v=121"><meta name="theme-color" content="#080C1A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kompas klidu"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><style>
 #f .grid{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}#f .grid>label{min-width:0}#f select,#f input{width:100%;min-width:0;text-overflow:ellipsis}#f input[type=checkbox]{width:auto;flex:none;margin:0}#f .chip{white-space:nowrap;display:inline-flex}
 #f .sec{margin:20px 0 8px;padding-top:12px;border-top:1px solid var(--rule);font-size:16px}#f .sec:first-of-type{border-top:0;margin-top:6px;padding-top:0}
 #f label em{font-style:normal;color:var(--acc);font-weight:600}
@@ -16,7 +16,7 @@
 .tt td{white-space:nowrap}.tt td.act{white-space:normal;min-width:190px}.tt td.act div{display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end}.tt td{vertical-align:middle}@media(max-width:900px){.tt td.act{position:sticky;right:0;background:#0C1124;min-width:150px}html[data-theme=light] .tt td.act{background:#fff}}
 .guide{margin:0 0 14px;border:1px solid var(--rule);border-radius:14px;padding:12px 16px;background:var(--glass)}.guide summary{cursor:pointer;font-weight:600}.guide h3{margin:14px 0 4px;font-size:15px}.guide ol,.guide ul{margin:4px 0 0;padding-left:22px}.guide li{margin:3px 0}
 </style>
-<style>.cal{grid-template-columns:repeat(5,1fr) 1.3fr}.day b{display:block;font-size:13px;font-weight:600;white-space:nowrap}.day.wk{background:rgba(139,124,255,.14);border-color:rgba(139,124,255,.45)}.day.wk em{font-style:normal;font-size:12px;color:var(--muted)}.day.wk.up b{color:var(--up)}.day.be{background:rgba(56,189,248,.16);border-color:rgba(56,189,248,.55)}.day.be b,.day.be em{color:#38BDF8}.day.wk.down b{color:var(--down)}@media(max-width:560px){.day b{font-size:11px}.cal{gap:3px}}</style>
+<style>.cal{grid-template-columns:repeat(5,1fr) 1.3fr}.day b{display:block;font-size:13px;font-weight:600;white-space:nowrap}.day.wk{background:rgba(139,124,255,.14);border-color:rgba(139,124,255,.45)}.day.wk em{font-style:normal;font-size:12px;color:var(--muted)}.day.wk.up b{color:var(--up)}.day.be{background:rgba(56,189,248,.16);border-color:rgba(56,189,248,.55)}.day.be b,.day.be em{color:#38BDF8}.day.missd{background:rgba(245,185,74,.16);border-color:rgba(245,185,74,.55)}.day.missd em{color:#F5B94A}.day.wk.down b{color:var(--down)}@media(max-width:560px){.day b{font-size:11px}.cal{gap:3px}}</style>
 <style>
 .tz main{font-size:16px}.tz .p{padding:26px 28px;border-radius:20px}.tz .p h2{font-size:19px;margin-bottom:12px}
 .tz .tabs button{padding:11px 20px;font-size:15px}.tz #add{padding:13px 24px;font-size:16px;border-radius:14px}
@@ -856,7 +856,7 @@ if(cur!=="cs"){cookie(cur);
 <p class="empty">Zkopírovaná data vlož do chatu na claude.ai a napiš: „Rozeber mi můj deník.“</p><p id="cpmsg" class="empty"></p></section></div>
 <div id="t-disc" hidden><section class="p"><h2>Tiltmeter: křivka účtu a dodržování plánu</h2><div id="d-tilt"></div></section><section class="p"><h2>Cena obchodů mimo plán</h2><div id="d-leak"></div></section><section class="p"><h2>Emoce a chyby v penězích</h2><div id="d-emoc"></div></section><section class="p"><h2>Chování po ztrátě a přeobchodování</h2><p class="hint" style="margin-top:-6px">Vzorce, které často stojí peníze. Počítá se ze všech obchodů.</p><div id="d-beh"></div></section><div id="d-miss" hidden></div></div>
 <div id="t-setup" hidden><section class="p"><h2>Strategie a konfluence</h2><div id="d-pb"></div></section><section class="p" hidden><h2>Moje účty</h2><div id="d-acc"></div></section></div>
-<footer><p>Verze stránky (verze 132).</p></footer></main></div></div>
+<footer><p>Verze stránky (verze 133).</p></footer></main></div></div>
 
 <dialog id="dlg"><form id="f"><h2 id="dt">Nový obchod</h2><input type="hidden" name="id">
 <h3 class="sec">1. Zápis obchodu: vstup</h3>
@@ -864,7 +864,7 @@ if(cur!=="cs"){cookie(cur);
 <label>Den obchodu (v minulosti)<input name="od" type="date" required></label><label>Čas obchodu<input name="ot" type="time" required></label>
 <label>Instrument<input name="inst" value="MNQ" required></label><label>Směr<select name="dir"><option value="long">Long</option><option value="short">Short</option></select></label>
 <label>Počet mikro kontraktů<input name="size" type="number" step="1" min="1" value="1"></label><label>Vzdálenost stopu (body)<input id="sd" type="number" step="any" value="35"></label><input name="pv" type="hidden">
-<label id="tfw">Timeframe vstupu <span id="tfst" class="empty" style="font-weight:400"></span><select name="tfm"><option value="">–</option><option value="30s">30 sekund</option><option value="1m">1 minuta</option><option value="2m">2 minuty</option><option value="3m">3 minuty</option><option value="5m">5 minut</option><option value="10m">10 minut</option><option value="15m">15 minut</option><option value="30m">30 minut</option><option value="1h">1 hodina</option><option value="4h">4 hodiny</option><option value="1D">1 den</option></select></label>
+<label id="tfw">Timeframe vstupu <span id="tfst" class="empty" style="font-weight:400"></span><input name="tfm" list="tfl" placeholder="např. 30s, 1m…" autocomplete="off" translate="no"><datalist id="tfl"><option value="15s">15 sekund</option><option value="30s">30 sekund</option><option value="1m">1 minuta</option><option value="2m">2 minuty</option><option value="3m">3 minuty</option><option value="5m">5 minut</option></datalist></label>
 <label>Typ vstupu<select name="otype"><option value="">–</option><option value="market">Market</option><option value="limit">Limit</option></select></label><label>Vstup (cena)<input name="entry" type="number" step="any" required></label>
 <label>Stop loss<input name="stop" type="number" step="any" required></label>
 <label>Take profit 1 <em id="r1"></em><input name="target" type="number" step="any" required></label><label>Take profit 2 <em id="r2"></em><input name="target2" type="number" step="any"></label>
@@ -977,21 +977,33 @@ function dg(el,v,big,sub,word,cls,cap){var a=Math.max(-1,Math.min(1,v))*80;el.in
   const val = d => s.days[`${pre}-${String(d).padStart(2, "0")}`];
   for (let d = 1; d <= nd; d++) { const v = val(d), dow = (off + d - 1) % 7; if (v != null) tot += v;
     if (dow > 4) continue;
-    const ds_ = `${pre}-${String(d).padStart(2, "0")}`, nb_ = (typeof SK !== "undefined" ? SK : []).filter(r => r.date === ds_ && r.reason === "Nenabralo").length, ns_ = (typeof SK !== "undefined" ? SK : []).filter(r => r.date === ds_ && r.reason !== "Nenabralo").length, sk_ = v == null && SKD.has(ds_), dt_ = v == null ? [] : ALL.filter(t => day(t) === ds_ && t.outc), be_ = v != null && (v === 0 || (dt_.length > 0 && dt_.every(t => t.outc === "be"))); h += `<div class="day${(v != null || sk_) ? " dayc" : ""} ${v == null ? (sk_ ? "skipd" : "") : be_ ? "be" : cl(v)}"${(v != null || sk_) ? ` data-day="${pre}-${String(d).padStart(2, "0")}" tabindex="0" title="Klikni a otevři obchod"` : ""}><span>${d}${nwsMark(ds_)}</span>${v == null ? (sk_ ? (nb_ && !(typeof SK !== "undefined" ? SK : []).some(r => r.date === ds_ && r.reason !== "Nenabralo") ? '<b class="skm" title="Nenabralo">⏳</b><em>nenabralo' + (nb_ > 1 ? " " + nb_ + "×" : "") + '</em>' : '<b class="skm" title="Den bez obchodu">🚫</b>') : "") : "<b>" + usd(v) + "</b>" + ((n_ => n_ ? "<em>" + n_ + (n_ === 1 ? " obchod" : n_ < 5 ? " obchody" : " obchodů") + (be_ ? " · BE" : "") + "</em>" : "")((s.days._n || {})[`${pre}-${String(d).padStart(2, "0")}`]) + (nb_ ? "<em style='display:block;color:#F5B94A'>⏳ nenabralo" + (nb_ > 1 ? " " + nb_ + "×" : "") + "</em>" : "") + (ns_ ? "<em style='display:block;color:#FF8FA3' title='Další obchod jsi chtěl vzít, ale nevzal'>🚫 nevzatý" + (ns_ > 1 ? " " + ns_ + "×" : "") + "</em>" : ""))}</div>`;
+    const ds_ = `${pre}-${String(d).padStart(2, "0")}`, nb_ = (typeof SK !== "undefined" ? SK : []).filter(r => r.date === ds_ && r.reason === "Nenabralo").length, ns_ = (typeof SK !== "undefined" ? SK : []).filter(r => r.date === ds_ && r.reason !== "Nenabralo").length, sk_ = v == null && SKD.has(ds_), dt_ = v == null ? [] : ALL.filter(t => day(t) === ds_ && t.outc), be_ = v != null && (v === 0 || (dt_.length > 0 && dt_.every(t => t.outc === "be"))); h += `<div class="day${(v != null || sk_) ? " dayc" : ""} ${v == null ? (sk_ ? (nb_ && !ns_ ? "skipd missd" : "skipd") : "") : be_ ? "be" : cl(v)}"${(v != null || sk_) ? ` data-day="${pre}-${String(d).padStart(2, "0")}" tabindex="0" title="Klikni a otevři obchod"` : ""}><span>${d}${nwsMark(ds_)}</span>${v == null ? (sk_ ? (nb_ && !(typeof SK !== "undefined" ? SK : []).some(r => r.date === ds_ && r.reason !== "Nenabralo") ? '<b class="skm" title="Nenabralo">⏳</b><em>nenabralo' + (nb_ > 1 ? " " + nb_ + "×" : "") + '</em>' : '<b class="skm" title="Den bez obchodu">🚫</b>') : "") : "<b>" + usd(v) + "</b>" + ((n_ => n_ ? "<em>" + n_ + (n_ === 1 ? " obchod" : n_ < 5 ? " obchody" : " obchodů") + (be_ ? " · BE" : "") + "</em>" : "")((s.days._n || {})[`${pre}-${String(d).padStart(2, "0")}`]) + (nb_ ? "<em style='display:block;color:#F5B94A'>⏳ nenabralo" + (nb_ > 1 ? " " + nb_ + "×" : "") + "</em>" : "") + (ns_ ? "<em style='display:block;color:#FF8FA3' title='Další obchod jsi chtěl vzít, ale nevzal'>🚫 nevzatý" + (ns_ > 1 ? " " + ns_ + "×" : "") + "</em>" : ""))}</div>`;
     if (dow === 4 || d === nd) { if (dow < 4) h += "<i></i>".repeat(4 - dow); let ws = 0, wn = 0;
       for (let k = Math.max(1, d - dow); k <= Math.min(nd, d - dow + 6); k++) { const x = val(k); if (x != null) { ws += x; wn++; } }
       h += `<div class="day wk ${wn ? cl(ws) : ""}"><span>Týden</span>${wn ? "<b>" + usd(ws) + "</b><em>" + wn + (wn === 1 ? " den" : wn < 5 ? " dny" : " dní") + "</em>" : ""}</div>`; } }
   $("cal").innerHTML = h; if (!$("callg")) $("cal").insertAdjacentHTML("afterend", '<p id="callg" class="hint" style="margin:12px 0 0;display:flex;flex-wrap:wrap;gap:6px 16px">' +
-    [["#2EE6A6", "zisk"], ["#FF6B8A", "ztráta"], ["#38BDF8", "break even (BE)"]].map(([c, n]) => `<span><i style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${c};vertical-align:-1px;margin-right:5px"></i>${n}</span>`).join("") +
-    "<span>⏳ nenabralo</span><span>🚫 nevzatý obchod / den bez obchodu</span><span>📰 den s důležitou zprávou z USA (CPI, NFP, Fed…)</span></p>"); $("calt").textContent = calD.toLocaleString("cs-CZ", {month: "long", year: "numeric"});
+    [["#2EE6A6", "zisk"], ["#FF6B8A", "ztráta"], ["#38BDF8", "break even (BE)"], ["#F5B94A", "⏳ nenabralo"]].map(([c, n]) => `<span><i style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${c};vertical-align:-1px;margin-right:5px"></i>${n}</span>`).join("") +
+    "<span>🚫 nevzatý obchod / den bez obchodu</span><span>📰 den s důležitou zprávou z USA (CPI, NFP, Fed…)</span></p>"); $("calt").textContent = calD.toLocaleString("cs-CZ", {month: "long", year: "numeric"});
   $("calsum").innerHTML = `<span class="${cl(tot)}">${usd(tot)}</span>`;
 }
 function dayChart(s) {
   if (dayc) { dayc.destroy(); dayc = null; }
-  const k = Object.keys(s.days).sort();
-  if (!window.Chart || !$("c-day") || !k.length) return;
-  dayc = new Chart($("c-day"), {type: "bar", data: {labels: k, datasets: [{data: k.map(d => s.days[d]), borderRadius: 6, hoverBackgroundColor: "#8B7CFF", backgroundColor: k.map(d => s.days[d] >= 0 ? "#2EE6A6" : "#FF6B8A")}]},
-    options: {maintainAspectRatio: false, plugins: {legend: {display: false}, tooltip: {callbacks: {label: x => usd(x.parsed.y)}}}, scales: {x: {ticks: {maxTicksLimit: 8}, grid: {display: false}}, y: {ticks: {callback: v => nf(v) + " $"}}}}});
+  const k0 = Object.keys(s.days).filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
+  if (!window.Chart || !$("c-day") || !k0.length) return;
+  // v133: i dny bez obchodu (po–pá) jsou v grafu, jako nízký šedý sloupek, ať je vidět, že se ten den neobchodovalo
+  const SK_ = typeof SK !== "undefined" ? SK : [], end = [k0[k0.length - 1], todayS()].sort()[1], lab = [], val = [], ph = [], phc = [], tip = {};
+  const mx = Math.max(10, ...k0.map(d => Math.abs(s.days[d]))), stub = mx * 0.04;
+  for (let d = new Date(k0[0] + "T12:00"); ; d.setDate(d.getDate() + 1)) { const ds = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); if (ds > end) break;
+    const wd = d.getDay(); if (wd === 0 || wd === 6) continue; lab.push(ds);
+    if (s.days[ds] != null) { val.push(s.days[ds]); ph.push(null); phc.push("transparent"); continue; }
+    const nb = SK_.filter(r => r.date === ds && r.reason === "Nenabralo").length, ns = SK_.filter(r => r.date === ds && r.reason !== "Nenabralo").length;
+    val.push(null); ph.push(stub); phc.push(nb && !ns ? "rgba(245,185,74,.75)" : ns ? "rgba(255,143,163,.6)" : "rgba(150,160,190,.38)");
+    tip[ds] = nb && !ns ? "⏳ nenabralo" : ns ? "🚫 nevzatý obchod / den bez obchodu" : "bez obchodu"; }
+  dayc = new Chart($("c-day"), {type: "bar", data: {labels: lab, datasets: [
+      {data: val, borderRadius: 6, grouped: false, hoverBackgroundColor: "#8B7CFF", backgroundColor: val.map(v => v == null ? "transparent" : v === 0 ? "#38BDF8" : v > 0 ? "#2EE6A6" : "#FF6B8A")},
+      {data: ph, borderRadius: 3, grouped: false, backgroundColor: phc, hoverBackgroundColor: phc}]},
+    options: {maintainAspectRatio: false, plugins: {legend: {display: false}, tooltip: {filter: x => x.raw != null, callbacks: {label: x => x.datasetIndex === 1 ? tip[lab[x.dataIndex]] : usd(x.parsed.y)}}},
+      scales: {x: {ticks: {maxTicksLimit: 8}, grid: {display: false}}, y: {ticks: {callback: v => nf(v) + " $"}}}}});
 }
 const mv = n => { calD = new Date(calD.getFullYear(), calD.getMonth() + n, 1); render(); };
 
@@ -1425,7 +1437,7 @@ const nowT = () => localNow().slice(11, 16);
 function dlg(t, toOut) {
   const f = $("f"), fe = f.elements; f.reset(); fe.id.value = t && t.id != null ? t.id : "";   // v131: reset() skryté id nemaže
   shots = t ? [...(t.shots || (t.shot ? [t.shot] : []))] : []; slotsD = t && t.slots ? {...t.slots} : {}; curSlot = null;
-  touched = t ? {stop: 1, target: 1, target2: 1} : {}; delete fe.tfm.dataset.auto; if ($("tfst")) $("tfst").textContent = ""; dist = t ? (Math.abs(t.entry - t.stop) || null) : null; $("sd").value = lsGet("defStop35") || 35;
+  touched = t ? {stop: 1, target: 1, target2: 1} : {}; delete fe.tfm.dataset.auto; delete fe.tfm.dataset.man; if (t && t.tfm) fe.tfm.dataset.man = 1; if ($("tfst")) $("tfst").textContent = ""; dist = t ? (Math.abs(t.entry - t.stop) || null) : null; $("sd").value = lsGet("defStop35") || 35;
   $("dt").textContent = t ? "Upravit obchod" : "Nový backtest obchod";
   const o = t ? when(t) : (BT ? (LS.get("bt:lastd", "") + "T") : localNow()); fe.od.value = /^\d{4}-/.test(o) ? o.slice(0, 10) : ""; fe.ot.value = o.slice(11, 16); fillAcc(t ? t.acc : (lsGet("lastAcc") || "")); delete fe.cd.dataset.auto;
   fillStrat(t ? t.strat : "");
@@ -1459,9 +1471,9 @@ $("add").onclick = () => dlg(); $("cancel").onclick = () => $("dlg").close();
 $("f").onsubmit = async e => {
   e.preventDefault(); const f = e.target.elements, n = k => f[k].value === "" ? null : parseFloat(f[k].value), oc = f.outc.value, o = outcome();
   if (oc && !o) { alert("Doplň vstup, stop a take profity (u vlastního výstupu i cenu), ať jde spočítat výsledek."); return; }
-  const closed = oc ? (f.cd.value || f.od.value) + "T" + (f.ct.value || f.ot.value || "00:00") : null;
+  const closed = oc ? (f.cd.value || f.od.value) + "T" + (f.ct.value || plus10(f.ot.value)) : null;
   const t = {opened: f.od.value + "T" + (f.ot.value || "00:00"), closed, inst: f.inst.value.toUpperCase(), dir: f.dir.value, size: n("size") || 1, pv: n("pv"), otype: f.otype.value,
-    entry: n("entry"), stop: n("stop"), target: n("target"), target2: n("target2"), exit: o ? o.exit : null, outc: oc, n1: o && o.n1 != null ? o.n1 : null, trp: oc === "tp1trail" ? n("trp") : null, tfm: f.tfm.value,
+    entry: n("entry"), stop: n("stop"), target: n("target"), target2: n("target2"), exit: o ? o.exit : null, outc: oc, n1: o && o.n1 != null ? o.n1 : null, trp: oc === "tp1trail" ? n("trp") : null, tfm: tfNorm(f.tfm.value),
     strat: f.strat.value === "__new__" ? "" : f.strat.value, trend: f.trend.value, acc: f.acc.value.trim() || "Hlavní", notes: f.notes.value,
     emo: [...e.target.querySelectorAll("[name=emo]:checked")].map(c => c.value), plan: f.plan.value, rate: n("rate"),
     mis: [...e.target.querySelectorAll("[name=mis]:checked")].map(c => c.value), cond: [...e.target.querySelectorAll("[name=cond]:checked")].map(c => c.value), conf: confGet(), slots: slotsD, shots};
@@ -1473,11 +1485,11 @@ $("f").onsubmit = async e => {
 const TFORD = ["15s", "30s", "1m", "2m", "3m", "5m", "10m", "15m", "30m", "1h", "2h", "4h", "1D", "1W"];
 function tfParse(txt) {
   txt = String(txt || ""); const i = txt.search(/Futures|Nasdaq|MNQ|NQ1|E-?mini/i); if (i > 0) txt = txt.slice(i);
-  const m = txt.match(/(?:^|[\s\-·•.:~—–|=+*,])(\d{1,3}\s?[smhHDWM]?|[DWM])\s*[\-·•.:~—–|=+*,]+\s*(?:CME|CBOT|NYMEX|COMEX|ICE|EUREX|CBOE|NASDAQ|NYSE|[A-Z]{3,6})\b/);
+  const m = txt.match(/(?:^|[\s\-·•.:~—–|=+*,])(\d{1,3}\s?[smhSHDWM]?|[DWM])\s*[\-·•.:~—–|=+*,]+\s*(?:CME|CBOT|NYMEX|COMEX|ICE|EUREX|CBOE|NASDAQ|NYSE|[A-Z]{3,6})\b/);
   if (!m) return null; let v = m[1].replace(/\s/g, "");
   if (/^\d+$/.test(v)) { const n = +v; if (!n) return null; v = n >= 60 && n % 60 === 0 ? n / 60 + "h" : n + "m"; }
   else if (/^\d+[hH]$/.test(v)) v = v.toLowerCase(); else if (/^[DWM]$/.test(v)) v = "1" + v; else if (/^\d+[DW]$/.test(v)) v = v.toUpperCase();
-  return v;
+  return tfNorm(v);
 }
 async function tfRead(blob) {
   const img = await createImageBitmap(blob), cw = Math.floor(img.width * 0.6), ch = Math.max(40, Math.floor(img.height * 0.1)), sc = 3;
@@ -1491,11 +1503,14 @@ async function tfRead(blob) {
   const words = await ocrRun(big, 6, "");
   return tfParse(words.map(w => w.text).join(" "));
 }
-function tfSet(sel, v) { if (![...sel.options].some(o => o.value === v)) { const o = document.createElement("option"); o.value = v; o.textContent = v; sel.appendChild(o); } sel.value = v; }
+function tfSet(sel, v) { sel.value = v; }
+function tfNorm(v) { v = String(v || "").trim().toLowerCase().replace(/\s+/g, ""); if (!v) return ""; let m = /^(\d+)(s|sec|sek|sekund[ay]?|sekunda)$/.exec(v); if (m) return +m[1] + "s";
+  m = /^(\d+)(m|min|minut[ay]?|minuta)?$/.exec(v); if (m) return +m[1] >= 60 && +m[1] % 60 === 0 ? +m[1] / 60 + "h" : +m[1] + "m"; m = /^(\d+)(h|hod|hodin[ay]?|hodina)$/.exec(v); if (m) return +m[1] + "h";
+  m = /^(\d*)(d|den|dny|dní)$/.exec(v); if (m) return (m[1] || "1") + "D"; m = /^(\d*)(w|t|týden)$/.exec(v); if (m) return (m[1] || "1") + "W"; return v; }
 async function tfAuto(blob) {
-  const s = $("f").elements.tfm, st = $("tfst"); if (!s || !blob || BT || (s.value && !s.dataset.auto)) return;
+  const s = $("f").elements.tfm, st = $("tfst"); if (!s || !blob || BT || s.dataset.man) return;
   if (st) st.textContent = "⏳ čtu z fotky…";
-  try { await ocrWorker(); const v = await tfRead(blob); if (s.value && !s.dataset.auto) return;
+  try { await ocrWorker(); const v = await tfRead(blob); if (s.dataset.man) return;
     if (v) { tfSet(s, v); s.dataset.auto = 1; if (st) st.textContent = "✓ přečteno z fotky"; } else if (st) st.textContent = "z fotky jsem ho nepřečetl, vyber ho";
   } catch (e) { if (st) st.textContent = ""; }
 }
@@ -1540,7 +1555,7 @@ function ocrRowBin(img, y0f) {
 }
 async function ocrTimeFit(img) {
   const {big, sc} = ocrRowBin(img, 0.8), words = await ocrRun(big, 11, "0123456789:"), P = [];
-  words.forEach(w => { const m = /^(\d{1,2}):(\d{2})$/.exec(w.text); if (m && +m[1] < 24 && +m[2] < 60) P.push({x: (w.x + w.w / 2) / sc, v: +m[1] * 60 + +m[2]}); });
+  words.forEach(w => { const m = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(w.text); if (m && +m[1] < 24 && +m[2] < 60 && +(m[3] || 0) < 60) P.push({x: (w.x + w.w / 2) / sc, v: +m[1] * 60 + +m[2] + (+(m[3] || 0)) / 60}); });
   let best = null;
   for (let i = 0; i < P.length; i++) for (let j = i + 1; j < P.length; j++) { const p = P[i], q = P[j]; if (Math.abs(p.x - q.x) < 20 || p.v === q.v) continue;
     const a = (q.v - p.v) / (q.x - p.x); if (a <= 0) continue; const b = p.v - a * p.x, inl = P.filter(r => Math.abs(a * r.x + b - r.v) <= Math.max(1, a * 8)); if (!best || inl.length > best.length) best = inl; }
@@ -1804,7 +1819,7 @@ $("ocr").onclick = async () => {
     entryAuto = false; $("entrynote").textContent = "Ceny jsou vyčtené ze screenshotu" + (dirCh ? " a směr jsem podle stopu přepnul na " + (res.dir === "short" ? "Short" : "Long") : "") + ". Zkontroluj je!"; rr();
     info.textContent = "Hotovo. Vstup, stop a cíle jsou vyplněné. Čtu ze svíček čas vstupu a výsledek…";
     try {
-      if (!fe.tfm.value || fe.tfm.dataset.auto) { const blob = cand[0]; const v = await tfRead(blob).catch(() => null); if (v) { tfSet(fe.tfm, v); fe.tfm.dataset.auto = 1; if ($("tfst")) $("tfst").textContent = "✓ přečteno z fotky"; } }
+      if (!fe.tfm.dataset.man) { const blob = cand[0]; const v = await tfRead(blob).catch(() => null); if (v) { tfSet(fe.tfm, v); fe.tfm.dataset.auto = 1; if ($("tfst")) $("tfst").textContent = "✓ přečteno z fotky"; } }
       const tm = await ocrTimes(got.img, got.fit, res, got.lv.src && got.lv.src.startsWith("box") ? got.lv.box : null, got.lv.beY, fe.tfm.value);
       const OL = {sl: "Stop loss", be: "Break even", tp1: "TP1", tp1be: "TP1 a pak zpět na vstup (BE)", tp1tp2: "TP1 + TP2"}, EV = {be: "BE úroveň", tp1: "TP1", tp2: "TP2", sl: "SL", back: "zpět na vstupu"};
       if (!tm) info.textContent = "Ceny jsou vyplněné. Časovou osu dole na fotce jsem nepřečetl, čas vstupu a výsledek doplň ručně.";
@@ -1893,14 +1908,14 @@ function auto(src) {
 { const fe = $("f").elements;
   fe.entry.addEventListener("input", () => auto("entry")); fe.dir.addEventListener("change", () => auto("dir")); fe.stop.addEventListener("input", () => auto("stop"));
   fe.target.addEventListener("input", () => auto("target")); fe.target2.addEventListener("input", () => auto("target2"));
-  fe.tfm.addEventListener("change", () => { delete fe.tfm.dataset.auto; if ($("tfst")) $("tfst").textContent = ""; });
+  fe.tfm.addEventListener("input", () => { fe.tfm.dataset.man = 1; delete fe.tfm.dataset.auto; if ($("tfst")) $("tfst").textContent = ""; });
   fe.size.addEventListener("input", rr); fe.inst.addEventListener("input", rr); fe.n1.addEventListener("input", outUI); fe.trp.addEventListener("input", outUI); fe.exit.addEventListener("input", outUI);
-  fe.outc.addEventListener("change", () => { if (fe.outc.value && !fe.cd.value) { fe.cd.value = fe.od.value; fe.cd.dataset.auto = 1; } outUI(); });
-  fe.ot.addEventListener("input", () => { if (fe.cd.dataset.auto) fe.cd.value = fe.od.value; });
+  fe.outc.addEventListener("change", () => { if (fe.outc.value && !fe.cd.value) { fe.cd.value = fe.od.value; fe.ct.value = plus10(fe.ot.value); fe.cd.dataset.auto = 1; } outUI(); });
+  fe.ot.addEventListener("input", () => { if (fe.cd.dataset.auto) { fe.cd.value = fe.od.value; fe.ct.value = plus10(fe.ot.value); } });
   fe.od.addEventListener("input", () => { if (fe.cd.dataset.auto) fe.cd.value = fe.od.value; });
   ["cd", "ct"].forEach(k => fe[k].addEventListener("input", () => { delete fe.cd.dataset.auto; }));
-  fe.ct.addEventListener("focus", () => { if (!fe.cd.value && fe.od.value) fe.cd.value = fe.od.value; });
-  fe.cd.addEventListener("focus", () => { if (!fe.cd.value && fe.od.value) fe.cd.value = fe.od.value; });
+  fe.ct.addEventListener("focus", () => { if (!fe.ct.value && fe.ot.value) { fe.ct.value = plus10(fe.ot.value); if (!fe.cd.value) fe.cd.value = fe.od.value; } });
+  fe.cd.addEventListener("focus", () => { if (!fe.cd.value && fe.od.value) { fe.cd.value = fe.od.value; if (!fe.ct.value) fe.ct.value = plus10(fe.ot.value); } });
   $("sd").addEventListener("input", () => { try { localStorage.setItem("defStop35", JSON.stringify($("sd").value)); } catch (e) {} auto("sd"); }); }
 let HIST = [], radar = null, yearc = null;
 fetch("history.json", {cache: "no-store"}).then(r => r.ok ? r.json() : []).then(h => { HIST = Array.isArray(h) ? h : []; }).catch(() => {});
