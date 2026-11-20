@@ -1,4 +1,4 @@
-Datum a čas aktualizace: 18. 11. 2026 20:40 (pražský čas). Obchoduje se MNQ (Micro Nasdaq futures), 1 bod = 2 $. Seance v New Yorku 9:30–16:00 = u nás obvykle 15:30–22:00.
+Datum a čas aktualizace: 20. 11. 2026 17:38 (pražský čas). Obchoduje se MNQ (Micro Nasdaq futures), 1 bod = 2 $. Seance v New Yorku 9:30–16:00 = u nás obvykle 15:30–22:00.
 
 STRÁNKY WEBU:
 - Ráno: přehled: Přehled (Ranní souhrn trhu v kostce)
@@ -11,39 +11,36 @@ STRÁNKY WEBU:
 - Knihy: Knihy o tradingu (Hlavní myšlenky slavných knih o tradingu a psychologii)
 - Pomoc a nastavení: Příručka (Mapa aplikace: co kdy otevřít a kde co najdeš); AI asistent (Zeptej se na cokoliv o webu, dnešních datech i tradingu); Roadmap (Tvoje cesta k disciplinovanému obchodování); Nastavení (Účet, riziko a výchozí hodnoty)
 
-DNEŠNÍ BIAS: Neutrální, skóre +0.8 z 10 (−10 až +10). Bias se ukládá do 15:00 a pak se už nemění.
-- složka Futures: +0.4 (váha 4.35) – Futures na Nasdaq a S&P 500 jsou v průměru +0,16 %.
-- složka Šířka akcií: -0.4 (váha 2.38) – 9 z 23 největších akcií je v plusu.
-- složka Strach (VIX): +0.9 (váha 1.5) – VIX se změnil o −4,44 %. Růst strachu bývá pro akcie špatný.
-- složka Dolar: -1.2 (váha 0.5) – Dolarový index se změnil o +0,35 %. Silný dolar akciím spíš škodí.
-- složka Výnosy dluhopisů: +0.4 (váha 1.0) – Výnos 10letých dluhopisů se změnil o −0,76 %. Růst výnosů tlačí akcie dolů.
-- složka Trend futures: -0.4 (váha 1.4) – Cena je o +0,18 % pod průměrem posledního dne.
-- složka Zprávy: -0.2 (váha 1.06) – Nálada v titulcích zpráv za 24 hodin: skóre −0.5 z 5.
+DNEŠNÍ BIAS: Bearish, skóre -5.2 z 10 (−10 až +10). Bias se ukládá do 15:00 a pak se už nemění.
+- složka Futures: -2.0 (váha 4.35) – Futures na Nasdaq a S&P 500 jsou v průměru −2,25 %.
+- složka Šířka akcií: -0.8 (váha 2.38) – 7 z 23 největších akcií je v plusu.
+- složka Dolar: +0.5 (váha 0.5) – Dolarový index se změnil o −0,14 %. Silný dolar akciím spíš škodí.
+- složka Výnosy dluhopisů: +1.0 (váha 1.0) – Výnos 10letých dluhopisů se změnil o −1,98 %. Růst výnosů tlačí akcie dolů.
+- složka Trend futures: -2.0 (váha 1.4) – Cena je o +2,26 % pod průměrem posledního dne.
+- složka Zprávy: -0.4 (váha 1.06) – Nálada v titulcích zpráv za 24 hodin: skóre −1.0 z 5.
 - složka Sezónnost: +2.0 (váha 0.47) – V tomto měsíci Nasdaq 100 historicky průměrně +3,38 %.
 Přesnost biasu: 10 z 19 dní (53 %).
 Posledních 5 dní (bias → skutečný pohyb Nasdaqu): 2026-11-09 Bullish → +3.40 %; 2026-11-10 Neutrální → -0.60 %; 2026-11-11 Bullish → +2.28 %; 2026-11-12 Mírně bearish → -0.30 %; 2026-11-13 Neutrální → -1.22 %
 
-SENTIMENT ZPRÁV (24 h): skóre -0.5 z 5, neutral.
-- Washington is scrambling to get to the bottom of the growing number of tech outages across America (MarketWatch)
-- Fed minutes show growing unease about the outlook for inflation (MarketWatch)
-- How high is UK inflation and how will you be affected? (BBC Business)
-- Colombia Touts $43 Billion Investment Haul Amid Fiscal Strain (Bloomberg Markets)
-- I’m in my 40s. Should I accept a lower pension in exchange for naming my husband or child as a beneficiary? (MarketWatch)
-- Hourly workers are living with 7.86% inflation. No wonder they voted against the AI boom. (Téma: inflace)
+SENTIMENT ZPRÁV (24 h): skóre -1.0 z 5, bearish.
+- Stock Market Dives To New Lows Despite Nvidia Earnings, Anthropic IPO: Weekly Review (Investor's Business Daily)
+- Jensen Huang wasn't mentioned in latest talks with China, Bessent says (CNBC)
+- Why is Broadcom stock sliding today? (Investing.com)
+- Bitcoin falls below $60,000 level (Investing.com)
+- UnitedHealth sues US government over lowered Medicare Advantage star ratings (Investing.com)
+- Exclusive-ABB considers robotics listing if sale to SoftBank fails, sources say (Investing.com)
 
 KALENDÁŘ ZPRÁV Z USA (nejbližší):
-- Wed 18. 11. 20:00: FOMC Meeting Minutes (dopad vysoký, očekávání –, minule –)
-- Thu 19. 11. 14:30: Philly Fed Manufacturing Index (dopad střední, očekávání 20.6, minule 20.9)
-- Thu 19. 11. 14:30: Unemployment Claims (dopad střední, očekávání 198K, minule 200K)
 - Fri 20. 11. 16:00: Revised UoM Consumer Sentiment (dopad střední, očekávání 51.7, minule 51.0)
 - Fri 20. 11. 16:00: Revised UoM Inflation Expectations (dopad střední, očekávání –, minule 4.3%)
+- Fri 20. 11. 18:00: President Trump Speaks (dopad střední, očekávání –, minule –)
 
 STATISTIKY TRHU pro dnešek: 0 výrazných situací spíš nahoru, 0 spíš dolů (po zkoušce naživo).
-Archiv Nasdaqu: 1268 dní, Nasdaq rostl v 54 % dní.
-Běžný denní rozsah (medián 250 dní): 355 bodů, klidný den 250, divoký 479. Posledních 20 dní průměr 544 bodů.
-Nejživější hodiny (pražský čas): 15:00 (169 b.), 16:00 (166 b.), 17:00 (126 b.)
-Seance prorazí noční maximum v 54 % dní, noční minimum v 48 % (61 dní).
-Souvislosti trhů: za 20 dní Nasdaq -8.76 %, S&P 500 -5.11 %.
+Archiv Nasdaqu: 1270 dní, Nasdaq rostl v 54 % dní.
+Běžný denní rozsah (medián 250 dní): 355 bodů, klidný den 250, divoký 479. Posledních 20 dní průměr 582 bodů.
+Nejživější hodiny (pražský čas): 15:00 (169 b.), 16:00 (167 b.), 17:00 (127 b.)
+Seance prorazí noční maximum v 54 % dní, noční minimum v 49 % (63 dní).
+Souvislosti trhů: za 20 dní Nasdaq -8.72 %, S&P 500 -6.58 %.
 
 JAK FUNGUJE ROBOT: strategie uživatele (ICT MNQ v40, modely 5m CISD, continuation, zóna+iFVG) běží v TradingView a posílá obchody přes webhook do Cloudflare. Stránka Robot ukazuje obchody, výsledky a co se robot naučil: hledá situace, ve kterých prodělává, a vynechává je. Učí se i z biasu, sentimentu, fundamentu, kalendáře, statistik, mentora a stavu trhu.
 PLÁN OD MENTORA: uživatel nahrává fotku nebo screenshot od mentora a opisuje zóny (cena od–do, odraz nahoru/dolů). Zóny se vyhodnotí jako fungovala / nefungovala / nedotkla se.
