@@ -1,4 +1,4 @@
-Datum a čas aktualizace: 22. 11. 2026 18:45 (pražský čas). Obchoduje se MNQ (Micro Nasdaq futures), 1 bod = 2 $. Seance v New Yorku 9:30–16:00 = u nás obvykle 15:30–22:00.
+Datum a čas aktualizace: 23. 11. 2026 22:15 (pražský čas). Obchoduje se MNQ (Micro Nasdaq futures), 1 bod = 2 $. Seance v New Yorku 9:30–16:00 = u nás obvykle 15:30–22:00.
 
 STRÁNKY WEBU:
 - Ráno: přehled: Přehled (Ranní souhrn trhu v kostce)
@@ -11,41 +11,38 @@ STRÁNKY WEBU:
 - Knihy: Knihy o tradingu (Hlavní myšlenky slavných knih o tradingu a psychologii)
 - Pomoc a nastavení: Příručka (Mapa aplikace: co kdy otevřít a kde co najdeš); AI asistent (Zeptej se na cokoliv o webu, dnešních datech i tradingu); Roadmap (Tvoje cesta k disciplinovanému obchodování); Nastavení (Účet, riziko a výchozí hodnoty)
 
-DNEŠNÍ BIAS: Bearish, skóre -5.5 z 10 (−10 až +10). Bias se ukládá do 15:00 a pak se už nemění.
-- složka Futures: -2.0 (váha 4.35) – Futures na Nasdaq a S&P 500 jsou v průměru −4,59 %.
-- složka Šířka akcií: -1.5 (váha 2.38) – 3 z 23 největších akcií je v plusu.
-- složka Strach (VIX): -2.0 (váha 1.5) – VIX se změnil o +26,20 %. Růst strachu bývá pro akcie špatný.
-- složka Dolar: +0.3 (váha 0.5) – Dolarový index se změnil o −0,09 %. Silný dolar akciím spíš škodí.
-- složka Výnosy dluhopisů: +1.4 (váha 1.0) – Výnos 10letých dluhopisů se změnil o −2,77 %. Růst výnosů tlačí akcie dolů.
-- složka Trend futures: -2.0 (váha 1.4) – Cena je o +3,74 % pod průměrem posledního dne.
-- složka Zprávy: -0.4 (váha 1.06) – Nálada v titulcích zpráv za 24 hodin: skóre −0.9 z 5.
+DNEŠNÍ BIAS: Bullish, skóre +7.2 z 10 (−10 až +10). Bias se ukládá do 15:00 a pak se už nemění.
+- složka Futures: +2.0 (váha 4.35) – Futures na Nasdaq a S&P 500 jsou v průměru +5,68 %.
+- složka Šířka akcií: +1.7 (váha 2.38) – 21 z 23 největších akcií je v plusu.
+- složka Strach (VIX): +2.0 (váha 1.5) – VIX se změnil o −24,63 %. Růst strachu bývá pro akcie špatný.
+- složka Dolar: -1.6 (váha 0.5) – Dolarový index se změnil o +0,48 %. Silný dolar akciím spíš škodí.
+- složka Výnosy dluhopisů: -0.1 (váha 1.0) – Výnos 10letých dluhopisů se změnil o +0,12 %. Růst výnosů tlačí akcie dolů.
+- složka Trend futures: +2.0 (váha 1.4) – Cena je o +2,35 % nad průměrem posledního dne.
+- složka Zprávy: +0.2 (váha 1.06) – Nálada v titulcích zpráv za 24 hodin: skóre +0.4 z 5.
 - složka Sezónnost: +2.0 (váha 0.47) – V tomto měsíci Nasdaq 100 historicky průměrně +3,38 %.
 - složka Statistika: +1.0 (váha 1.0) – Statistiky trhu pro dnešek: 1 výrazných situací spíš nahoru, 0 spíš dolů.
 Přesnost biasu: 10 z 19 dní (53 %).
 Posledních 5 dní (bias → skutečný pohyb Nasdaqu): 2026-11-09 Bullish → +3.40 %; 2026-11-10 Neutrální → -0.60 %; 2026-11-11 Bullish → +2.28 %; 2026-11-12 Mírně bearish → -0.30 %; 2026-11-13 Neutrální → -1.22 %
 
-SENTIMENT ZPRÁV (24 h): skóre -0.9 z 5, bearish.
-- Donald Trump China Putin Jinping (Donald Trump (zprávy o něm))
-- Treasury Department still waiting for answers from Nvidia (Téma: AI akcie)
-- Nasdaq 100 Forecast: NDX falls ahead of Nvidia’s earnings & Anthropic’s debut this week (Téma: Nasdaq)
-- Nvidia Stock Has A Cockroach Problem. What Comes Next Could Be Worse (Téma: AI akcie)
-- Trump Backs 10% Credit Card Rate Cap With Democrats (Téma: Fed)
-- I’ve studied over 200 kids—to avoid raising a people pleaser, ditch 6 parenting habits: It starts in ‘ordinary, well-intentioned moments’ (CNBC)
+SENTIMENT ZPRÁV (24 h): skóre +0.4 z 5, neutral.
+- PennantPark NII per share of $0.25 (Seeking Alpha)
+- ICZOOM Group receives additional Nasdaq notification letter regarding delinquent annual report on Form 20-F (Seeking Alpha)
+- U.S. Markets Closed Up Monday; NVIDIA Climbed Highest (Barron's)
+- Agilent Technologies Non-GAAP EPS of $1.86 beats by $0.13, revenue of $2.04B beats by $50M (Seeking Alpha)
+- Stocks soared, but the VIX is still at crisis level, says SA Analyst (Seeking Alpha)
+- Fluence Energy GAAP EPS of -$1.51 misses by $0.16, revenue of $2.3B misses by $100M (Seeking Alpha)
 
 KALENDÁŘ ZPRÁV Z USA (nejbližší):
-- Mon 23. 11. 15:45: Flash Manufacturing PMI (dopad střední, očekávání 54.5, minule 56.0)
-- Mon 23. 11. 15:45: Flash Services PMI (dopad střední, očekávání 55.6, minule 57.9)
-- Tue 24. 11. 16:00: CB Consumer Confidence (dopad střední, očekávání 92.1, minule 91.7)
+- Tue 24. 11. 16:00: CB Consumer Confidence (dopad střední, očekávání 92.4, minule 91.7)
 - Wed 25. 11. 14:30: Core PCE Price Index m/m (dopad vysoký, očekávání 0.3%, minule 0.3%)
 - Wed 25. 11. 14:30: Prelim GDP q/q (dopad vysoký, očekávání 3.5%, minule 3.4%)
 - Wed 25. 11. 14:30: Prelim GDP Price Index q/q (dopad střední, očekávání 2.3%, minule 2.3%)
-- Wed 25. 11. 14:30: Unemployment Claims (dopad střední, očekávání 201K, minule 203K)
 
 STATISTIKY TRHU pro dnešek: 1 výrazných situací spíš nahoru, 0 spíš dolů (po zkoušce naživo).
-Archiv Nasdaqu: 1271 dní, Nasdaq rostl v 54 % dní.
-Běžný denní rozsah (medián 250 dní): 355 bodů, klidný den 250, divoký 479. Posledních 20 dní průměr 641 bodů.
+Archiv Nasdaqu: 1272 dní, Nasdaq rostl v 54 % dní.
+Běžný denní rozsah (medián 250 dní): 355 bodů, klidný den 250, divoký 482. Posledních 20 dní průměr 653 bodů.
 Nejživější hodiny (pražský čas): 15:00 (170 b.), 16:00 (168 b.), 17:00 (127 b.)
-Seance prorazí noční maximum v 53 % dní, noční minimum v 50 % (64 dní).
+Seance prorazí noční maximum v 54 % dní, noční minimum v 49 % (65 dní).
 Souvislosti trhů: za 20 dní Nasdaq -13.71 %, S&P 500 -9.46 %.
 
 JAK FUNGUJE ROBOT: strategie uživatele (ICT MNQ v40, modely 5m CISD, continuation, zóna+iFVG) běží v TradingView a posílá obchody přes webhook do Cloudflare. Stránka Robot ukazuje obchody, výsledky a co se robot naučil: hledá situace, ve kterých prodělává, a vynechává je. Učí se i z biasu, sentimentu, fundamentu, kalendáře, statistik, mentora a stavu trhu.
