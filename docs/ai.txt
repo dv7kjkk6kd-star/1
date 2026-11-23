@@ -1,4 +1,4 @@
-Datum a čas aktualizace: 23. 11. 2026 22:15 (pražský čas). Obchoduje se MNQ (Micro Nasdaq futures), 1 bod = 2 $. Seance v New Yorku 9:30–16:00 = u nás obvykle 15:30–22:00.
+Datum a čas aktualizace: 23. 11. 2026 22:33 (pražský čas). Obchoduje se MNQ (Micro Nasdaq futures), 1 bod = 2 $. Seance v New Yorku 9:30–16:00 = u nás obvykle 15:30–22:00.
 
 STRÁNKY WEBU:
 - Ráno: přehled: Přehled (Ranní souhrn trhu v kostce)
@@ -12,25 +12,25 @@ STRÁNKY WEBU:
 - Pomoc a nastavení: Příručka (Mapa aplikace: co kdy otevřít a kde co najdeš); AI asistent (Zeptej se na cokoliv o webu, dnešních datech i tradingu); Roadmap (Tvoje cesta k disciplinovanému obchodování); Nastavení (Účet, riziko a výchozí hodnoty)
 
 DNEŠNÍ BIAS: Bullish, skóre +7.2 z 10 (−10 až +10). Bias se ukládá do 15:00 a pak se už nemění.
-- složka Futures: +2.0 (váha 4.35) – Futures na Nasdaq a S&P 500 jsou v průměru +5,68 %.
+- složka Futures: +2.0 (váha 4.35) – Futures na Nasdaq a S&P 500 jsou v průměru +4,70 %.
 - složka Šířka akcií: +1.7 (váha 2.38) – 21 z 23 největších akcií je v plusu.
-- složka Strach (VIX): +2.0 (váha 1.5) – VIX se změnil o −24,63 %. Růst strachu bývá pro akcie špatný.
-- složka Dolar: -1.6 (váha 0.5) – Dolarový index se změnil o +0,48 %. Silný dolar akciím spíš škodí.
+- složka Strach (VIX): +2.0 (váha 1.5) – VIX se změnil o −25,83 %. Růst strachu bývá pro akcie špatný.
+- složka Dolar: -1.6 (váha 0.5) – Dolarový index se změnil o +0,49 %. Silný dolar akciím spíš škodí.
 - složka Výnosy dluhopisů: -0.1 (váha 1.0) – Výnos 10letých dluhopisů se změnil o +0,12 %. Růst výnosů tlačí akcie dolů.
-- složka Trend futures: +2.0 (váha 1.4) – Cena je o +2,35 % nad průměrem posledního dne.
-- složka Zprávy: +0.2 (váha 1.06) – Nálada v titulcích zpráv za 24 hodin: skóre +0.4 z 5.
+- složka Trend futures: +2.0 (váha 1.4) – Cena je o +2,29 % nad průměrem posledního dne.
+- složka Zprávy: +0.2 (váha 1.06) – Nálada v titulcích zpráv za 24 hodin: skóre +0.5 z 5.
 - složka Sezónnost: +2.0 (váha 0.47) – V tomto měsíci Nasdaq 100 historicky průměrně +3,38 %.
 - složka Statistika: +1.0 (váha 1.0) – Statistiky trhu pro dnešek: 1 výrazných situací spíš nahoru, 0 spíš dolů.
 Přesnost biasu: 10 z 19 dní (53 %).
 Posledních 5 dní (bias → skutečný pohyb Nasdaqu): 2026-11-09 Bullish → +3.40 %; 2026-11-10 Neutrální → -0.60 %; 2026-11-11 Bullish → +2.28 %; 2026-11-12 Mírně bearish → -0.30 %; 2026-11-13 Neutrální → -1.22 %
 
-SENTIMENT ZPRÁV (24 h): skóre +0.4 z 5, neutral.
-- PennantPark NII per share of $0.25 (Seeking Alpha)
-- ICZOOM Group receives additional Nasdaq notification letter regarding delinquent annual report on Form 20-F (Seeking Alpha)
-- U.S. Markets Closed Up Monday; NVIDIA Climbed Highest (Barron's)
-- Agilent Technologies Non-GAAP EPS of $1.86 beats by $0.13, revenue of $2.04B beats by $50M (Seeking Alpha)
-- Stocks soared, but the VIX is still at crisis level, says SA Analyst (Seeking Alpha)
-- Fluence Energy GAAP EPS of -$1.51 misses by $0.16, revenue of $2.3B misses by $100M (Seeking Alpha)
+SENTIMENT ZPRÁV (24 h): skóre +0.5 z 5, neutral.
+- Danaos Non-GAAP EPS of $8.32, revenue of $284.29M beats by $10.25M (Seeking Alpha)
+- Global X Equal Weight Canadian Bank Covered Call ETF declares CAD 0.145 dividend (Seeking Alpha)
+- In Harlem, The Trade War Reaches The Dance Floor (Téma: cla)
+- Global X Enhanced Equal Weight Banks Index ETF declares CAD 0.135 dividend (Seeking Alpha)
+- Global X High Interest Savings ETF declares CAD 0.101 dividend (Seeking Alpha)
+- PennantPark Investment stock sinks after fiscal Q4 earnings miss (Seeking Alpha)
 
 KALENDÁŘ ZPRÁV Z USA (nejbližší):
 - Tue 24. 11. 16:00: CB Consumer Confidence (dopad střední, očekávání 92.4, minule 91.7)
