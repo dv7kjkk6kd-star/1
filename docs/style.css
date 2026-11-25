@@ -322,3 +322,12 @@ html[data-theme=light] .scope,html[data-theme=light] .dvx{background:linear-grad
 html[data-theme=light] .seg,html[data-theme=light] .sc-nav b,html[data-theme=light] .dvc,html[data-theme=light] .dv-card,html[data-theme=light] .dv-ctl input{background:rgba(255,255,255,.75)}
 html[data-theme=light] .seg button{color:#3B4668}html[data-theme=light] .seg button.on{color:#fff}
 @media(max-width:700px){.sc-lab{min-width:0;width:100%}.sc-nav b{min-width:150px}.dv-ctl input{width:150px}}
+
+/* ===== v140: všechna políčka v řádku na stejné výšce ===== */
+label > input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=range]):not([type=color]),label > select{display:block;height:2.9em;box-sizing:border-box}
+.grid:has(> label > input:not([type=checkbox]):not([type=radio])),.grid:has(> label > select),.grid:has(> label > textarea){align-items:end}
+.row:has(> label > input:not([type=checkbox]):not([type=radio])),.row:has(> label > select){align-items:flex-end}
+dialog:not(.lb) label .selb{min-height:56px}
+@media(max-width:1100px){.tabs,.pills{flex-wrap:wrap!important;max-width:100%}}
+div.mg{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}div.mg>*{min-width:0}div.mg .mtab{overflow-x:auto}
+@media(max-width:1250px){div.mg{grid-template-columns:minmax(0,1fr)}}
